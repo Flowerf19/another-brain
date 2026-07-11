@@ -32,7 +32,7 @@ decisions.
   and `agent_id` as provenance and permission context.
 - **Timeline memory**: store dated memory entries, not generic key-value notes.
   A memory chunk represents a semantic topic over a time window.
-- **Redis-native recall**: Redis Stack stores memory HASH documents, packed
+- **Redis-native recall**: Redis 8 (bundled Query Engine) stores memory HASH documents, packed
   FLOAT32 embeddings, RediSearch text/vector indexes, and per-memory TTL. Vector
   KNN and BM25 both run through Redis `FT.SEARCH`.
 - **Multilingual canonical memory**: preserve the memory's natural language by
@@ -51,7 +51,7 @@ flowchart TD
     Adapter --> Service[Another Brain service]
     Service --> MemoryModel[Lightweight memory model]
     Service --> Embeddings[Embedding provider]
-    Service --> Redis[(Redis Stack)]
+    Service --> Redis[(Redis 8)]
 
     MemoryModel --> Normalize[Multilingual normalization and topic chunks]
     Embeddings --> Packed[Packed FLOAT32 embedding]
@@ -61,7 +61,7 @@ flowchart TD
     Index --> Recall[Vector KNN + BM25 timeline recall]
 ```
 
-The MVP storage backend is expected to be Redis Stack. It is not just metadata
+The MVP storage backend is Redis 8 (Open Source, bundled Query Engine; 8.4+ required for native hybrid search via FT.HYBRID). It is not just metadata
 storage: it owns the memory HASH records, packed vector field, retention TTL,
 and RediSearch index used for both semantic KNN and BM25 lexical search.
 
@@ -84,7 +84,7 @@ Another Brain stores timeline records with fields such as:
 - packed FLOAT32 `embedding`
 - `memory_model`, `embedding_model`, and `embedding_dim`
 
-Redis Stack should store these records as HASH documents. The embedding belongs
+Redis stores these records as HASH documents. The embedding belongs
 on the same HASH as packed FLOAT32 bytes, while RediSearch indexes text, tag,
 numeric time fields, and the vector field together. That is what keeps timeline
 storage, retention, semantic search, and BM25 search aligned.

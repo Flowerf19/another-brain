@@ -32,7 +32,7 @@ When implementation starts, test coverage should follow the architecture risk:
   TTL/retention, and migration/reindex failure modes.
 - **MCP tests** for tool schemas, required/optional parameters, server-filled
   `brain_id`/`agent_id`, and secret-free health output.
-- **Integration tests** with Redis Stack for index and query behavior that mocks
+- **Integration tests** with Redis (Query Engine) for index and query behavior that mocks
   cannot prove.
 - **Packaging tests** for Docker Compose startup and npm launcher/proxy behavior
   once those files exist.

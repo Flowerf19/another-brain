@@ -1,4 +1,4 @@
-"""RedisMemoryRepository and RedisMemoryMapper — Redis Stack implementation
+"""RedisMemoryRepository and RedisMemoryMapper — Redis implementation
 of the memory store (Step 04 sections 1.7, 2, 4.2, 6).
 
 Query shapes, TAG escaping, and RESP2/RESP3 reply parsing inherit march7
@@ -176,7 +176,7 @@ class RedisMemoryMapper:
 
 
 class RedisMemoryRepository:
-    """Async Redis Stack repository: HASH read/write, TTL, soft delete /
+    """Async Redis repository: HASH read/write, TTL, soft delete /
     restore / hard delete, reinforce re-arm, and the Step 04 §6 queries."""
 
     def __init__(

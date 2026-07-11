@@ -38,7 +38,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "redis", specifier = ">=5.0" },
+    { name = "redis", specifier = ">=7.1" },
     { name = "sentence-transformers", marker = "extra == 'local'", specifier = ">=5.0" },
     { name = "torch", marker = "extra == 'local'", specifier = ">=2.9", index = "https://download.pytorch.org/whl/cpu" },
 ]

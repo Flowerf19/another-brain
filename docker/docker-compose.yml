@@ -1,14 +1,14 @@
-# Redis Stack for another-brain local dev / integration tests.
+# Redis 8.8 (Open Source, bundled Query Engine) for another-brain local dev /
+# integration tests. 8.4+ is required for native hybrid search (FT.HYBRID).
 # Start with: docker compose -f docker/docker-compose.yml up -d
 
 services:
   redis:
-    image: redis/redis-stack-server:7.4.0-v8
+    image: redis:8.8
     restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "${REDIS_PORT:-6379}:6379"
-    environment:
-      REDIS_ARGS: "--appendonly yes"
     volumes:
       - another-brain-redis-data:/data
     healthcheck:

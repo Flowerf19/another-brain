@@ -1,4 +1,4 @@
-"""Integration tests against a real Redis Stack (Step 04 sections 2-6).
+"""Integration tests against a real Redis (Query Engine) (Step 04 sections 2-6).
 
 Requires the compose service: docker compose -f docker/docker-compose.yml up -d
 Skips cleanly when Redis (or the RediSearch module) is unavailable.
@@ -59,7 +59,7 @@ async def client():
         pytest.skip(f"Redis not reachable at {REDIS_URL}")
     if "search" not in modules:
         await redis_client.aclose()
-        pytest.skip("RediSearch module not loaded (need Redis Stack)")
+        pytest.skip("search module not loaded (need Redis 8+ / Redis Stack)")
     yield redis_client
     await redis_client.aclose()
 

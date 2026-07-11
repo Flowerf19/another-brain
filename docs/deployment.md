@@ -1,4 +1,4 @@
 # Deployment
 
-Placeholder. Docker service plus Redis Stack; the npm package is only a
+Placeholder. Docker service plus Redis 8; the npm package is only a
 launcher/adapter.
