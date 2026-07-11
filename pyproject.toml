@@ -3,13 +3,18 @@ name = "another-brain"
 version = "0.1.0"
 description = "MCP-first timeline memory service on Redis Stack"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "redis>=5.0",
+]
 
 [dependency-groups]
 dev = [
     "pytest>=8",
+    "pytest-asyncio>=0.24",
 ]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
