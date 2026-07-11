@@ -23,9 +23,15 @@ from memory.models import (
     SearchFilters,
 )
 from memory.retention import RetentionPolicy
+from redis.exceptions import RedisError
 from storage.redis_keys import RedisKeyBuilder
 
 logger = logging.getLogger(__name__)
+
+# Search paths degrade to empty results only on Redis I/O failures; anything
+# else (parse bugs, programming errors) must propagate — a swallowed bug is
+# indistinguishable from "no matching memories" to the calling agent.
+_REDIS_IO_ERRORS = (RedisError, OSError)
 
 _INT_FIELDS = frozenset({"importance", "schema_version"})
 _FLOAT_FIELDS = frozenset(
@@ -312,7 +318,7 @@ class RedisMemoryRepository:
     async def ping(self) -> bool:
         try:
             return bool(await self._redis.ping())
-        except Exception as exc:
+        except _REDIS_IO_ERRORS as exc:
             logger.warning("Redis ping failed: %s", exc)
             return False
 
@@ -338,7 +344,7 @@ class RedisMemoryRepository:
                 "LIMIT", "0", str(int(limit)),
                 "DIALECT", "2",
             )
-        except Exception as exc:
+        except _REDIS_IO_ERRORS as exc:
             logger.error("KNN search failed: %s", exc)
             return []
         return self._hits(reply, score_in_fields=True, has_scores=False)
@@ -392,7 +398,7 @@ class RedisMemoryRepository:
                 "LIMIT", "0", str(int(limit)),
                 "PARAMS", "2", "vec", pack_embedding(query_embedding.values),
             )
-        except Exception as exc:
+        except _REDIS_IO_ERRORS as exc:
             logger.error("Hybrid search failed: %s", exc)
             return []
         return self._hybrid_hits(reply)
@@ -414,7 +420,7 @@ class RedisMemoryRepository:
                 "LIMIT", "0", str(int(limit)),
                 "DIALECT", "2",
             )
-        except Exception as exc:
+        except _REDIS_IO_ERRORS as exc:
             logger.error("Recent query failed: %s", exc)
             return []
         return self._hits(reply, score_in_fields=False, has_scores=False)

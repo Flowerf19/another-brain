@@ -158,6 +158,27 @@ async def test_missing_embedding_falls_back_to_vector_score():
     assert [r.memory_id for r in results] == ["no-emb-scored"]
 
 
+async def test_nan_embedding_is_gated_out():
+    """A corrupted stored embedding yields a NaN cosine; NaN fails every
+    comparison, so a `< floor` gate would silently let it through — the
+    gate must drop it on both the hybrid and the KNN path."""
+    nan_vec = (float("nan"), 0.0, 0.0, 0.0)
+    repo = FakeRepo(hybrid_hits=[
+        hybrid_hit("ok", CLOSE, text=1.0, vector=1.0, fused=0.033),
+        hybrid_hit("corrupt", nan_vec, text=0.9, vector=None, fused=0.02),
+    ])
+    results = await MemorySearchEngine(repo, CONFIG).search(
+        "flowerf-main", FILTERS, "redis storage", QUERY_VEC
+    )
+    assert [r.memory_id for r in results] == ["ok"]
+
+    knn_repo = FakeRepo(knn_hits=[knn_hit("corrupt", nan_vec, score=0.5)])
+    knn_results = await MemorySearchEngine(knn_repo, CONFIG).search(
+        "flowerf-main", FILTERS, "!!!", QUERY_VEC
+    )
+    assert knn_results == []
+
+
 def test_cosine_similarity_degenerate_inputs():
     assert cosine_similarity([1.0, 0.0], [1.0, 0.0]) == pytest.approx(1.0)
     assert cosine_similarity([1.0, 0.0], [0.6, 0.8]) == pytest.approx(0.6)

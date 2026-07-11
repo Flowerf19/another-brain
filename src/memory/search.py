@@ -85,7 +85,10 @@ class MemorySearchEngine:
     ) -> list[MemorySearchResult]:
         results: list[MemorySearchResult] = []
         for hit in hits:
-            if self._cosine(hit, query_embedding) < self._config.min_cosine:
+            # `not (x >= floor)` instead of `x < floor`: a NaN cosine (from a
+            # corrupted stored embedding) fails every comparison and must be
+            # dropped, not let through.
+            if not (self._cosine(hit, query_embedding) >= self._config.min_cosine):
                 continue
             if hit.text_score is not None and hit.vector_score is not None:
                 source = ScoreSource.FUSED
@@ -114,7 +117,7 @@ class MemorySearchEngine:
         results: list[MemorySearchResult] = []
         for hit in hits:
             cosine = cosine_similarity(query_embedding.values, hit.embedding)
-            if cosine < self._config.min_cosine:
+            if not (cosine >= self._config.min_cosine):  # NaN-safe gate
                 continue
             record = hit.record
             results.append(

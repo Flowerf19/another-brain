@@ -73,7 +73,9 @@ def register_tools(server: Any, service: MemoryService) -> None:
         and previewed in search. content: optional full detail or checklist
         (markdown), fetched only via brain_get. catalog: open kebab-case
         class — starter set: bug, decision, preference, task, fact, note.
-        scope: user | project | global (global pins scope_id="global").
+        scope: user | project | global. scope_id is REQUIRED for user
+        (the user name) and project (the project slug); only scope=global
+        may omit it (pinned to "global").
         importance 1-5 sets retention: 5=365d, 4=180d, 3=90d, 2=30d, 1=7d;
         the entry expires unless brain_reinforce renews it. Repeats of the
         same knowledge on the same day are fine — the store is append-only.
@@ -106,9 +108,10 @@ def register_tools(server: Any, service: MemoryService) -> None:
 
         Reading results changes nothing. After you actually USE a memory,
         close the loop: brain_reinforce if it proved correct and valuable,
-        brain_forget if it proved wrong. Optional filters: topic slug,
-        catalog, timeline_day (YYYY-MM-DD), min_importance (1-5), days
-        (only memories from the last N days).
+        brain_forget if it proved wrong. scope_id is REQUIRED for
+        scope=user/project (only global may omit it). Optional filters:
+        topic slug, catalog, timeline_day (YYYY-MM-DD), min_importance
+        (1-5), days (only memories from the last N days).
         """
         results = await service.search(
             query,
@@ -131,7 +134,8 @@ def register_tools(server: Any, service: MemoryService) -> None:
         """List the newest memories on the timeline (no query — pure listing,
         newest first). Use it to catch up on what was stored recently or to
         trace one day (timeline_day) or one topic. Same preview shape as
-        brain_search, without relevance scores. limit defaults to the
+        brain_search, without relevance scores. scope_id is REQUIRED for
+        scope=user/project (only global may omit it). limit defaults to the
         configured search page size (max 100)."""
         records = await service.recent(
             scope=scope, scope_id=scope_id, topic=topic, catalog=catalog,

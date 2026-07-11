@@ -96,7 +96,9 @@ class MemoryService:
             )
         metadata = dict(metadata or {})
         try:
-            json.dumps(metadata, ensure_ascii=False)
+            # allow_nan=False: NaN/Infinity pass the default json.dumps but
+            # are not JSON — strict consumers (MCP clients) would choke.
+            json.dumps(metadata, ensure_ascii=False, allow_nan=False)
         except (TypeError, ValueError):
             raise ValidationError("metadata must be a JSON-serializable object") from None
 
@@ -170,7 +172,9 @@ class MemoryService:
     ) -> list[MemoryRecord]:
         """Timeline listing, newest first, pure read (§6.3)."""
         if limit is None:
-            limit = self._config.search.top_k
+            # top_k has no upper bound in config — clamp so the default
+            # limit never trips the RECENT_LIMIT_MAX guard below.
+            limit = min(self._config.search.top_k, RECENT_LIMIT_MAX)
         if isinstance(limit, bool) or not isinstance(limit, int) \
                 or not 1 <= limit <= RECENT_LIMIT_MAX:
             raise ValidationError(
@@ -245,9 +249,17 @@ class MemoryService:
     def _pin_scope_id(scope: str, scope_id: str) -> str:
         """scope=global pins the literal scope_id 'global' (Step 04 §1.6);
         an omitted scope_id is filled in, a conflicting one is rejected by
-        the domain model."""
-        if MemoryScope.parse(scope) is MemoryScope.GLOBAL and not scope_id:
+        the domain model. For user/project an empty scope_id is rejected
+        here with an actionable message (the tool schema marks it optional
+        because global doesn't need it)."""
+        parsed = MemoryScope.parse(scope)
+        if parsed is MemoryScope.GLOBAL and not scope_id:
             return GLOBAL_SCOPE_ID
+        if not scope_id:
+            raise ValidationError(
+                f"scope_id is required when scope={parsed.value!r} — pass the "
+                f"user name or project slug (only scope='global' may omit it)"
+            )
         return scope_id
 
     def _filters(
