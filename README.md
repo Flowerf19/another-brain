@@ -8,9 +8,10 @@ own long-term memory storage, recall, identity boundaries, language
 normalization, and retrieval policy so client agents do not need to implement
 their own memory stack.
 
-> Status: architecture draft. This repository currently contains planning and
-> agent guidance only; runtime source code, package manifests, Docker files, and
-> tests have not been added yet.
+> Status: architecture draft. This repository currently contains planning,
+> agent guidance, and a non-runnable placeholder scaffold. Runtime
+> implementation, package manifests, Docker files, and executable tests have not
+> been added yet.
 
 ## Architecture Plan
 
@@ -125,8 +126,30 @@ and [MTEB Leaderboard](https://huggingface.co/spaces/mteb/leaderboard).
 Current layout:
 
 ```text
-another_brain/
+another-brain/
   README.md
+  docs/
+    architecture.md
+    mcp-tools.md
+    deployment.md
+  src/
+    app.py
+    main.py
+    auth/
+    mcp/
+    memory/
+    storage/
+    models/
+    audit/
+  docker/
+    README.md
+  packages/
+    npm-launcher/
+      README.md
+      src/
+  tests/
+    unit/
+    integration/
   .agents/
     README.md
     PROJECT_CONTEXT.md
@@ -140,8 +163,10 @@ Planned implementation layout is described in the architecture plan.
 
 ## Development Status
 
-No runtime implementation exists yet. There are currently no verified commands
-for installation, local development, tests, linting, or Docker startup.
+No runtime implementation exists yet. The `src/`, `docs/`, `docker/`,
+`packages/`, and `tests/` paths are placeholders for the reviewed architecture.
+There are currently no verified commands for installation, local development,
+tests, linting, or Docker startup.
 
 When implementation starts, add exact commands here and mirror operational
 details in `.agents/TESTING_GUIDE.md`.

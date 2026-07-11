@@ -2,7 +2,10 @@
 
 ## Current Status
 
-No implementation or test suite exists yet.
+No implementation or executable test suite exists yet.
+
+Placeholder test directories exist under `tests/unit/` and
+`tests/integration/`, but they contain no tests.
 
 There is currently no verified command for:
 

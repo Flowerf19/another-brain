@@ -86,5 +86,5 @@ another-brain-server
   -> persistent volume: Redis data
 ```
 
-No implementation exists yet, so exact module paths and commands are not
-defined.
+No implementation exists yet. Placeholder module paths exist under `src/`, but
+they contain no runtime logic. Exact commands are not defined.

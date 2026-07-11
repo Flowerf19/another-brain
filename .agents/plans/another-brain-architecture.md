@@ -526,11 +526,22 @@ EMBEDDING_API_URL=...
 EMBEDDING_API_KEY=...
 ```
 
+Local model acquisition should follow the dedicated model install policy in
+`.agents/plans/03-model-install-policy.md`. Do not download large models during
+package installation. Local models should be pulled explicitly or through a
+configured startup/lazy policy, with cache metadata and embedding dimension
+checks.
+
+Embedding precision policy is also defined in that plan. MVP should treat Q8/Q4
+as local model weight quantization only. Redis vector storage should remain
+`FLOAT32` until lower-precision vector storage has recall, migration, and index
+compatibility tests.
+
 Recommended embedding candidates as of 2026-07:
 
 | Role | Model | License | Params | Dim | Max tokens | MTEB Multilingual v2 | Operational notes |
 | --- | --- | --- | ---: | ---: | ---: | --- | --- |
-| Default | `microsoft/harrier-oss-v1-270m` | MIT | 268M | 640 | 32,768 | 66.55, rank 17 | Best current fit: open license, multilingual, moderate Redis vector cost, SentenceTransformers compatible, no custom code observed. |
+| Default | `microsoft/harrier-oss-v1-270m` | MIT | 268M | 640 | 32,768 | 66.55, rank 17 | Best current fit: open license, multilingual, moderate Redis vector cost, SentenceTransformers compatible. Use normalized 640-d output and Redis `FLOAT32`. |
 | Quality fallback | `Qwen/Qwen3-Embedding-0.6B` | Apache-2.0 | 596M | 1,024 | 32,768 | 64.34, rank 18 | Strong model, but larger than the preferred budget and doubles Redis vector bytes versus 512-dim class models. Use when memory/VRAM budget allows or via external provider. |
 | Benchmark only | `jinaai/jina-embeddings-v5-text-nano` | CC-BY-NC-4.0 | 212-239M | 768 | 8,192 | 65.52, rank 19 | Good score and small runtime footprint, but non-commercial license, `trust_remote_code`, and `peft` dependency make it unsuitable as the default for a reusable MCP tool. |
 
@@ -560,6 +571,11 @@ Rules:
 - embed canonical `content`, not `original_content` or optional translation
   helper fields;
 - require a migration/reindex command when changing dimensions.
+- for Harrier, prefer the SentenceTransformers path because it already defines
+  pooling and normalization; raw Transformers usage must reproduce last-token
+  pooling and explicit normalization.
+- treat Q8/Q4 as local model-weight quantization experiments, not as the Redis
+  vector storage format.
 
 ## Packaging
 
@@ -606,25 +622,44 @@ another-brain/
     mcp-tools.md
     deployment.md
   src/
-    another_brain/
-      server.py
-      config.py
-      auth.py
-      mcp/
-        stdio.py
-        http.py
-        tools.py
-        resources.py
-      memory/
-        models.py
-        service.py
-        repository.py
-        search.py
-        embeddings.py
-      storage/
-        redis_store.py
-        migrations.py
-      audit.py
+    main.py
+    app.py
+    config.py
+    errors.py
+    auth/
+      context.py
+      permissions.py
+      tokens.py
+    mcp/
+      stdio.py
+      http.py
+      tools.py
+      resources.py
+      schemas.py
+    memory/
+      models.py
+      service.py
+      repository.py
+      normalization.py
+      search.py
+      embeddings.py
+      merge.py
+      retention.py
+    storage/
+      redis_keys.py
+      redis_index.py
+      redis_memory_repository.py
+      migrations.py
+    models/
+      policy.py
+      registry.py
+      cache.py
+      installer.py
+      status.py
+      runtime.py
+    audit/
+      models.py
+      service.py
   docker/
     Dockerfile
     docker-compose.yml
@@ -639,13 +674,14 @@ another-brain/
 
 1. Core memory model and Redis Stack repository.
 2. Lightweight memory model abstraction for multilingual normalization.
-3. Embedding provider abstraction and `brain_health`.
-4. MCP stdio server with `brain_remember`, `brain_search`, `brain_recent`.
-5. Docker Compose deployment.
-6. Auth context with server-filled `brain_id` and `agent_id`.
-7. `brain_get` and `brain_forget` with audit log.
-8. npm launcher that proxies to the service.
-9. Optional richer observation ingest pipeline.
+3. Model install/cache policy for local embedding and memory models.
+4. Embedding provider abstraction and `brain_health`.
+5. MCP stdio server with `brain_remember`, `brain_search`, `brain_recent`.
+6. Docker Compose deployment.
+7. Auth context with server-filled `brain_id` and `agent_id`.
+8. `brain_get` and `brain_forget` with audit log.
+9. npm launcher that proxies to the service.
+10. Optional richer observation ingest pipeline.
 
 ## Migration From Existing T2
 
