@@ -17,7 +17,6 @@ class TestDefaults:
         assert config.redis.vector_dtype == "FLOAT32"
         assert config.redis.distance_metric == "COSINE"
         assert config.redis.index_mode == "HNSW"
-        assert config.redis.hnsw_m == 6
         assert config.embedding.provider == "local"
         assert config.embedding.dim == 640
         assert config.embedding.normalize is True

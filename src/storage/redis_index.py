@@ -67,7 +67,6 @@ class RedisIndexManager:
         vector_dtype: str = "FLOAT32",
         distance_metric: str = "COSINE",
         index_mode: str = "HNSW",
-        hnsw_m: int = 6,
     ):
         self._redis = redis
         self._keys = keys
@@ -76,7 +75,6 @@ class RedisIndexManager:
         self._dtype = vector_dtype
         self._metric = distance_metric
         self._mode = index_mode
-        self._hnsw_m = hnsw_m
 
     # ------------------------------------------------------------- startup
 
@@ -109,8 +107,6 @@ class RedisIndexManager:
             "DIM", str(self._dim),
             "DISTANCE_METRIC", self._metric,
         ]
-        if self._mode == "HNSW":
-            vector_args += ["M", str(self._hnsw_m)]
         try:
             await self._redis.execute_command(
                 "FT.CREATE", self._keys.index_name,

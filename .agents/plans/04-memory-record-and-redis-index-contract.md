@@ -271,8 +271,10 @@ contract uses. Nothing else is TAG'd.
 `importance` backs the optional `min_importance` search filter. `updated_at`
 is stored but not indexed — no query sorts or filters by it.
 
-**VECTOR HNSW:** `M=6`, `TYPE FLOAT32`, `DIM 640` (Harrier default),
-`DISTANCE_METRIC COSINE`. `DIM` must match the active embedding model;
+**VECTOR HNSW:** `TYPE FLOAT32`, `DIM 640` (Harrier default),
+`DISTANCE_METRIC COSINE`. `M` is not set — RediSearch's default (16) applies,
+matching what march7 actually ran (the `6` in march7's `VECTOR HNSW 6` is the
+FT.CREATE argument count, not M). `DIM` must match the active embedding model;
 changing it requires a full reindex (Section 5). `FLAT` is acceptable for
 correctness testing; HNSW is the default.
 
@@ -526,7 +528,6 @@ REDIS_INDEX_NAME=ab:idx:memory
 REDIS_VECTOR_DTYPE=FLOAT32
 REDIS_DISTANCE_METRIC=COSINE
 REDIS_VECTOR_INDEX_MODE=HNSW
-REDIS_HNSW_M=6
 
 # TTL
 TTL_IMPORTANCE_5=31536000

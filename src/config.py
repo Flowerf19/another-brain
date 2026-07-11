@@ -78,7 +78,6 @@ class RedisConfig:
     vector_dtype: str
     distance_metric: str
     index_mode: str
-    hnsw_m: int
 
 
 @dataclass(frozen=True)
@@ -150,7 +149,6 @@ class AppConfig:
             vector_dtype=vector_dtype,
             distance_metric=distance_metric,
             index_mode=index_mode,
-            hnsw_m=_positive("REDIS_HNSW_M", _int(env, "REDIS_HNSW_M", 6)),
         )
 
         embedding_provider = _str(env, "EMBEDDING_PROVIDER", "local")
