@@ -10,7 +10,7 @@ import uuid
 import pytest
 import redis.asyncio as aioredis
 
-from errors import MigrationRequiredError
+from errors import MigrationRequiredError, ValidationError
 from memory.models import EmbeddingVector, MemoryRecord, SearchFilters
 from memory.retention import RetentionPolicy
 from storage.redis_index import RedisIndexManager
@@ -162,19 +162,47 @@ async def test_knn_search_filters_and_isolation(store):
     assert len(by_day) == 2  # TAG escaping on dashes in YYYY-MM-DD works
 
 
-async def test_bm25_matches_summary_and_content(store):
+HYBRID_KW = dict(knn_k=10, window=10, fusion_constant=60, limit=10)
+
+
+async def test_hybrid_search_matches_summary_content_and_isolates(store):
+    """FT.HYBRID: the text branch matches summary or content, the vector branch
+    matches by meaning, and the VSIM FILTER keeps both branches inside one
+    brain (no cross-brain leak, no soft-deleted resurrection)."""
     client, keys, manager, repo = store
     record = make_record(
         summary="Hotfix cho retention policy sau khi reinforce.",
         content="checklist: xoaseckret token trong audit log",
     )
+    other_brain = make_record(
+        brain_id="other-brain",
+        summary="Hotfix cho retention policy sau khi reinforce.",
+        content="checklist: xoaseckret token trong audit log",
+    )
     await repo.store(record, vec(0))
+    await repo.store(other_brain, vec(0))
 
     for query in ("retention", "xoaseckret"):  # summary hit + content hit
-        hits = await repo.bm25_search("flowerf-main", FILTERS, query, limit=10)
-        assert [h.record.identity.memory_id for h in hits] == [record.identity.memory_id], query
+        hits = await repo.hybrid_search(
+            "flowerf-main", FILTERS, query, vec(0), **HYBRID_KW,
+        )
+        assert [h.memory_id for h in hits] == [record.identity.memory_id], query
+        # both branches surfaced it → fused score, with both component scores
+        assert hits[0].text_score is not None
+        assert hits[0].vector_score is not None
+        assert hits[0].fused_score > 0.0
 
-    assert await repo.bm25_search("flowerf-main", FILTERS, "!!!", limit=10) == []
+    # other-brain doc is never returned even though its text + vector match
+    other_only = await repo.hybrid_search(
+        "other-brain", FILTERS, "retention", vec(0), **HYBRID_KW,
+    )
+    assert [h.memory_id for h in other_only] == [other_brain.identity.memory_id]
+
+    # no BM25-safe terms → programming error (the engine routes term-less to KNN)
+    with pytest.raises(ValidationError, match="text term"):
+        await repo.hybrid_search(
+            "flowerf-main", FILTERS, "!!!", vec(0), **HYBRID_KW,
+        )
 
 
 async def test_soft_delete_restore_flow(store):
@@ -188,7 +216,9 @@ async def test_soft_delete_restore_flow(store):
 
     # Excluded from every query at index level, but still gettable (grace).
     assert await repo.knn_search("flowerf-main", FILTERS, vec(0), 10) == []
-    assert await repo.bm25_search("flowerf-main", FILTERS, "PREFIX", 10) == []
+    assert await repo.hybrid_search(
+        "flowerf-main", FILTERS, "PREFIX", vec(0), **HYBRID_KW,
+    ) == []
     assert await repo.recent("flowerf-main", FILTERS, 10) == []
     deleted = await repo.get("flowerf-main", memory_id)
     assert deleted.is_deleted and deleted.deleted_at == BASE_TS + 10

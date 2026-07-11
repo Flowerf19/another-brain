@@ -1,12 +1,27 @@
 # Redis 8.8 (Open Source, bundled Query Engine) for another-brain local dev /
 # integration tests. 8.4+ is required for native hybrid search (FT.HYBRID).
+#
+# Project name is pinned via name: to avoid colliding with March7's compose
+# project (both repos use docker/docker-compose.yml, so Docker Compose would
+# otherwise derive the same default project name "docker" from the parent
+# directory and confuse one repo's redis for the other's).
+#
 # Start with: docker compose -f docker/docker-compose.yml up -d
+
+name: another-brain
+
+networks:
+  another-brain-net:
+    driver: bridge
 
 services:
   redis:
     image: redis:8.8
+    container_name: another-brain-redis
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
+    networks:
+      - another-brain-net
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:

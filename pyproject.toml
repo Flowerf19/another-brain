@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "MCP-first timeline memory service on Redis"
 requires-python = ">=3.12"
 dependencies = [
+    "mcp>=1.2",
     # >=7.1 is the first redis-py with FT.HYBRID (native hybrid search) support.
     "redis>=7.1",
 ]

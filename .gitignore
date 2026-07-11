@@ -6,3 +6,6 @@ __pycache__/
 .coverage
 dist/
 node_modules/
+
+# Codegraph knowledge-graph index (local tooling)
+.codegraph/
