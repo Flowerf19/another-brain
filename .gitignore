@@ -1,0 +1,8 @@
+__pycache__/
+*.py[co]
+.pytest_cache/
+.venv/
+.cache/
+.coverage
+dist/
+node_modules/

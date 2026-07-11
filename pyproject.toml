@@ -1,0 +1,15 @@
+[project]
+name = "another-brain"
+version = "0.1.0"
+description = "MCP-first timeline memory service on Redis Stack"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

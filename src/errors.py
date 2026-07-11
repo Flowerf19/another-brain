@@ -1,4 +1,13 @@
-"""Shared error types.
+"""Shared error types."""
 
-Scaffold only (Step 02). Implementation lands in the Step 04 milestone order.
-"""
+
+class AnotherBrainError(Exception):
+    """Base class for all service errors."""
+
+
+class ValidationError(AnotherBrainError):
+    """A tool input or domain value failed validation."""
+
+
+class ConfigError(AnotherBrainError):
+    """Runtime configuration is missing or inconsistent."""
