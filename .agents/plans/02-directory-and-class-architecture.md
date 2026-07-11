@@ -26,6 +26,9 @@ exists for review; implementation logic still belongs in a later step.
 Use these conventions:
 
 - folders and modules use `snake_case`;
+- module file names use **at most two words** (`redis_index.py` yes,
+  `redis_memory_repository.py` no) — the package path carries the rest of
+  the context;
 - classes use `PascalCase`;
 - request/response DTOs end with `Request`, `Result`, or `Response`;
 - replaceable interfaces use `Protocol` suffix;
@@ -72,7 +75,7 @@ another-brain/
       __init__.py
       redis_keys.py
       redis_index.py
-      redis_memory_repository.py
+      redis_repository.py
       migrations.py
     models/
       __init__.py
@@ -308,6 +311,7 @@ another-brain/
 `RedisMemoryRepository`
 
 - Concrete Redis Stack implementation of `MemoryRepositoryProtocol`.
+- Lives in `storage/redis_repository.py` together with `RedisMemoryMapper`.
 
 `RedisMemoryMapper`
 

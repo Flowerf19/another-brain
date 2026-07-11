@@ -643,12 +643,11 @@ another-brain/
       normalization.py
       search.py
       embeddings.py
-      merge.py
       retention.py
     storage/
       redis_keys.py
       redis_index.py
-      redis_memory_repository.py
+      redis_repository.py
       migrations.py
     models/
       policy.py

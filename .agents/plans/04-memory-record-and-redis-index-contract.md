@@ -623,7 +623,7 @@ Implementation, in the MVP milestone order from the architecture doc:
 1. `src/memory/models.py` — dataclasses, enums, `MemoryRecord`.
 2. `src/storage/redis_keys.py` — `RedisKeyBuilder`.
 3. `src/storage/redis_index.py` — `RedisIndexManager`.
-4. `src/storage/redis_memory_repository.py` — repository + mapper.
+4. `src/storage/redis_repository.py` — repository + mapper.
 5. `src/config.py` — `AppConfig` with all config values.
 6. `src/memory/service.py` — `MemoryService`.
 7. `src/mcp/tools.py` — MCP tool surface.

@@ -160,6 +160,76 @@ sequenceDiagram
     Svc-->>Host: memories with relevance evidence
 ```
 
+## Memory Lifecycle (Activity View)
+
+One activity diagram for the whole memory flow: how a memory is written, how
+it is recalled, how the LLM closes the loop after using it, and how the
+record moves through its Redis lifecycle. There is deliberately no
+`brain_update` tool — the store is append-only (Step 04, decision 11), so an
+update is expressed as `brain_remember` (new version) plus `brain_forget`
+(old version). TTL renewal is never a code side effect: only an explicit
+`brain_reinforce` re-arms it (Step 04, decision 9).
+
+```mermaid
+flowchart TD
+    Start(["Agent working"]) --> Trigger{"Worth remembering,<br/>or need recall?"}
+
+    %% ---------------- write path ----------------
+    Trigger -- "remember" --> Remember["brain_remember<br/>content, scope, scope_id,<br/>catalog?, importance?"]
+    Remember --> WAuth["Auth: trusted brain_id + agent_id,<br/>write permission"]
+    WAuth --> WValidate["Validate: scope enum, catalog slug,<br/>content length cap"]
+    WValidate --> WNormalize["Memory model normalizes:<br/>topic slug + 1-2 sentence summary<br/>+ optional detail content"]
+    WNormalize --> WEmbed["Embed summary only<br/>FLOAT32 vector"]
+    WEmbed --> WStore["HSET one HASH per memory<br/>ab:memory:brain_id:memory_id<br/>append-only, never merges"]
+    WStore --> WTtl["EXPIRE by importance<br/>5=365d 4=180d 3=90d 2=30d 1=7d"]
+    WTtl --> WAudit["Audit: remember"] --> WDone["Return memory_id"] --> Live
+
+    %% ---------------- read path ----------------
+    Trigger -- "recall" --> RKind{"Query type?"}
+    RKind -- "semantic / lexical" --> RSearch["brain_search<br/>query + filters"]
+    RKind -- "timeline" --> RRecent["brain_recent<br/>time range"]
+    RSearch --> RHybrid["KNN + BM25, RRF fusion,<br/>cosine gate, then limit<br/>brain_id filter + deleted excluded"]
+    RRecent --> RSort["Filter + sort period_start DESC<br/>brain_id filter + deleted excluded"]
+    RHybrid --> RPreview["Preview list: memory_id, topic,<br/>catalog, summary, timeline_day,<br/>importance, has_content<br/>NO TTL change"]
+    RSort --> RPreview
+    RPreview --> RNeed{"Summary enough<br/>to answer?"}
+    RNeed -- "yes" --> Use["LLM uses the memory"]
+    RNeed -- "need detail" --> RGet["brain_get memory_id<br/>pure read, NO TTL change"] --> Use
+
+    %% ---------------- close the loop ----------------
+    Use --> Judge{"LLM verdict<br/>on this memory?"}
+    Judge -- "correct and valuable" --> Reinforce["brain_reinforce memory_id<br/>re-arm full importance TTL,<br/>bump updated_at + audit"] --> Live
+    Judge -- "wrong / stale" --> Forget["brain_forget memory_id<br/>deleted_at = now,<br/>TTL shrunk to grace window + audit"]
+    Judge -- "info changed: update" --> Update["Update = append-only pair:<br/>brain_remember new version,<br/>brain_forget old version"]
+    Judge -- "no verdict" --> NoOp["Do nothing.<br/>TTL keeps counting down"] --> Live
+    Update --> Remember
+    Update -.-> Forget
+
+    %% ---------------- record lifecycle ----------------
+    subgraph Redis["Record lifecycle in Redis"]
+        Live["LIVE<br/>visible to search/recent,<br/>TTL counting down"]
+        SoftDel["FORGOTTEN soft<br/>excluded from every query<br/>at index level, recoverable<br/>during grace window"]
+        Gone(["GONE<br/>Redis expired or deleted the key"])
+    end
+
+    Forget --> SoftDel
+    Live -- "TTL expires,<br/>never reinforced" --> Gone
+    SoftDel -- "grace window ends" --> Gone
+    SoftDel -- "admin restore: HDEL deleted_at,<br/>re-arm importance TTL + audit" --> Live
+    SoftDel -- "admin hard delete: DEL + audit" --> Gone
+```
+
+Reading notes:
+
+- Every read (`brain_search`, `brain_recent`, `brain_get`) is pure — no read
+  ever re-arms TTL. The only paths back to a fresh TTL are `brain_reinforce`
+  and admin restore.
+- The "no verdict" branch is the designed failure direction: an untouched
+  memory simply expires at its importance baseline. The system fails toward
+  forgetting, never toward bloat.
+- `brain_health` is outside this flow — it is a status probe, not a memory
+  operation.
+
 ## Minimum Public Surface
 
 Step 01 assumes these tool names, but detailed schemas should be reviewed in a
