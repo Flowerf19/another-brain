@@ -14,6 +14,8 @@ from zoneinfo import ZoneInfo
 
 from errors import ConfigError
 from memory.retention import DEFAULT_TTL_BY_IMPORTANCE
+from models.policy import ModelInstallPolicy
+from models.runtime import POSTPONED_WEIGHT_PRECISIONS, WEIGHT_PRECISIONS
 
 PROVIDERS = frozenset({"openai_compat", "ollama", "gemini", "local"})
 VECTOR_INDEX_MODES = frozenset({"HNSW", "FLAT"})
@@ -86,12 +88,25 @@ class EmbeddingConfig:
     model_name: str
     dim: int
     normalize: bool
+    query_prompt_name: str  # "" = use the registry default for the model
 
 
 @dataclass(frozen=True)
 class MemoryModelConfig:
     provider: str
     model_name: str
+
+
+@dataclass(frozen=True)
+class ModelInstallConfig:
+    """Step 03 download policy and runtime precision knobs."""
+
+    download_policy: ModelInstallPolicy
+    cache_dir: str
+    allow_network: bool
+    pinned_revision: str
+    weight_precision: str    # auto | fp32 | fp16 | bf16
+    output_precision: str    # float32 (locked in MVP)
 
 
 @dataclass(frozen=True)
@@ -108,6 +123,7 @@ class AppConfig:
     redis: RedisConfig
     embedding: EmbeddingConfig
     memory_model: MemoryModelConfig
+    model_install: ModelInstallConfig
     search: SearchConfig
     ttl_by_importance: dict[int, int]
     audit_retention_days: int
@@ -162,6 +178,7 @@ class AppConfig:
             model_name=_str(env, "EMBEDDING_MODEL", "microsoft/harrier-oss-v1-270m"),
             dim=_positive("EMBEDDING_DIM", _int(env, "EMBEDDING_DIM", 640)),
             normalize=_bool(env, "NORMALIZE_EMBEDDINGS", True),
+            query_prompt_name=_str(env, "EMBEDDING_QUERY_PROMPT_NAME", ""),
         )
 
         memory_model_provider = _str(env, "MEMORY_MODEL_PROVIDER", "local")
@@ -173,6 +190,35 @@ class AppConfig:
         memory_model = MemoryModelConfig(
             provider=memory_model_provider,
             model_name=env.get("MEMORY_MODEL_NAME", "").strip(),
+        )
+
+        weight_precision = _str(env, "MODEL_WEIGHT_PRECISION", "auto").lower()
+        if weight_precision in POSTPONED_WEIGHT_PRECISIONS:
+            raise ConfigError(
+                f"MODEL_WEIGHT_PRECISION={weight_precision} is postponed until a "
+                f"recall benchmark exists (Step 03 decisions 10-11); "
+                f"use one of {sorted(WEIGHT_PRECISIONS)}"
+            )
+        if weight_precision not in WEIGHT_PRECISIONS:
+            raise ConfigError(
+                f"MODEL_WEIGHT_PRECISION must be one of {sorted(WEIGHT_PRECISIONS)}, "
+                f"got {weight_precision!r}"
+            )
+        output_precision = _str(env, "EMBEDDING_OUTPUT_PRECISION", "float32").lower()
+        if output_precision != "float32":
+            raise ConfigError(
+                f"EMBEDDING_OUTPUT_PRECISION must be float32 in MVP (Step 03 "
+                f"decision 11); got {output_precision!r}"
+            )
+        model_install = ModelInstallConfig(
+            download_policy=ModelInstallPolicy.parse(
+                _str(env, "MODEL_DOWNLOAD_POLICY", "manual")
+            ),
+            cache_dir=_str(env, "MODEL_CACHE_DIR", ".cache/another-brain/models"),
+            allow_network=_bool(env, "MODEL_ALLOW_NETWORK", False),
+            pinned_revision=env.get("MODEL_PINNED_REVISION", "").strip(),
+            weight_precision=weight_precision,
+            output_precision=output_precision,
         )
 
         min_cosine = _float(env, "SEARCH_MIN_COSINE", 0.30)
@@ -219,6 +265,7 @@ class AppConfig:
             redis=redis,
             embedding=embedding,
             memory_model=memory_model,
+            model_install=model_install,
             search=search,
             ttl_by_importance=ttl_by_importance,
             audit_retention_days=_positive(

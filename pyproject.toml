@@ -7,11 +7,31 @@ dependencies = [
     "redis>=5.0",
 ]
 
+[project.optional-dependencies]
+# Local embedding/memory model support (Step 03). Deployments that use an
+# external provider (openai_compat/ollama/gemini) never need torch.
+local = [
+    "sentence-transformers>=5.0",
+    # Declared directly so the pytorch-cpu source pin below applies (uv
+    # sources don't reach transitive deps); keeps CUDA wheels out of the venv.
+    "torch>=2.9",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=8",
     "pytest-asyncio>=0.24",
 ]
+
+# This dev machine has no NVIDIA GPU — pin torch to the CPU wheel index so the
+# `local` extra doesn't pull multi-GB CUDA builds. Docker/prod can override.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

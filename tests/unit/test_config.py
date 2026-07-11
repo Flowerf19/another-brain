@@ -4,6 +4,7 @@ import pytest
 from config import AppConfig
 from errors import ConfigError
 from memory.retention import DEFAULT_TTL_BY_IMPORTANCE
+from models.policy import ModelInstallPolicy
 
 
 class TestDefaults:
@@ -97,3 +98,39 @@ class TestValidation:
         assert AppConfig.from_env({"NORMALIZE_EMBEDDINGS": "false"}).embedding.normalize is False
         with pytest.raises(ConfigError):
             AppConfig.from_env({"NORMALIZE_EMBEDDINGS": "maybe"})
+
+
+class TestModelInstall:
+    def test_defaults(self):
+        config = AppConfig.from_env({})
+        assert config.model_install.download_policy is ModelInstallPolicy.MANUAL
+        assert config.model_install.cache_dir == ".cache/another-brain/models"
+        assert config.model_install.allow_network is False
+        assert config.model_install.pinned_revision == ""
+        assert config.model_install.weight_precision == "auto"
+        assert config.model_install.output_precision == "float32"
+        assert config.embedding.query_prompt_name == ""
+
+    def test_download_policy_parsed(self):
+        config = AppConfig.from_env({"MODEL_DOWNLOAD_POLICY": "lazy"})
+        assert config.model_install.download_policy is ModelInstallPolicy.LAZY
+
+    def test_invalid_download_policy_rejected(self):
+        with pytest.raises(ConfigError):
+            AppConfig.from_env({"MODEL_DOWNLOAD_POLICY": "sometimes"})
+
+    def test_postponed_weight_precision_rejected(self):
+        with pytest.raises(ConfigError, match="postponed"):
+            AppConfig.from_env({"MODEL_WEIGHT_PRECISION": "q4"})
+
+    def test_unknown_weight_precision_rejected(self):
+        with pytest.raises(ConfigError):
+            AppConfig.from_env({"MODEL_WEIGHT_PRECISION": "xxx"})
+
+    def test_non_float32_output_precision_rejected(self):
+        with pytest.raises(ConfigError):
+            AppConfig.from_env({"EMBEDDING_OUTPUT_PRECISION": "int8"})
+
+    def test_allow_network_parsed(self):
+        config = AppConfig.from_env({"MODEL_ALLOW_NETWORK": "true"})
+        assert config.model_install.allow_network is True
