@@ -162,7 +162,8 @@ async def test_knn_search_filters_and_isolation(store):
     assert len(by_day) == 2  # TAG escaping on dashes in YYYY-MM-DD works
 
 
-HYBRID_KW = dict(knn_k=10, window=10, fusion_constant=60, limit=10)
+# Mirrors the engine's call shape: knn_k=window=top_k, limit=2*top_k.
+HYBRID_KW = dict(knn_k=10, window=10, fusion_constant=60, limit=20)
 
 
 async def test_hybrid_search_matches_summary_content_and_isolates(store):
@@ -191,6 +192,8 @@ async def test_hybrid_search_matches_summary_content_and_isolates(store):
         assert hits[0].text_score is not None
         assert hits[0].vector_score is not None
         assert hits[0].fused_score > 0.0
+        # Lock the VSIM convention: vector_score = (1 + cosine) / 2.
+        assert hits[0].vector_score == pytest.approx(1.0)
 
     # other-brain doc is never returned even though its text + vector match
     other_only = await repo.hybrid_search(

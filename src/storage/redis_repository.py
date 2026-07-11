@@ -462,8 +462,7 @@ class RedisMemoryRepository:
         for key, doc_score, fields in _parse_search_reply(reply, has_scores=has_scores):
             embedding = tuple(fields.pop("embedding", []) or [])
             if score_in_fields:
-                raw = fields.get("score")
-                score = float(raw) if raw is not None else None
+                score = _opt_float(fields.get("score"))
             else:
                 score = doc_score
             try:
@@ -547,11 +546,7 @@ def _parse_search_reply(
             if not key:
                 continue
             key_str = key.decode() if isinstance(key, bytes) else key
-            score_raw = item.get(b"score") or item.get("score")
-            try:
-                score = float(score_raw) if score_raw is not None else None
-            except (TypeError, ValueError):
-                score = None
+            score = _opt_float(item.get(b"score") or item.get("score"))
             extra = item.get(b"extra_attributes") or item.get("extra_attributes") or {}
             out.append((key_str, score, decode_fields(extra)))
         return out

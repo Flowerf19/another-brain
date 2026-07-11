@@ -23,30 +23,28 @@ def _iso(ts: float | None, tz_name: str) -> str | None:
     return datetime.fromtimestamp(float(ts), ZoneInfo(tz_name)).isoformat()
 
 
+def _preview_core(memory_id: str, item: Any) -> dict[str, Any]:
+    return {
+        "memory_id": memory_id,
+        "topic": item.topic,
+        "catalog": item.catalog,
+        "summary": item.summary,
+        "timeline_day": item.timeline_day,
+        "importance": item.importance,
+        "has_content": item.has_content,
+    }
+
+
 def _preview(result: MemorySearchResult) -> dict[str, Any]:
     return {
-        "memory_id": result.memory_id,
-        "topic": result.topic,
-        "catalog": result.catalog,
-        "summary": result.summary,
-        "timeline_day": result.timeline_day,
-        "importance": result.importance,
-        "has_content": result.has_content,
+        **_preview_core(result.memory_id, result),
         "relevance_score": result.relevance_score,
         "score_source": result.score_source.value,
     }
 
 
 def _record_preview(record: MemoryRecord) -> dict[str, Any]:
-    return {
-        "memory_id": record.identity.memory_id,
-        "topic": record.topic,
-        "catalog": record.catalog,
-        "summary": record.summary,
-        "timeline_day": record.timeline_day,
-        "importance": record.importance,
-        "has_content": record.has_content,
-    }
+    return _preview_core(record.identity.memory_id, record)
 
 
 def register_tools(server: Any, service: MemoryService) -> None:

@@ -11,6 +11,7 @@ audit slice; this service exposes the lifecycle results they will record.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from dataclasses import dataclass
@@ -192,10 +193,12 @@ class MemoryService:
         """Full record by id, pure read. A soft-deleted record is already
         forgotten from the agent's point of view — reported as not found;
         restore is an admin operation."""
-        record = await self._repo.get(self._config.brain_id, memory_id)
+        record, expires_at = await asyncio.gather(
+            self._repo.get(self._config.brain_id, memory_id),
+            self._repo.expire_at(self._config.brain_id, memory_id),
+        )
         if record is None or record.is_deleted:
             return None
-        expires_at = await self._repo.expire_at(self._config.brain_id, memory_id)
         return MemoryDetail(record=record, expires_at=expires_at)
 
     # ------------------------------------------------------------ lifecycle
