@@ -627,6 +627,6 @@ Implementation, in the MVP milestone order from the architecture doc:
 4. `src/storage/redis_repository.py` — repository + mapper.
 5. `src/config.py` — `AppConfig` with all config values.
 6. `src/memory/service.py` — `MemoryService`.
-7. `src/mcp/tools.py` — MCP tool surface.
+7. `src/server/tools.py` — MCP tool surface.
 8. `docker/docker-compose.yml` — Redis Stack + service.
 9. Tests.

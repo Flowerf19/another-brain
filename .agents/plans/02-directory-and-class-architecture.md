@@ -55,7 +55,7 @@ another-brain/
       context.py
       permissions.py
       tokens.py
-    mcp/
+    server/
       __init__.py
       stdio.py
       http.py
@@ -122,7 +122,7 @@ another-brain/
 - Checks operation permissions.
 - Keeps token parsing away from memory business logic.
 
-`src/mcp/`
+`src/server/`
 
 - Owns MCP tool/resource schemas and transport adapters.
 - Converts MCP inputs into application requests.
@@ -383,7 +383,9 @@ Approve or change these before moving to Step 03:
 
 1. Keep runtime source directly under `src/`.
 2. Do not add a nested `src/another_brain/` directory.
-3. Keep MCP adapters under `src/mcp/`.
+3. Keep MCP adapters under `src/server/` (renamed from `src/mcp/`: with
+   `pythonpath=src`, a top-level `mcp` package shadows the official MCP
+   Python SDK package, which is literally named `mcp`).
 4. Keep domain/use-case logic under `src/memory/`.
 5. Keep Redis implementation under `src/storage/`.
 6. Use `Protocol` suffix for replaceable interfaces.

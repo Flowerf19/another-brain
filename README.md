@@ -136,7 +136,7 @@ another-brain/
     app.py
     main.py
     auth/
-    mcp/
+    server/
     memory/
     storage/
     models/

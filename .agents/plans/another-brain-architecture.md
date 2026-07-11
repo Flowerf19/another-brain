@@ -630,7 +630,7 @@ another-brain/
       context.py
       permissions.py
       tokens.py
-    mcp/
+    server/
       stdio.py
       http.py
       tools.py
