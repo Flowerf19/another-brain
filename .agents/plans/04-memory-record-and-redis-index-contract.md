@@ -1,5 +1,6 @@
 ---
-status: review
+status: approved
+approved: 2026-07-11
 owner: architecture
 created: 2026-07-10
 updated: 2026-07-11
