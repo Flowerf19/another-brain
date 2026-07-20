@@ -48,18 +48,32 @@ def make_record(**overrides) -> MemoryRecord:
 FILTERS = SearchFilters(scope="user", scope_id="flowerf")
 
 
+# FT.HYBRID landed in the RediSearch module shipped with Redis 8.4; its module
+# `ver` encodes as MAJOR*10000 + MINOR*100 + PATCH, so 8.4.0 -> 80400. A stale
+# neighbour (redis-stack 7.2 loads `search` at ver 20828) has the module but not
+# the command, so presence alone would run the suite and fail on FT.HYBRID —
+# gate on the version instead and skip cleanly.
+FT_HYBRID_MIN_VER = 80400
+
+
 @pytest.fixture
 async def client():
     redis_client = aioredis.from_url(REDIS_URL)
     try:
         await redis_client.ping()
-        modules = str(await redis_client.execute_command("MODULE", "LIST")).lower()
+        modules = await redis_client.module_list()
     except Exception:
         await redis_client.aclose()
         pytest.skip(f"Redis not reachable at {REDIS_URL}")
-    if "search" not in modules:
+    search = next(
+        (m for m in modules if m.get(b"name") == b"search"), None
+    )
+    if search is None or int(search.get(b"ver", 0)) < FT_HYBRID_MIN_VER:
         await redis_client.aclose()
-        pytest.skip("search module not loaded (need Redis 8+ / Redis Stack)")
+        pytest.skip(
+            f"FT.HYBRID needs Redis 8.4+ (search module ver >= {FT_HYBRID_MIN_VER}); "
+            f"got {search.get(b'ver') if search else 'no search module'} at {REDIS_URL}"
+        )
     yield redis_client
     await redis_client.aclose()
 
