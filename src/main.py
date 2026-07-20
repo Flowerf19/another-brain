@@ -1,63 +1,31 @@
 """Entrypoint for the `another-brain-server` command.
 
-Currently implements the model management CLI (Step 03 "Proposed Commands"):
-
     python src/main.py model plan   [--kind embedding|memory]
     python src/main.py model pull   [--kind embedding|memory]
     python src/main.py model status [--kind embedding|memory]
+    python src/main.py serve        [--transport stdio|http]
 
-The MCP server entrypoint lands with the service/tools slice.
+`serve` runs the MCP server; the model subcommands manage the local model cache
+(Step 03 "Proposed Commands"). Both honor `.env` (loaded in main()).
 """
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import logging
 import sys
 
+from app import (
+    build_installer,
+    load_env_file,
+    profile_for,
+    provider_for,
+    resolve_spec,
+)
 from config import AppConfig
 from errors import ConfigError
-from models.cache import ModelCache
-from models.installer import ModelInstaller
-from models.registry import KIND_EMBEDDING, KIND_MEMORY, ModelRegistry, ModelSpec
-from models.runtime import ModelRuntimeProfile
-
-
-def _resolve_spec(config: AppConfig, kind: str) -> ModelSpec:
-    registry = ModelRegistry()
-    if kind == KIND_EMBEDDING:
-        return registry.resolve(
-            config.embedding.model_name, kind,
-            configured_dim=config.embedding.dim,
-        )
-    return registry.resolve(config.memory_model.model_name, kind)
-
-
-def _provider_for(config: AppConfig, kind: str) -> str:
-    if kind == KIND_EMBEDDING:
-        return config.embedding.provider
-    return config.memory_model.provider
-
-
-def _build_installer(config: AppConfig) -> ModelInstaller:
-    return ModelInstaller(
-        ModelCache(config.model_install.cache_dir),
-        config.model_install.download_policy,
-        allow_network=config.model_install.allow_network,
-        pinned_revision=config.model_install.pinned_revision,
-    )
-
-
-def _profile_for(config: AppConfig, spec: ModelSpec) -> ModelRuntimeProfile:
-    return ModelRuntimeProfile(
-        weight_precision=config.model_install.weight_precision,
-        output_precision=config.model_install.output_precision,
-        vector_dtype=config.redis.vector_dtype,
-        normalize=config.embedding.normalize,
-        query_prompt_name=(
-            config.embedding.query_prompt_name or spec.query_prompt_name
-        ),
-    )
+from models.registry import KIND_EMBEDDING, KIND_MEMORY
 
 
 def _emit(payload: object) -> None:
@@ -66,13 +34,13 @@ def _emit(payload: object) -> None:
 
 def _cmd_model(args: argparse.Namespace) -> int:
     config = AppConfig.from_env()
-    installer = _build_installer(config)
+    installer = build_installer(config)
     kinds = [args.kind] if args.kind else [KIND_EMBEDDING, KIND_MEMORY]
 
     for kind in kinds:
-        provider = _provider_for(config, kind)
+        provider = provider_for(config, kind)
         try:
-            spec = _resolve_spec(config, kind)
+            spec = resolve_spec(config, kind)
         except ConfigError as exc:
             if args.command == "status":
                 _emit({"kind": kind, "provider": provider, "error": str(exc)})
@@ -93,13 +61,24 @@ def _cmd_model(args: argparse.Namespace) -> int:
             path = installer.pull(spec)
             _emit({"kind": kind, "model": spec.name, "installed": str(path)})
         else:  # status
-            profile = _profile_for(config, spec)
+            profile = profile_for(config, spec)
             _emit(installer.status(spec, provider=provider, profile=profile).to_dict())
+    return 0
+
+
+def _cmd_serve(args: argparse.Namespace) -> int:
+    from server.http import run_http
+    from server.stdio import run_stdio
+
+    config = AppConfig.from_env()
+    runner = run_http if args.transport == "http" else run_stdio
+    asyncio.run(runner(config))
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    load_env_file()
     parser = argparse.ArgumentParser(prog="another-brain-server")
     subparsers = parser.add_subparsers(dest="group", required=True)
 
@@ -107,8 +86,16 @@ def main(argv: list[str] | None = None) -> int:
     model.add_argument("command", choices=["plan", "pull", "status"])
     model.add_argument("--kind", choices=[KIND_EMBEDDING, KIND_MEMORY], default=None)
 
+    serve = subparsers.add_parser("serve", help="run the MCP server")
+    serve.add_argument(
+        "--transport", choices=["stdio", "http"], default="stdio",
+        help="MCP transport (default: stdio)",
+    )
+
     args = parser.parse_args(argv)
     try:
+        if args.group == "serve":
+            return _cmd_serve(args)
         return _cmd_model(args)
     except ConfigError as exc:
         print(f"error: {exc}", file=sys.stderr)
