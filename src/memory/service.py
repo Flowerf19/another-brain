@@ -17,6 +17,8 @@ import time
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+from audit.models import AuditAction, AuditEvent
+from audit.service import AuditService
 from config import AppConfig
 from errors import ValidationError
 from memory.embeddings import EmbeddingProvider
@@ -27,12 +29,14 @@ from memory.models import (
     MemoryScope,
     MemorySearchResult,
     SearchFilters,
+    timeline_day_from_ts,
 )
 from memory.search import MemorySearchEngine
 from storage.redis_index import RedisIndexManager
 from storage.redis_repository import RedisMemoryRepository
 
 RECENT_LIMIT_MAX = 100
+AUDIT_LIMIT_MAX = 500
 
 
 @dataclass(frozen=True)
@@ -57,12 +61,14 @@ class MemoryService:
         config: AppConfig,
         *,
         index: RedisIndexManager | None = None,
+        audit: AuditService | None = None,
     ):
         self._repo = repository
         self._engine = engine
         self._embedder = embedder
         self._config = config
         self._index = index
+        self._audit = audit
 
     @property
     def timezone(self) -> str:
@@ -123,6 +129,12 @@ class MemoryService:
         await self._repo.store(record, embedding)
         expires_at = await self._repo.expire_at(
             self._config.brain_id, record.identity.memory_id
+        )
+        await self._record_audit(
+            AuditAction.REMEMBER,
+            record.identity.memory_id,
+            ts=record.created_at,
+            detail={"importance": record.importance, "scope": record.identity.scope.value},
         )
         return RememberResult(
             memory_id=record.identity.memory_id,
@@ -215,15 +227,61 @@ class MemoryService:
         if record is None:
             return None
         expires_at = await self._repo.expire_at(self._config.brain_id, memory_id)
+        await self._record_audit(AuditAction.REINFORCE, memory_id, ts=now)
         return MemoryDetail(record=record, expires_at=expires_at)
 
     async def forget(self, memory_id: str, *, now_ts: float | None = None) -> bool:
         """Soft delete (§4.2.3): sets deleted_at, shrinks the TTL to the grace
         window. False when the memory does not exist."""
         now = float(now_ts) if now_ts is not None else time.time()
-        return await self._repo.soft_delete(
+        deleted = await self._repo.soft_delete(
             self._config.brain_id, memory_id, now_ts=now
         )
+        if deleted:
+            await self._record_audit(AuditAction.FORGET, memory_id, ts=now)
+        return deleted
+
+    # -------------------------------------------------------- admin lifecycle
+
+    async def restore(
+        self, memory_id: str, *, now_ts: float | None = None
+    ) -> MemoryDetail | None:
+        """Admin restore within the grace window (§4.2.4): clears deleted_at and
+        re-arms the importance TTL. None when the memory is already gone."""
+        now = float(now_ts) if now_ts is not None else time.time()
+        record = await self._repo.restore(self._config.brain_id, memory_id)
+        if record is None:
+            return None
+        expires_at = await self._repo.expire_at(self._config.brain_id, memory_id)
+        await self._record_audit(AuditAction.RESTORE, memory_id, ts=now)
+        return MemoryDetail(record=record, expires_at=expires_at)
+
+    async def hard_delete(self, memory_id: str, *, now_ts: float | None = None) -> bool:
+        """Admin-only DEL (§4.2.5). False when the memory does not exist."""
+        now = float(now_ts) if now_ts is not None else time.time()
+        deleted = await self._repo.hard_delete(self._config.brain_id, memory_id)
+        if deleted:
+            await self._record_audit(AuditAction.HARD_DELETE, memory_id, ts=now)
+        return deleted
+
+    async def audit_events(
+        self, *, day: str | None = None, limit: int | None = None, now_ts: float | None = None
+    ) -> list[AuditEvent]:
+        """Read the audit trail for one brain-day (admin/observability). Pure
+        read. Defaults to today in the configured timezone."""
+        if self._audit is None:
+            return []
+        if day is None:
+            now = float(now_ts) if now_ts is not None else time.time()
+            day = timeline_day_from_ts(now, self._config.timeline_timezone)
+        if limit is None:
+            limit = AUDIT_LIMIT_MAX
+        if isinstance(limit, bool) or not isinstance(limit, int) \
+                or not 1 <= limit <= AUDIT_LIMIT_MAX:
+            raise ValidationError(
+                f"limit must be an int between 1 and {AUDIT_LIMIT_MAX}, got {limit!r}"
+            )
+        return await self._audit.list_day(self._config.brain_id, day, limit=limit)
 
     # -------------------------------------------------------------- health
 
@@ -247,6 +305,29 @@ class MemoryService:
         }
 
     # -------------------------------------------------------------- helpers
+
+    async def _record_audit(
+        self,
+        action: str,
+        memory_id: str,
+        *,
+        ts: float,
+        detail: dict[str, Any] | None = None,
+    ) -> None:
+        """Fire-and-forget audit write with the server-bound identity. The
+        AuditService swallows Redis I/O errors, so this never fails a mutation."""
+        if self._audit is None:
+            return
+        await self._audit.record(
+            AuditEvent(
+                action=action,
+                memory_id=memory_id,
+                brain_id=self._config.brain_id,
+                agent_id=self._config.agent_id,
+                ts=ts,
+                detail=detail or {},
+            )
+        )
 
     @staticmethod
     def _pin_scope_id(scope: str, scope_id: str) -> str:

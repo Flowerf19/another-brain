@@ -76,6 +76,29 @@ def _cmd_serve(args: argparse.Namespace) -> int:
     return 0
 
 
+async def _run_admin(args: argparse.Namespace) -> dict[str, object]:
+    from app import build_service
+
+    config = AppConfig.from_env()
+    service, redis = await build_service(config)
+    try:
+        if args.command == "restore":
+            detail = await service.restore(args.memory_id)
+            return {"command": "restore", "memory_id": args.memory_id,
+                    "restored": detail is not None}
+        # hard-delete
+        deleted = await service.hard_delete(args.memory_id)
+        return {"command": "hard-delete", "memory_id": args.memory_id,
+                "deleted": deleted}
+    finally:
+        await redis.aclose()
+
+
+def _cmd_admin(args: argparse.Namespace) -> int:
+    _emit(asyncio.run(_run_admin(args)))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     load_env_file()
@@ -92,10 +115,18 @@ def main(argv: list[str] | None = None) -> int:
         help="MCP transport (default: stdio)",
     )
 
+    admin = subparsers.add_parser(
+        "admin", help="admin memory operations (restore, hard-delete)"
+    )
+    admin.add_argument("command", choices=["restore", "hard-delete"])
+    admin.add_argument("memory_id")
+
     args = parser.parse_args(argv)
     try:
         if args.group == "serve":
             return _cmd_serve(args)
+        if args.group == "admin":
+            return _cmd_admin(args)
         return _cmd_model(args)
     except ConfigError as exc:
         print(f"error: {exc}", file=sys.stderr)

@@ -15,6 +15,7 @@ from pathlib import Path
 
 import redis.asyncio as aioredis
 
+from audit.service import AuditService
 from config import AppConfig
 from errors import ConfigError
 from memory.embeddings import EmbeddingProvider, LocalEmbeddingProvider
@@ -158,9 +159,14 @@ async def build_service(
         grace_seconds=config.forget_grace_seconds,
         embedding_dim=config.embedding.dim,
     )
+    audit = AuditService(
+        redis, keys,
+        retention_days=config.audit_retention_days,
+        tz_name=config.timeline_timezone,
+    )
     engine = MemorySearchEngine(repo, config.search)
     service = MemoryService(
-        repo, engine, build_embedder(config), config, index=index,
+        repo, engine, build_embedder(config), config, index=index, audit=audit,
     )
     logger.info(
         "Service wired: brain_id=%s redis=%s index=%s dim=%d",

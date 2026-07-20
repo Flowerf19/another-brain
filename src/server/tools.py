@@ -1,4 +1,4 @@
-"""BrainTools — registers the 7 brain_* MCP tools on a FastMCP server and
+"""BrainTools — registers the 8 brain_* MCP tools on a FastMCP server and
 delegates to MemoryService. Thin adapter: converts domain results to
 JSON-safe dicts, timestamps to ISO 8601 in the configured timezone.
 
@@ -6,14 +6,16 @@ Tool descriptions are the LLM-facing contract: search/recent return preview
 lines only (detail via brain_get), and after actually using a memory the
 agent closes the loop explicitly — brain_reinforce when it proved correct
 and valuable, brain_forget when it proved wrong (Step 04 §4.2, §6.5).
+brain_audit is the admin/observability read over the mutation trail.
 """
 from __future__ import annotations
 
+import time
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from memory.models import MemoryRecord, MemorySearchResult
+from memory.models import MemoryRecord, MemorySearchResult, timeline_day_from_ts
 from memory.service import MemoryService
 
 
@@ -45,6 +47,17 @@ def _preview(result: MemorySearchResult) -> dict[str, Any]:
 
 def _record_preview(record: MemoryRecord) -> dict[str, Any]:
     return _preview_core(record.identity.memory_id, record)
+
+
+def _audit_preview(event: Any, tz_name: str) -> dict[str, Any]:
+    return {
+        "event_id": event.event_id,
+        "action": event.action,
+        "memory_id": event.memory_id,
+        "agent_id": event.agent_id,
+        "ts": _iso(event.ts, tz_name),
+        "detail": event.detail,
+    }
 
 
 def register_tools(server: Any, service: MemoryService) -> None:
@@ -204,3 +217,22 @@ def register_tools(server: Any, service: MemoryService) -> None:
         (embedding model/dim), and the identity this server writes with
         (brain_id/agent_id)."""
         return await service.health()
+
+    @server.tool()
+    async def brain_audit(
+        day: str | None = None,
+        limit: int | None = None,
+    ) -> dict[str, Any]:
+        """Read the memory-mutation audit trail for one day (admin /
+        observability). Secret-free: each event records the action
+        (remember/reinforce/forget/restore/hard_delete), memory_id, the acting
+        agent_id, and a timestamp — never the memory text. Pure read; brain_id
+        is server-bound. day is YYYY-MM-DD (defaults to today in the server's
+        timezone); newest events first."""
+        resolved_day = day or timeline_day_from_ts(time.time(), tz)
+        events = await service.audit_events(day=resolved_day, limit=limit)
+        return {
+            "count": len(events),
+            "day": resolved_day,
+            "events": [_audit_preview(e, tz) for e in events],
+        }

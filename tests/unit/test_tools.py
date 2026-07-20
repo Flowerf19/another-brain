@@ -1,4 +1,4 @@
-"""BrainTools registration contract: the 7 brain_* tools exist with the
+"""BrainTools registration contract: the 8 brain_* tools exist with the
 expected required/optional params — guards the LLM-facing schema against
 silent renames or dropped parameters."""
 from mcp.server.fastmcp import FastMCP
@@ -25,10 +25,11 @@ EXPECTED = {
     "brain_reinforce": {"required": {"memory_id"}, "optional": set()},
     "brain_forget": {"required": {"memory_id"}, "optional": set()},
     "brain_health": {"required": set(), "optional": set()},
+    "brain_audit": {"required": set(), "optional": {"day", "limit"}},
 }
 
 
-async def test_registers_all_seven_brain_tools():
+async def test_registers_all_brain_tools():
     server = FastMCP("brain-test")
     register_tools(server, FakeService())
     tools = {t.name: t for t in await server.list_tools()}
