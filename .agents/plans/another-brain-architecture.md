@@ -31,8 +31,9 @@ client agent only sends observations or explicit memories and asks for recall.
 - Keep agent implementation details outside the service contract.
 - Store canonical memory text in the memory's natural language by default, with
   explicit language metadata and optional translation policy.
-- Add a lightweight memory model for translation, normalization, and compact
-  topic summaries; keep it separate from any chat/persona model.
+- Normalization (topic, summary, catalog, importance) is the **writer's** job:
+  the calling agent already runs a strong LLM with full context. The service
+  contains no LLM — only an embedding model.
 - Run locally first, with a Docker deployment that includes persistent storage.
 - Allow an npm package to act as a convenient MCP launcher, not as the core
   storage implementation.
@@ -41,8 +42,10 @@ client agent only sends observations or explicit memories and asks for recall.
 
 - Do not depend on March7, Evernight, Discord, or any project-specific runtime.
 - Do not require a chat framework, persona system, or agent loop.
-- Do not require a heavyweight chat LLM. Any model inside Another Brain should
-  be a small memory model with narrow prompts and replaceable providers.
+- Do not require a heavyweight chat LLM. **Do not embed any LLM in the
+  service at all**: local footprint must stay under ~1 GB (the Harrier
+  embedding model is ~0.5 GB). Any server-side LLM breaks the
+  harness-adoption constraint.
 - Do not partition shared memory by `agent_id` by default; that would prevent
   agents from sharing the same brain.
 
@@ -267,57 +270,27 @@ Fields Another Brain should add on top of the M7 diary shape:
 Do not preserve project-specific shortcuts such as storing channel memory under
 `user_id=channel_id`. The new schema should represent scope explicitly.
 
-## Language and Memory Model Policy
+## Language Policy
 
-Another Brain should be multilingual by default. The previous English-only
-canonical plan is replaced by a language-preserving policy because the preferred
-embedding direction is now a strong multilingual model.
+Another Brain is multilingual by default: store the memory in its natural
+language and embed that canonical text. The embedding model (Harrier) is
+multilingual, so no translation is required for cross-language retrieval.
 
-The service should own normalization. Clients may send raw text in any language,
-but the stored timeline chunk should be normalized server-side:
+**Normalization is client-side.** The calling agent produces the structured
+record (topic, summary, catalog, importance, language-appropriate text)
+following the `brain-memory` skill contract — it has the conversation
+context a server-side model would lack, and it costs the deployment
+nothing. The service validates and stores verbatim; it does not rewrite.
+Guidance for writers:
 
-1. Detect or accept `original_language`.
-2. Normalize and compress the memory in its natural language unless policy
-   explicitly requests translation.
-3. Preserve names, ids, commands, paths, dates, numbers, and quoted user
+1. Preserve names, ids, commands, paths, dates, numbers, and quoted user
    preferences exactly.
-4. Store the normalized result in `content`.
-5. Store the language of `content` in `canonical_language`.
-6. Optionally keep the raw source text in `original_content` for audit/debug.
-7. Embed canonical `content`, not an optional translated/debug copy.
+2. Write the summary in the memory's natural language (Harrier retrieves
+   cross-lingually).
+3. Normalize relative dates to absolute dates using the timeline timezone.
 
-Translation remains a deployment policy, not the default:
-
-- `preserve` keeps the memory in its natural language.
-- `translate_to_en` stores English canonical content for deployments that use
-  weak English-only models.
-- `dual` can store source-language canonical `content` plus an optional English
-  helper field later, but this is not required for MVP.
-
-Use a dedicated lightweight memory model for this step. It is not a chat model
-and should not know agent persona. Its jobs are narrow:
-
-- detect language and normalize memory text;
-- optionally translate when policy requires it;
-- produce compact timeline chunks from observations;
-- normalize relative dates into absolute dates when the caller supplies time
-  context;
-- return strict JSON for storage.
-
-Suggested config:
-
-```text
-MEMORY_MODEL_PROVIDER=openai_compat | ollama | gemini | local
-MEMORY_MODEL_NAME=...
-MEMORY_MODEL_API_URL=...
-MEMORY_MODEL_API_KEY=...
-MEMORY_CANONICAL_LANGUAGE=auto
-MEMORY_TRANSLATION_POLICY=preserve
-STORE_ORIGINAL_CONTENT=true
-```
-
-The memory model is separate from the embedding provider. Changing the memory
-model should not require reindexing unless the canonical text is regenerated.
+Translation remains a deployment choice for the *writer*, not the service:
+agents may store English canonical content when their deployment prefers it.
 
 ## Memory Write Policy
 
@@ -333,10 +306,12 @@ Another Brain should support two write paths:
 2. **Observation ingest**
    - Tool: `brain_ingest`.
    - Client sends raw messages/events with timestamps and actors.
-   - Server uses the lightweight memory model to produce multilingual topic
-     timeline chunks.
-   - This richer ingest path is not required for MVP; MVP can start with
-     explicit memory writes.
+   - With no server-side LLM, raw-to-record normalization cannot happen in
+     the service; if built, ingest degenerates to a batch `brain_remember`
+     for client-normalized records. Raw auto-capture additionally multiplies
+     every contamination vector — it is gated on the memory trust model
+     (`docs/memory-trust-model.md`, open decisions).
+   - Not required for MVP; explicit memory writes are the write path.
 
 The server should never silently trim or delete source data unless the caller
 explicitly requests that behavior. Data loss policy belongs in the memory
@@ -485,8 +460,7 @@ Recommended MVP:
 another-brain-server
   -> MCP transport: stdio and/or Streamable HTTP
   -> service layer: validation, identity binding, memory policy
-  -> memory model: lightweight translation/normalization/summarization
-  -> embedding provider: OpenAI-compatible, Ollama, Gemini, or local model
+  -> embedding provider: local model (Harrier) or external API
   -> repository: Redis Stack
   -> persistent volume: Redis data
 ```
@@ -647,7 +621,6 @@ another-brain/
       models.py
       service.py
       repository.py
-      normalization.py
       search.py
       embeddings.py
       retention.py
@@ -679,7 +652,11 @@ another-brain/
 ## MVP Milestones
 
 1. Core memory model and Redis Stack repository.
-2. Lightweight memory model abstraction for multilingual normalization.
+2. ~~Lightweight memory model abstraction for multilingual normalization.~~
+   **Cut**: normalization is the calling agent's job (skill contract); the
+   service embeds and stores verbatim. A server-side LLM would exceed the
+   <1 GB local footprint target and normalize worse than the context-rich
+   writer. Revisit only as part of the gated `brain_ingest` decision.
 3. Model install/cache policy for local embedding and memory models.
 4. Embedding provider abstraction and `brain_health`.
 5. MCP stdio server with `brain_remember`, `brain_search`, `brain_recent`.

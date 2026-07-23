@@ -2,7 +2,7 @@
 import pytest
 
 from errors import ConfigError
-from models.registry import KIND_EMBEDDING, KIND_MEMORY, ModelRegistry
+from models.registry import KIND_EMBEDDING, ModelRegistry
 
 HARRIER = "microsoft/harrier-oss-v1-270m"
 
@@ -45,12 +45,11 @@ class TestValidation:
             ModelRegistry().resolve("", KIND_EMBEDDING)
 
     def test_whitespace_only_name_rejected(self):
-        with pytest.raises(ConfigError, match="no memory model configured"):
-            ModelRegistry().resolve("   ", KIND_MEMORY)
+        with pytest.raises(ConfigError, match="no embedding model configured"):
+            ModelRegistry().resolve("   ", KIND_EMBEDDING)
 
 
-class TestMemoryKind:
-    def test_expected_dim_none_regardless_of_configured_dim(self):
-        spec = ModelRegistry().resolve("some/memory-model", KIND_MEMORY, configured_dim=999)
-        assert spec.expected_dim is None
-        assert spec.kind == KIND_MEMORY
+class TestNonEmbeddingKind:
+    def test_non_embedding_kind_rejected(self):
+        with pytest.raises(ConfigError, match="unknown model kind"):
+            ModelRegistry().resolve("some/model", "other")

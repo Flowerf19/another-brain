@@ -11,7 +11,6 @@ from dataclasses import dataclass
 from errors import ConfigError
 
 KIND_EMBEDDING = "embedding"
-KIND_MEMORY = "memory"
 
 
 @dataclass(frozen=True)
@@ -48,17 +47,19 @@ class ModelRegistry:
         name = name.strip()
         if not name:
             raise ConfigError(f"no {kind} model configured")
+        if kind != KIND_EMBEDDING:
+            raise ConfigError(
+                f"unknown model kind {kind!r} (only {KIND_EMBEDDING!r} exists — "
+                f"normalization is done by the calling agent, not a server-side model)"
+            )
         known = _KNOWN.get(name, {})
         expected_dim = known.get("expected_dim")
-        if kind == KIND_EMBEDDING:
-            if expected_dim is not None and configured_dim not in (None, expected_dim):
-                raise ConfigError(
-                    f"EMBEDDING_DIM={configured_dim} conflicts with {name} "
-                    f"which produces {expected_dim}-dim vectors"
-                )
-            expected_dim = expected_dim or configured_dim
-        else:
-            expected_dim = None
+        if expected_dim is not None and configured_dim not in (None, expected_dim):
+            raise ConfigError(
+                f"EMBEDDING_DIM={configured_dim} conflicts with {name} "
+                f"which produces {expected_dim}-dim vectors"
+            )
+        expected_dim = expected_dim or configured_dim
         return ModelSpec(
             name=name,
             kind=kind,

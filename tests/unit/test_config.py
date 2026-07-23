@@ -82,8 +82,6 @@ class TestValidation:
     def test_unknown_provider_rejected(self):
         with pytest.raises(ConfigError):
             AppConfig.from_env({"EMBEDDING_PROVIDER": "bedrock"})
-        with pytest.raises(ConfigError):
-            AppConfig.from_env({"MEMORY_MODEL_PROVIDER": "bedrock"})
 
     def test_bad_timezone_rejected(self):
         with pytest.raises(ConfigError, match="timezone"):

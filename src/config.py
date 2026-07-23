@@ -1,4 +1,4 @@
-"""Validated runtime config: AppConfig, RedisConfig, MemoryModelConfig,
+"""Validated runtime config: AppConfig, RedisConfig,
 EmbeddingConfig, SearchConfig.
 
 Config values: Step 04 section 7 plus the Step 03 provider/model settings.
@@ -92,12 +92,6 @@ class EmbeddingConfig:
 
 
 @dataclass(frozen=True)
-class MemoryModelConfig:
-    provider: str
-    model_name: str
-
-
-@dataclass(frozen=True)
 class ModelInstallConfig:
     """Step 03 download policy and runtime precision knobs."""
 
@@ -121,7 +115,6 @@ class AppConfig:
     brain_id: str
     redis: RedisConfig
     embedding: EmbeddingConfig
-    memory_model: MemoryModelConfig
     model_install: ModelInstallConfig
     search: SearchConfig
     ttl_by_importance: dict[int, int]
@@ -177,17 +170,6 @@ class AppConfig:
             dim=_positive("EMBEDDING_DIM", _int(env, "EMBEDDING_DIM", 640)),
             normalize=_bool(env, "NORMALIZE_EMBEDDINGS", True),
             query_prompt_name=_str(env, "EMBEDDING_QUERY_PROMPT_NAME", ""),
-        )
-
-        memory_model_provider = _str(env, "MEMORY_MODEL_PROVIDER", "local")
-        if memory_model_provider not in PROVIDERS:
-            raise ConfigError(
-                f"MEMORY_MODEL_PROVIDER must be one of {sorted(PROVIDERS)}, "
-                f"got {memory_model_provider!r}"
-            )
-        memory_model = MemoryModelConfig(
-            provider=memory_model_provider,
-            model_name=env.get("MEMORY_MODEL_NAME", "").strip(),
         )
 
         weight_precision = _str(env, "MODEL_WEIGHT_PRECISION", "auto").lower()
@@ -261,7 +243,6 @@ class AppConfig:
             brain_id=brain_id,
             redis=redis,
             embedding=embedding,
-            memory_model=memory_model,
             model_install=model_install,
             search=search,
             ttl_by_importance=ttl_by_importance,

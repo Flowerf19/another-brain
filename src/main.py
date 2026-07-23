@@ -1,8 +1,8 @@
 """Entrypoint for the `another-brain-server` command.
 
-    python src/main.py model plan   [--kind embedding|memory]
-    python src/main.py model pull   [--kind embedding|memory]
-    python src/main.py model status [--kind embedding|memory]
+    python src/main.py model plan
+    python src/main.py model pull
+    python src/main.py model status
     python src/main.py serve        [--transport stdio|http]
 
 `serve` runs the MCP server; the model subcommands manage the local model cache
@@ -25,7 +25,7 @@ from app import (
 )
 from config import AppConfig
 from errors import ConfigError
-from models.registry import KIND_EMBEDDING, KIND_MEMORY
+from models.registry import KIND_EMBEDDING
 
 
 def _emit(payload: object) -> None:
@@ -35,34 +35,32 @@ def _emit(payload: object) -> None:
 def _cmd_model(args: argparse.Namespace) -> int:
     config = AppConfig.from_env()
     installer = build_installer(config)
-    kinds = [args.kind] if args.kind else [KIND_EMBEDDING, KIND_MEMORY]
 
-    for kind in kinds:
-        provider = provider_for(config, kind)
-        try:
-            spec = resolve_spec(config, kind)
-        except ConfigError as exc:
-            if args.command == "status":
-                _emit({"kind": kind, "provider": provider, "error": str(exc)})
-                continue
-            raise
+    provider = provider_for(config)
+    try:
+        spec = resolve_spec(config)
+    except ConfigError as exc:
+        if args.command == "status":
+            _emit({"kind": KIND_EMBEDDING, "provider": provider, "error": str(exc)})
+            return 0
+        raise
 
-        if args.command == "plan":
-            if provider != "local":
-                _emit({"kind": kind, "provider": provider,
-                       "note": "external provider — nothing to download"})
-                continue
+    if args.command == "plan":
+        if provider != "local":
+            _emit({"kind": KIND_EMBEDDING, "provider": provider,
+                   "note": "external provider — nothing to download"})
+        else:
             _emit(installer.plan(spec))
-        elif args.command == "pull":
-            if provider != "local":
-                _emit({"kind": kind, "provider": provider,
-                       "note": "external provider — nothing to pull"})
-                continue
+    elif args.command == "pull":
+        if provider != "local":
+            _emit({"kind": KIND_EMBEDDING, "provider": provider,
+                   "note": "external provider — nothing to pull"})
+        else:
             path = installer.pull(spec)
-            _emit({"kind": kind, "model": spec.name, "installed": str(path)})
-        else:  # status
-            profile = profile_for(config, spec)
-            _emit(installer.status(spec, provider=provider, profile=profile).to_dict())
+            _emit({"kind": KIND_EMBEDDING, "model": spec.name, "installed": str(path)})
+    else:  # status
+        profile = profile_for(config, spec)
+        _emit(installer.status(spec, provider=provider, profile=profile).to_dict())
     return 0
 
 
@@ -144,7 +142,6 @@ def main(argv: list[str] | None = None) -> int:
 
     model = subparsers.add_parser("model", help="local model management (Step 03)")
     model.add_argument("command", choices=["plan", "pull", "status"])
-    model.add_argument("--kind", choices=[KIND_EMBEDDING, KIND_MEMORY], default=None)
 
     serve = subparsers.add_parser("serve", help="run the MCP server")
     serve.add_argument(

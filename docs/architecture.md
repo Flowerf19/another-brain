@@ -39,5 +39,9 @@ MCP host → transport (stdio / Streamable HTTP) → `MemoryService` → Redis 8
 | `audit/` | secret-free mutation events |
 
 Not yet implemented: `server/resources.py`, `storage/migrations.py`,
-`memory/normalization.py`, external embedding providers (only `local` works),
+external embedding providers (only `local` works),
 `packages/npm-launcher`, service Dockerfile.
+
+Cut by decision (2026-07-23): the server-side memory model
+(normalization/summarization) — normalization is the calling agent's job;
+see the architecture plan, milestone 2.

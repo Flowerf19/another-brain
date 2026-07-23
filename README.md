@@ -122,7 +122,8 @@ Layout: `src/` (`main.py` CLI, `app.py` composition root, `server/` MCP
 surface, `memory/` domain, `storage/` Redis, `models/` local model install,
 `audit/` mutation trail), `tests/unit` + `tests/integration`. Stubs not yet
 implemented: `server/resources.py`, `storage/migrations.py`,
-`memory/normalization.py`, `packages/npm-launcher`, service Dockerfile.
+`packages/npm-launcher`, service Dockerfile. (The server-side memory
+model was cut by decision — normalization is the calling agent's job.)
 
 See `.agents/TESTING_GUIDE.md` for the integration-test Redis contract and
 `docs/mcp-tools.md` for the tool surface.

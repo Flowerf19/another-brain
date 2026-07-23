@@ -61,9 +61,10 @@ model install CLI (`model plan/pull/status`), admin CLI
 (`admin restore/hard-delete`).
 
 Stubs / not implemented: `server/resources.py`, `server/schemas.py`,
-`storage/migrations.py`, `memory/normalization.py`, `memory/repository.py`,
-external embedding/memory-model providers, `packages/npm-launcher`, service
-Dockerfile, `brain_ingest`.
+`storage/migrations.py`, `memory/repository.py`,
+external embedding providers, `packages/npm-launcher`, service
+Dockerfile, `brain_ingest`. Cut (2026-07-23): server-side memory model —
+normalization is the calling agent's job (architecture plan, milestone 2).
 
 ## Runtime Shape
 

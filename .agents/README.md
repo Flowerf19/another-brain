@@ -28,8 +28,10 @@ Current repo state:
 - `uv run pytest` runs 183 unit + 14 integration tests (integration needs the
   compose Redis on `REDIS_PORT`).
 - Not yet implemented: `server/resources.py`, `storage/migrations.py`,
-  `memory/normalization.py`, external embedding providers (only `local`),
+  external embedding providers (only `local`),
   `packages/npm-launcher`, the service Dockerfile, `brain_ingest`.
+- Cut by decision (2026-07-23): the server-side memory model —
+  normalization is the calling agent's job (architecture plan, milestone 2).
 
 Do not invent implementation facts that are not present in the repo. When
 changing commands, env vars, runtime boundaries, or storage contracts, update

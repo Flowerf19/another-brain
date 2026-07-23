@@ -77,20 +77,16 @@ def load_env_file(path: str | os.PathLike[str] = ".env") -> None:
 # --------------------------------------------------------------- model helpers
 # Shared by the `model` CLI (main.py) and the embedding provider build below.
 
-def resolve_spec(config: AppConfig, kind: str) -> ModelSpec:
-    registry = ModelRegistry()
-    if kind == KIND_EMBEDDING:
-        return registry.resolve(
-            config.embedding.model_name, kind,
-            configured_dim=config.embedding.dim,
-        )
-    return registry.resolve(config.memory_model.model_name, kind)
+def resolve_spec(config: AppConfig) -> ModelSpec:
+    """Resolve the (single) configured model: the embedding model."""
+    return ModelRegistry().resolve(
+        config.embedding.model_name, KIND_EMBEDDING,
+        configured_dim=config.embedding.dim,
+    )
 
 
-def provider_for(config: AppConfig, kind: str) -> str:
-    if kind == KIND_EMBEDDING:
-        return config.embedding.provider
-    return config.memory_model.provider
+def provider_for(config: AppConfig) -> str:
+    return config.embedding.provider
 
 
 def build_installer(config: AppConfig) -> ModelInstaller:
@@ -123,7 +119,7 @@ def build_embedder(config: AppConfig) -> EmbeddingProvider:
             f"EMBEDDING_PROVIDER={config.embedding.provider!r} is not implemented "
             f"yet — only 'local' is supported. Set EMBEDDING_PROVIDER=local."
         )
-    spec = resolve_spec(config, KIND_EMBEDDING)
+    spec = resolve_spec(config)
     installer = build_installer(config)
     # MANUAL policy won't download on startup — it returns the cached dir or
     # raises with an actionable `model pull` hint if the model is missing.
