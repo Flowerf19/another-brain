@@ -1,6 +1,7 @@
 # Another Brain
 
-Standalone timeline memory for MCP-capable agents.
+One shared brain for all your MCP-capable agents — hybrid search, local
+multilingual embeddings, self-expiring memory.
 
 Another Brain is a memory service for agent systems such as Claude, Codex,
 Discord bots, local chat bots, and other MCP hosts. It owns long-term memory
