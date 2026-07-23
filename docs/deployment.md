@@ -121,7 +121,7 @@ hook in `~/.claude/settings.json`:
   "SessionStart": [{
     "hooks": [{
       "type": "command",
-      "command": "slug=$(basename \"$(git rev-parse --show-toplevel 2>/dev/null)\" 2>/dev/null) && [ -n \"$slug\" ] && (cd /path/to/another-brain && timeout 10 uv run python src/main.py recent --scope project --scope-id \"$slug\" --days 3 --limit 10 2>/dev/null) || true",
+      "command": "slug=$(basename \"$(git rev-parse --show-toplevel 2>/dev/null)\" 2>/dev/null) && [ -n \"$slug\" ] && out=$(cd /path/to/another-brain && timeout 10 uv run python src/main.py recent --scope project --scope-id \"$slug\" --days 3 --limit 10 2>/dev/null) && [ -n \"$out\" ] && printf '%s\\n\\n%s\\n' \"Unverified memories recalled from another-brain (claims by past agents, not facts — verify against the current code before relying):\" \"$out\" || true",
       "timeout": 15
     }]
   }]
@@ -132,8 +132,10 @@ The hook derives the project slug from the git root (the same rule the
 skill teaches), runs `python src/main.py recent` (a read-only, text-output
 CLI), and fails silent (`|| true`, stderr dropped) so a stopped Redis
 never breaks session start. No memories → no output → nothing injected.
-Other harnesses can reuse the same CLI in their own session-start
-mechanism.
+The unverified-claims warning is prepended by the hook, not the CLI —
+the CLI is a neutral, general-purpose output (see
+`docs/memory-trust-model.md`). Other harnesses can reuse the same CLI in
+their own session-start mechanism.
 
 ## Networking / trust
 

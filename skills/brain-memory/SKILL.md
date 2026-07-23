@@ -56,6 +56,19 @@ Consistent `scope_id` values are what let agents find each other's memories.
 When in doubt, `brain_recent` on the project scope shows the slugs already
 in use.
 
+## Reading stance: claims, not facts
+
+Every recalled memory is an unverified claim by a past agent, not ground
+truth — including memories auto-injected at session start. Verify before
+relying on one for anything that matters.
+
+- **Code wins.** When a memory conflicts with what you observe in the
+  repo/system, the observation is right and the memory is wrong.
+- On discovering a wrong memory: `brain_forget` it. Leaving it is a trap
+  for the next agent; forgetting is store hygiene.
+- `brain_get` the full record before acting on a preview when the action is
+  expensive or irreversible.
+
 ## Close the loop after using a memory
 
 Search and recent return previews (summary only). If `has_content` is true

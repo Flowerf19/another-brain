@@ -89,10 +89,12 @@ its content.
 
 ## Open decisions
 
-- [ ] Warning header on hook output ("unverified, may be stale") —
-  agreed direction, not yet implemented (`src/main.py` `format_recent_lines`).
-- [ ] Reader-stance text in `skills/brain-memory/SKILL.md` (claims-not-facts,
-  code-wins, forget-on-conflict) — agreed direction, not yet implemented.
+- [x] Warning on hook output — implemented at the injection point (the hook
+  command in `~/.claude/settings.json` prepends an "unverified claims"
+  line), deliberately NOT in the CLI: `python src/main.py recent` is a
+  neutral, general-purpose output and must stay usable by other consumers.
+- [x] Reader-stance text in `skills/brain-memory/SKILL.md` — "claims, not
+  facts; code wins; forget-on-conflict" section added.
 - [ ] Whether hook injection should filter by `catalog` (e.g. inject
   `task`/`decision` only) or by `min_importance`.
 - [ ] `brain_ingest` (auto-capture) must not land while these are open —
