@@ -48,7 +48,8 @@ Core decisions:
   conversations; conversation origin is provenance in `metadata`).
 - `scope_id` - stable id inside the scope; `scope=global` pins `"global"`.
 
-Both `brain_id` and `agent_id` come from server config; tool inputs never
+`brain_id` comes from server config; `agent_id` is detected per session from
+the MCP handshake (`clientInfo`) — no per-host config. Tool inputs never
 carry identity. Every storage query carries the `brain_id` filter.
 
 ## Runtime State

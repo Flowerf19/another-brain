@@ -15,8 +15,24 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from mcp.server.fastmcp import Context
+
 from memory.models import MemoryRecord, MemorySearchResult, timeline_day_from_ts
 from memory.service import MemoryService
+
+DEFAULT_AGENT_ID = "default"
+
+
+def _client_agent_id(ctx: Context) -> str:
+    """Provenance from the MCP handshake: the host declares itself in
+    clientInfo (spec-required). There is no env override — a junk name only
+    degrades provenance, never operation."""
+    try:
+        name = ctx.request_context.session.client_params.clientInfo.name
+    except AttributeError:
+        return DEFAULT_AGENT_ID
+    name = (name or "").strip()
+    return name or DEFAULT_AGENT_ID
 
 
 def _iso(ts: float | None, tz_name: str) -> str | None:
@@ -74,6 +90,7 @@ def register_tools(server: Any, service: MemoryService) -> None:
         content: str = "",
         importance: int = 3,
         metadata: dict[str, Any] | None = None,
+        ctx: Context = None,
     ) -> dict[str, Any]:
         """Store one memory as a timeline (diary) entry. Call this when you
         learn something worth recalling later: a decision, a bug and its fix,
@@ -93,6 +110,7 @@ def register_tools(server: Any, service: MemoryService) -> None:
         """
         result = await service.remember(
             topic, summary,
+            agent_id=_client_agent_id(ctx),
             scope=scope, scope_id=scope_id, catalog=catalog, content=content,
             importance=importance, metadata=metadata,
         )
@@ -184,12 +202,12 @@ def register_tools(server: Any, service: MemoryService) -> None:
         }
 
     @server.tool()
-    async def brain_reinforce(memory_id: str) -> dict[str, Any]:
+    async def brain_reinforce(memory_id: str, ctx: Context = None) -> dict[str, Any]:
         """Renew a memory's retention after it proved correct and valuable in
         use. This is the ONLY way a memory's expiry is extended — re-arms the
         full TTL for its importance. Don't reinforce on sight: fetch, use,
         judge, then reinforce."""
-        detail = await service.reinforce(memory_id)
+        detail = await service.reinforce(memory_id, agent_id=_client_agent_id(ctx))
         if detail is None:
             return {"ok": False, "memory_id": memory_id, "reason": "not_found"}
         return {
@@ -199,12 +217,12 @@ def register_tools(server: Any, service: MemoryService) -> None:
         }
 
     @server.tool()
-    async def brain_forget(memory_id: str) -> dict[str, Any]:
+    async def brain_forget(memory_id: str, ctx: Context = None) -> dict[str, Any]:
         """Forget a memory that proved wrong or stale. Soft delete: it
         disappears from all search/recent/get immediately and is purged after
         a grace window (admin can restore within it). Use deliberately —
         harmless outdated memories can just expire on their own."""
-        ok = await service.forget(memory_id)
+        ok = await service.forget(memory_id, agent_id=_client_agent_id(ctx))
         return {
             "ok": ok,
             "memory_id": memory_id,
@@ -212,11 +230,11 @@ def register_tools(server: Any, service: MemoryService) -> None:
         }
 
     @server.tool()
-    async def brain_health() -> dict[str, Any]:
+    async def brain_health(ctx: Context = None) -> dict[str, Any]:
         """Service health: Redis reachability, active index contract
-        (embedding model/dim), and the identity this server writes with
-        (brain_id/agent_id)."""
-        return await service.health()
+        (embedding model/dim), the brain this server writes to (brain_id),
+        and your client identity as detected from the MCP handshake."""
+        return await service.health(agent_id=_client_agent_id(ctx))
 
     @server.tool()
     async def brain_audit(

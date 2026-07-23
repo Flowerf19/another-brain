@@ -11,7 +11,6 @@ class TestDefaults:
     def test_all_defaults(self):
         config = AppConfig.from_env({})
         assert config.brain_id == "default"
-        assert config.agent_id == "default"
         assert config.redis.url == "redis://localhost:6379"
         assert config.redis.key_prefix == "ab"
         assert config.redis.index_name == "ab:idx:memory"

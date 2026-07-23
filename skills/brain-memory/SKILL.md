@@ -16,8 +16,9 @@ stop and say so instead of emulating memory in local files.
 - **Starting a task**: `brain_search` before answering anything the user may
   have told an agent before — prior decisions, fixed bugs, preferences,
   project conventions. Do not re-ask what memory already knows.
-- **Resuming interrupted work**: `brain_recent` (scope=project) to catch up
-  on what was stored recently, then `brain_search` for the specific topic.
+- **Resuming interrupted work**: `brain_recent` (scope=project, scope_id =
+  the git-root basename of the current project) to catch up on what was
+  stored recently, then `brain_search` for the specific topic.
 - **Tracing one thread**: filter by `topic` slug or `timeline_day`.
 
 ## When to remember
@@ -42,14 +43,18 @@ the old entry.
 
 ## Scope conventions (shared contract — do not improvise)
 
-- `scope=project`, `scope_id` = the repository/project slug (e.g.
-  `another-brain`) — project knowledge; the default for work context.
+- `scope=project`, `scope_id` = the project slug, derived mechanically:
+  `basename "$(git rev-parse --show-toplevel)"` (e.g. `another-brain`).
+  Project knowledge; the default for work context. Never invent a different
+  spelling or abbreviation of the project name — two slugs for one project
+  splits its memory in half.
 - `scope=user`, `scope_id` = the user's handle — personal preferences and
   cross-project user facts.
 - `scope=global` — knowledge useful everywhere; omit `scope_id`.
 
 Consistent `scope_id` values are what let agents find each other's memories.
-Reuse the existing slug of the project you are working in.
+When in doubt, `brain_recent` on the project scope shows the slugs already
+in use.
 
 ## Close the loop after using a memory
 
@@ -71,6 +76,7 @@ Never reinforce on sight — fetch, use, judge, then reinforce.
   nothing and are always safe.
 - Do not store secrets, credentials, or large blobs — store summaries of
   knowledge, not data dumps.
-- Do not pass `brain_id` or `agent_id`; the server binds identity itself.
+- Do not pass `brain_id` or `agent_id`; the server binds the brain from
+  config and detects your client identity from the MCP handshake.
 - If `brain_health` reports degraded, tell the user instead of working
   around a broken memory store.

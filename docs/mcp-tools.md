@@ -75,8 +75,8 @@ expire.
 ## brain_health
 
 Service status: Redis reachability, active index contract (embedding model,
-dim, dtype, metric, index mode), and the server-bound `brain_id`/`agent_id`.
-Secret-free.
+dim, dtype, metric, index mode), the server-bound `brain_id`, and your
+client identity as detected from the MCP handshake. Secret-free.
 
 ## brain_audit
 

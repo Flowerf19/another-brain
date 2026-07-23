@@ -3,8 +3,10 @@ health use cases on top of the repository + search engine.
 
 Owns the write-time validation the storage contract assigns to the service
 layer (CONTENT_MAX_CHARS, JSON-safe metadata) and binds the trusted
-brain_id/agent_id from config — tool inputs never choose the brain. All
-reads are pure: only brain_reinforce re-arms a TTL (Step 04 §4.2).
+brain_id from config — tool inputs never choose the brain. agent_id is
+provenance detected per MCP session (clientInfo) and arrives as a call
+parameter. All reads are pure: only brain_reinforce re-arms a TTL
+(Step 04 §4.2).
 
 Audit events (reinforce/forget/restore, Step 04 §4.2) are wired in the
 audit slice; this service exposes the lifecycle results they will record.
@@ -81,6 +83,7 @@ class MemoryService:
         topic: str,
         summary: str,
         *,
+        agent_id: str,
         scope: str,
         scope_id: str = "",
         catalog: str = MemoryCatalog.DEFAULT,
@@ -111,7 +114,7 @@ class MemoryService:
 
         record = MemoryRecord.new(
             brain_id=self._config.brain_id,
-            agent_id=self._config.agent_id,
+            agent_id=agent_id,
             scope=scope,
             scope_id=self._pin_scope_id(scope, scope_id),
             topic=topic,
@@ -133,6 +136,7 @@ class MemoryService:
         await self._record_audit(
             AuditAction.REMEMBER,
             record.identity.memory_id,
+            agent_id=agent_id,
             ts=record.created_at,
             detail={"importance": record.importance, "scope": record.identity.scope.value},
         )
@@ -216,7 +220,7 @@ class MemoryService:
     # ------------------------------------------------------------ lifecycle
 
     async def reinforce(
-        self, memory_id: str, *, now_ts: float | None = None
+        self, memory_id: str, *, agent_id: str, now_ts: float | None = None
     ) -> MemoryDetail | None:
         """The only TTL renewal (§4.2.2) — an explicit judgment that a fetched
         memory proved correct and valuable. None when missing or soft-deleted."""
@@ -227,10 +231,12 @@ class MemoryService:
         if record is None:
             return None
         expires_at = await self._repo.expire_at(self._config.brain_id, memory_id)
-        await self._record_audit(AuditAction.REINFORCE, memory_id, ts=now)
+        await self._record_audit(AuditAction.REINFORCE, memory_id, agent_id=agent_id, ts=now)
         return MemoryDetail(record=record, expires_at=expires_at)
 
-    async def forget(self, memory_id: str, *, now_ts: float | None = None) -> bool:
+    async def forget(
+        self, memory_id: str, *, agent_id: str, now_ts: float | None = None
+    ) -> bool:
         """Soft delete (§4.2.3): sets deleted_at, shrinks the TTL to the grace
         window. False when the memory does not exist."""
         now = float(now_ts) if now_ts is not None else time.time()
@@ -238,13 +244,13 @@ class MemoryService:
             self._config.brain_id, memory_id, now_ts=now
         )
         if deleted:
-            await self._record_audit(AuditAction.FORGET, memory_id, ts=now)
+            await self._record_audit(AuditAction.FORGET, memory_id, agent_id=agent_id, ts=now)
         return deleted
 
     # -------------------------------------------------------- admin lifecycle
 
     async def restore(
-        self, memory_id: str, *, now_ts: float | None = None
+        self, memory_id: str, *, agent_id: str, now_ts: float | None = None
     ) -> MemoryDetail | None:
         """Admin restore within the grace window (§4.2.4): clears deleted_at and
         re-arms the importance TTL. None when the memory is already gone."""
@@ -253,15 +259,17 @@ class MemoryService:
         if record is None:
             return None
         expires_at = await self._repo.expire_at(self._config.brain_id, memory_id)
-        await self._record_audit(AuditAction.RESTORE, memory_id, ts=now)
+        await self._record_audit(AuditAction.RESTORE, memory_id, agent_id=agent_id, ts=now)
         return MemoryDetail(record=record, expires_at=expires_at)
 
-    async def hard_delete(self, memory_id: str, *, now_ts: float | None = None) -> bool:
+    async def hard_delete(
+        self, memory_id: str, *, agent_id: str, now_ts: float | None = None
+    ) -> bool:
         """Admin-only DEL (§4.2.5). False when the memory does not exist."""
         now = float(now_ts) if now_ts is not None else time.time()
         deleted = await self._repo.hard_delete(self._config.brain_id, memory_id)
         if deleted:
-            await self._record_audit(AuditAction.HARD_DELETE, memory_id, ts=now)
+            await self._record_audit(AuditAction.HARD_DELETE, memory_id, agent_id=agent_id, ts=now)
         return deleted
 
     async def audit_events(
@@ -285,7 +293,7 @@ class MemoryService:
 
     # -------------------------------------------------------------- health
 
-    async def health(self) -> dict[str, Any]:
+    async def health(self, *, agent_id: str) -> dict[str, Any]:
         redis_ok = await self._repo.ping()
         index_meta: dict[str, str] = {}
         if redis_ok and self._index is not None:
@@ -299,7 +307,7 @@ class MemoryService:
             "redis": redis_ok,
             "index": index_meta,
             "brain_id": self._config.brain_id,
-            "agent_id": self._config.agent_id,
+            "agent_id": agent_id,
             "embedding_model": self._embedder.model_name,
             "embedding_dim": self._embedder.dim,
         }
@@ -311,10 +319,11 @@ class MemoryService:
         action: str,
         memory_id: str,
         *,
+        agent_id: str,
         ts: float,
         detail: dict[str, Any] | None = None,
     ) -> None:
-        """Fire-and-forget audit write with the server-bound identity. The
+        """Fire-and-forget audit write with the caller's identity. The
         AuditService swallows Redis I/O errors, so this never fails a mutation."""
         if self._audit is None:
             return
@@ -323,7 +332,7 @@ class MemoryService:
                 action=action,
                 memory_id=memory_id,
                 brain_id=self._config.brain_id,
-                agent_id=self._config.agent_id,
+                agent_id=agent_id,
                 ts=ts,
                 detail=detail or {},
             )

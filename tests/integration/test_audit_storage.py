@@ -70,7 +70,7 @@ async def service(client):
     )
     audit = AuditService(client, keys, retention_days=90, tz_name=TZ)
     config = AppConfig.from_env({
-        "BRAIN_ID": "flowerf-main", "AGENT_ID": "claude-code",
+        "BRAIN_ID": "flowerf-main",
         "TIMELINE_TIMEZONE": TZ, "EMBEDDING_DIM": str(DIM),
     })
     svc = MemoryService(
@@ -90,6 +90,7 @@ async def test_remember_and_forget_leave_audit_events(service):
     svc, keys, audit = service
     result = await svc.remember(
         "audit-topic", "A memory to trace through the audit log.",
+        agent_id="claude-code",
         scope="user", scope_id="flowerf", importance=2, now_ts=BASE_TS,
     )
     mid = result.memory_id
@@ -100,7 +101,7 @@ async def test_remember_and_forget_leave_audit_events(service):
     assert events[0].agent_id == "claude-code"
     assert events[0].detail == {"importance": 2, "scope": "user"}
 
-    assert await svc.forget(mid, now_ts=BASE_TS + 5)
+    assert await svc.forget(mid, agent_id="claude-code", now_ts=BASE_TS + 5)
     events = await audit.list_day("flowerf-main", DAY, limit=10)
     # newest first: forget, then remember
     assert [e.action for e in events] == [AuditAction.FORGET, AuditAction.REMEMBER]
@@ -110,6 +111,7 @@ async def test_audit_events_read_path_defaults_and_shape(service):
     svc, keys, audit = service
     await svc.remember(
         "audit-read", "Second entry for the read-path test.",
+        agent_id="claude-code",
         scope="user", scope_id="flowerf", now_ts=BASE_TS,
     )
     events = await svc.audit_events(day=DAY, limit=10)

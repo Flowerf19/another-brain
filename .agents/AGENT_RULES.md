@@ -33,8 +33,9 @@
 - There is no auth or permission layer: the service is one shared brain for a
   set of trusted agents — unifying knowledge across them is the product goal.
   Do not expose the HTTP transport on an untrusted network.
-- The server binds `brain_id` and `agent_id` from config; tool inputs never
-  carry identity, so an LLM cannot declare its own.
+- The server binds `brain_id` from config and detects `agent_id` per session
+  from the MCP handshake; tool inputs never carry identity, so an LLM cannot
+  declare its own.
 - Never run storage queries without a `brain_id` filter.
 
 ## Storage Rules

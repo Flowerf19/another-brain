@@ -4,7 +4,7 @@ silent renames or dropped parameters."""
 from mcp.server.fastmcp import FastMCP
 
 from app import _SERVER_INSTRUCTIONS
-from server.tools import register_tools
+from server.tools import DEFAULT_AGENT_ID, _client_agent_id, register_tools
 
 
 class FakeService:
@@ -54,3 +54,28 @@ def test_server_instructions_carry_the_recall_loop():
     for verb in ("brain_search", "brain_remember", "brain_reinforce",
                  "brain_forget"):
         assert verb in _SERVER_INSTRUCTIONS
+
+
+def _fake_ctx(client_name):
+    class _Node:
+        pass
+
+    ctx = _Node()
+    ctx.request_context = _Node()
+    ctx.request_context.session = _Node()
+    if client_name is None:
+        ctx.request_context.session.client_params = None
+    else:
+        ctx.request_context.session.client_params = _Node()
+        ctx.request_context.session.client_params.clientInfo = _Node()
+        ctx.request_context.session.client_params.clientInfo.name = client_name
+    return ctx
+
+
+def test_client_agent_id_comes_from_handshake():
+    """agent_id provenance is the client's declared clientInfo name
+    (spec-required), with a neutral fallback — never config, never tool input."""
+    assert _client_agent_id(_fake_ctx("claude-code")) == "claude-code"
+    assert _client_agent_id(_fake_ctx("pi-mcp-another-brain")) == "pi-mcp-another-brain"
+    assert _client_agent_id(_fake_ctx("  ")) == DEFAULT_AGENT_ID
+    assert _client_agent_id(_fake_ctx(None)) == DEFAULT_AGENT_ID

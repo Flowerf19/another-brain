@@ -119,7 +119,6 @@ class SearchConfig:
 @dataclass(frozen=True)
 class AppConfig:
     brain_id: str
-    agent_id: str
     redis: RedisConfig
     embedding: EmbeddingConfig
     memory_model: MemoryModelConfig
@@ -137,7 +136,6 @@ class AppConfig:
         env = dict(os.environ) if env is None else env
 
         brain_id = _identity(env, "BRAIN_ID", "default")
-        agent_id = _identity(env, "AGENT_ID", "default")
 
         key_prefix = _identity(env, "REDIS_KEY_PREFIX", "ab")
         vector_dtype = _str(env, "REDIS_VECTOR_DTYPE", "FLOAT32")
@@ -261,7 +259,6 @@ class AppConfig:
 
         return cls(
             brain_id=brain_id,
-            agent_id=agent_id,
             redis=redis,
             embedding=embedding,
             memory_model=memory_model,

@@ -76,6 +76,43 @@ def _cmd_serve(args: argparse.Namespace) -> int:
     return 0
 
 
+def format_recent_lines(records: list) -> str:
+    """One preview line per memory, for shell/hook consumption (context
+    injection) — compact text, not JSON."""
+    return "\n".join(
+        f"- [{r.timeline_day}] {r.topic} (i{r.importance}): {r.summary}"
+        for r in records
+    )
+
+
+async def _run_recent(args: argparse.Namespace) -> str:
+    from app import build_service
+
+    config = AppConfig.from_env()
+    service, redis = await build_service(config)
+    try:
+        records = await service.recent(
+            scope=args.scope, scope_id=args.scope_id,
+            days=args.days, limit=args.limit,
+        )
+        if not records:
+            return ""
+        header = (
+            f"Recent another-brain memories "
+            f"(scope={args.scope}:{args.scope_id or 'global'}, last {args.days}d):"
+        )
+        return header + "\n" + format_recent_lines(records)
+    finally:
+        await redis.aclose()
+
+
+def _cmd_recent(args: argparse.Namespace) -> int:
+    out = asyncio.run(_run_recent(args))
+    if out:
+        print(out)
+    return 0
+
+
 async def _run_admin(args: argparse.Namespace) -> dict[str, object]:
     from app import build_service
 
@@ -83,11 +120,11 @@ async def _run_admin(args: argparse.Namespace) -> dict[str, object]:
     service, redis = await build_service(config)
     try:
         if args.command == "restore":
-            detail = await service.restore(args.memory_id)
+            detail = await service.restore(args.memory_id, agent_id="admin-cli")
             return {"command": "restore", "memory_id": args.memory_id,
                     "restored": detail is not None}
         # hard-delete
-        deleted = await service.hard_delete(args.memory_id)
+        deleted = await service.hard_delete(args.memory_id, agent_id="admin-cli")
         return {"command": "hard-delete", "memory_id": args.memory_id,
                 "deleted": deleted}
     finally:
@@ -121,12 +158,22 @@ def main(argv: list[str] | None = None) -> int:
     admin.add_argument("command", choices=["restore", "hard-delete"])
     admin.add_argument("memory_id")
 
+    recent = subparsers.add_parser(
+        "recent", help="print recent memories as text lines (for hooks/scripts)"
+    )
+    recent.add_argument("--scope", required=True, choices=["user", "project", "global"])
+    recent.add_argument("--scope-id", default="")
+    recent.add_argument("--days", type=int, default=3)
+    recent.add_argument("--limit", type=int, default=10)
+
     args = parser.parse_args(argv)
     try:
         if args.group == "serve":
             return _cmd_serve(args)
         if args.group == "admin":
             return _cmd_admin(args)
+        if args.group == "recent":
+            return _cmd_recent(args)
         return _cmd_model(args)
     except ConfigError as exc:
         print(f"error: {exc}", file=sys.stderr)

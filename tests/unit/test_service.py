@@ -60,7 +60,9 @@ async def test_scope_id_required_for_non_global_scopes():
         with pytest.raises(ValidationError, match="scope_id is required"):
             await service.recent(scope=scope)
         with pytest.raises(ValidationError, match="scope_id is required"):
-            await service.remember("a-topic", "a summary", scope=scope)
+            await service.remember(
+                "a-topic", "a summary", agent_id="test-agent", scope=scope
+            )
     # global still auto-pins.
     repo = FakeRepo()
     service = make_service(repo)
@@ -76,5 +78,6 @@ async def test_metadata_rejects_nan_and_infinity():
         with pytest.raises(ValidationError, match="JSON-serializable"):
             await service.remember(
                 "a-topic", "a summary",
+                agent_id="test-agent",
                 scope="user", scope_id="flowerf", metadata={"ratio": bad},
             )

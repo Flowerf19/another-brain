@@ -72,7 +72,6 @@ environment variables win). Minimal local setup:
 REDIS_PORT=1905
 REDIS_URL=redis://localhost:1905
 BRAIN_ID=flowerf-main
-AGENT_ID=claude-code
 ```
 
 ## Configuration
@@ -82,7 +81,7 @@ inconsistency is a startup error). The useful subset:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `BRAIN_ID` / `AGENT_ID` | `default` | Identity this server writes with |
+| `BRAIN_ID` | `default` | Brain namespace this server writes to |
 | `REDIS_URL` | `redis://localhost:6379` | Redis >= 8.4 connection |
 | `EMBEDDING_MODEL` / `EMBEDDING_DIM` | `microsoft/harrier-oss-v1-270m` / `640` | Local embedding model |
 | `MODEL_DOWNLOAD_POLICY` | `manual` | `disabled`/`manual`/`lazy`/`on_start` |
@@ -91,6 +90,10 @@ inconsistency is a startup error). The useful subset:
 | `FORGET_GRACE_SECONDS` | `2592000` | Soft-delete recovery window |
 | `TIMELINE_TIMEZONE` | `Asia/Ho_Chi_Minh` | `timeline_day` derivation |
 | `MCP_HTTP_HOST` / `MCP_HTTP_PORT` | `127.0.0.1` / `8000` | HTTP transport bind |
+
+`agent_id` needs no configuration: the server detects each client from the
+MCP handshake (`clientInfo`) per session and records it as provenance on
+writes and audit events.
 
 Changing `EMBEDDING_DIM` against an existing index refuses startup — a reindex
 migration is required (Step 04 §5; migration tooling is not implemented yet).
