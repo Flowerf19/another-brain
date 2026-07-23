@@ -32,5 +32,30 @@ services:
       timeout: 3s
       retries: 10
 
+  server:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: another-brain-server:local
+    container_name: another-brain-server
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      # Internal compose network — the host REDIS_PORT mapping does not apply.
+      REDIS_URL: redis://redis:6379
+      BRAIN_ID: ${BRAIN_ID:-flowerf-main}
+      # First boot downloads the embedding model into the cache volume.
+      MODEL_DOWNLOAD_POLICY: on_start
+      MODEL_ALLOW_NETWORK: "true"
+    ports:
+      - "${MCP_HTTP_PORT:-8000}:8000"
+    volumes:
+      - another-brain-model-cache:/data/models
+    networks:
+      - another-brain-net
+
 volumes:
   another-brain-redis-data:
+  another-brain-model-cache:

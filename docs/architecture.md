@@ -40,7 +40,7 @@ MCP host → transport (stdio / Streamable HTTP) → `MemoryService` → Redis 8
 
 Not yet implemented: `server/resources.py`, `storage/migrations.py`,
 external embedding providers (only `local` works),
-`packages/npm-launcher`, service Dockerfile.
+`packages/npm-launcher`.
 
 Cut by decision (2026-07-23): the server-side memory model
 (normalization/summarization) — normalization is the calling agent's job;

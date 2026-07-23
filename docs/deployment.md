@@ -2,18 +2,37 @@
 
 ## What exists today
 
-- `docker/docker-compose.yml` — Redis 8.8 dev instance (service `redis`,
-  container `another-brain-redis`, appendonly on, named volume). Compose
-  project name is pinned to `another-brain` so it never collides with a
-  neighbouring repo's compose project.
-- The server itself runs from source (`uv run python src/main.py serve`).
-  A service Dockerfile and a compose entry for the server are **not yet
-  implemented**.
+- `docker/docker-compose.yml` — two services: `redis` (Redis 8.8, container
+  `another-brain-redis`, appendonly on, named volume) and `server` (the MCP
+  server, built from `docker/Dockerfile`). Compose project name is pinned
+  to `another-brain` so it never collides with a neighbouring repo's
+  compose project.
+- The server can also run from source (`uv run python src/main.py serve`)
+  — that remains the dev default.
+
+## Full deployment (server + Redis in compose)
+
+```bash
+docker compose -f docker/docker-compose.yml --env-file .env up -d --build
+```
+
+- `--env-file .env` is required: compose reads env files from the compose
+  file's directory (`docker/`), not the repo root, so without it
+  `REDIS_PORT` falls back to 6379 and can collide with other projects.
+- `server` serves MCP over HTTP on `${MCP_HTTP_PORT:-8000}`
+  (`MCP_HTTP_HOST=0.0.0.0` is set in the image). Register
+  `http://localhost:8000/mcp` as a streamable-HTTP MCP server, or keep
+  using stdio-from-source for local agents.
+- The embedding model is NOT baked into the image: on first boot
+  (`MODEL_DOWNLOAD_POLICY=on_start`) it downloads ~0.5 GB into the
+  `another-brain-model-cache` volume; later boots reuse it.
+- The container shares the same Redis and `BRAIN_ID` as a from-source
+  server, so both see the same brain.
 
 ## Dev Redis
 
 ```bash
-docker compose -f docker/docker-compose.yml up -d
+docker compose -f docker/docker-compose.yml --env-file .env up -d redis
 ```
 
 - Image `redis:8.8` (Open Source, bundled Query Engine). Redis >= 8.4 is a
@@ -52,7 +71,7 @@ policy — pull explicitly:
 
 ```bash
 uv run python src/main.py model plan    # what would be downloaded
-uv run python src/main.py model pull --kind embedding
+uv run python src/main.py model pull
 uv run python src/main.py model status
 ```
 

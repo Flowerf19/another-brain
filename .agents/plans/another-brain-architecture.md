@@ -660,7 +660,9 @@ another-brain/
 3. Model install/cache policy for local embedding and memory models.
 4. Embedding provider abstraction and `brain_health`.
 5. MCP stdio server with `brain_remember`, `brain_search`, `brain_recent`.
-6. Docker Compose deployment.
+6. Docker Compose deployment. **Done**: `docker/Dockerfile` + `server`
+   compose service (HTTP transport, model cache in a named volume,
+   first-boot `on_start` download).
 7. Server-filled `brain_id` and `agent_id` identity binding (no auth layer).
 8. `brain_get` and `brain_forget` with audit log.
 9. npm launcher that proxies to the service.

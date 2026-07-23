@@ -29,7 +29,7 @@ Current repo state:
   compose Redis on `REDIS_PORT`).
 - Not yet implemented: `server/resources.py`, `storage/migrations.py`,
   external embedding providers (only `local`),
-  `packages/npm-launcher`, the service Dockerfile, `brain_ingest`.
+  `packages/npm-launcher`, `brain_ingest`.
 - Cut by decision (2026-07-23): the server-side memory model —
   normalization is the calling agent's job (architecture plan, milestone 2).
 

@@ -1,0 +1,12 @@
+.git
+.venv
+.cache
+__pycache__
+**/__pycache__
+*.pyc
+tests
+.agents
+docs
+skills
+packages
+.env
