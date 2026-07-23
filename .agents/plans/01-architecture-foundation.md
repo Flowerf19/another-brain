@@ -72,7 +72,6 @@ flowchart TD
 
     subgraph Core["Another Brain service"]
         Mcp["MCP tool/resource layer"]
-        Auth["Auth + identity context<br/>brain_id / agent_id"]
         Policy["Validation + memory policy"]
         Memory["Memory service"]
         Model["Lightweight memory model<br/>normalize / summarize"]
@@ -94,8 +93,7 @@ flowchart TD
 
     Stdio --> Mcp
     Http --> Mcp
-    Mcp --> Auth
-    Auth --> Policy
+    Mcp --> Policy
     Policy --> Memory
     Memory --> Model
     Memory --> Embed
@@ -117,15 +115,13 @@ later.
 sequenceDiagram
     participant Host as MCP host
     participant MCP as MCP tool layer
-    participant Auth as Auth context
     participant Svc as Memory service
     participant Model as Memory model
     participant Embed as Embedding provider
     participant Redis as Redis Stack
 
     Host->>MCP: brain_remember(content, scope, scope_id, ...)
-    MCP->>Auth: derive trusted brain_id and agent_id
-    Auth->>Svc: validated memory request
+    MCP->>Svc: memory request (brain_id/agent_id bound from config)
     Svc->>Model: normalize content into topic and summary
     Model-->>Svc: topic + summary (+ optional detail content)
     Svc->>Embed: embed summary
@@ -143,14 +139,12 @@ commands need lexical recall while paraphrased memories need semantic recall.
 sequenceDiagram
     participant Host as MCP host
     participant MCP as MCP tool layer
-    participant Auth as Auth context
     participant Svc as Memory service
     participant Embed as Embedding provider
     participant Redis as Redis Stack
 
     Host->>MCP: brain_search(query, scope, scope_id, filters)
-    MCP->>Auth: enforce brain_id and permissions
-    Auth->>Svc: validated search request
+    MCP->>Svc: search request (brain_id bound from config)
     Svc->>Embed: embed query when semantic search is used
     Embed-->>Svc: query vector
     Svc->>Redis: FT.SEARCH vector KNN
@@ -176,8 +170,8 @@ flowchart TD
 
     %% ---------------- write path ----------------
     Trigger -- "remember" --> Remember["brain_remember<br/>content, scope, scope_id,<br/>catalog?, importance?"]
-    Remember --> WAuth["Auth: trusted brain_id + agent_id,<br/>write permission"]
-    WAuth --> WValidate["Validate: scope enum, catalog slug,<br/>content length cap"]
+    Remember --> WIdent["Identity: brain_id + agent_id<br/>bound from config"]
+    WIdent --> WValidate["Validate: scope enum, catalog slug,<br/>content length cap"]
     WValidate --> WNormalize["Memory model normalizes:<br/>topic slug + 1-2 sentence summary<br/>+ optional detail content"]
     WNormalize --> WEmbed["Embed summary only<br/>FLOAT32 vector"]
     WEmbed --> WStore["HSET one HASH per memory<br/>ab:memory:brain_id:memory_id<br/>append-only, never merges"]
@@ -267,8 +261,9 @@ Approve or change these before moving to Step 02:
 3. Redis Stack is the only MVP database, search engine, vector store, and TTL
    mechanism.
 4. `brain_id` is the storage isolation boundary.
-5. `agent_id` is provenance and permission context, not the default memory
-   namespace.
+5. `agent_id` is provenance, not the default memory namespace. There is no
+   auth or permission layer: the service is a shared brain for trusted agents
+   (see the "Identity Without Auth" section of the architecture plan).
 6. First write path is `brain_remember`; raw observation ingest comes later.
 7. Search is hybrid from the start: vector KNN plus BM25 through RediSearch.
 

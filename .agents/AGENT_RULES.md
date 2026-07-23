@@ -10,50 +10,60 @@
 
 ## Memory Contract
 
-- Store canonical memory text in the memory's natural language by default.
-- Record `canonical_language`; keep `original_content` and `original_language`
-  when normalization changes the source text or audit/debug needs it.
-- Embed canonical `content`, not an optional translated/debug copy.
-- Do not force English translation unless the configured memory policy says so.
-- Preserve exact names, ids, paths, commands, dates, numbers, and quoted user
-  preferences during normalization.
-- Keep the canonical storage model as timeline memory.
-- Do not replace topic timeline chunks with arbitrary token chunks without an
-  explicit architecture change.
+- Diary model (Step 04): one memory = `timeline_day` + `topic` slug + 1-2
+  sentence `summary`, classified by an open-vocabulary `catalog`, with
+  optional `content` detail/checklist (max `CONTENT_MAX_CHARS`).
+- `summary` is the canonical text: it is what gets embedded and previewed in
+  search. `content` is BM25-searchable but never embedded.
+- Append-only: no merge, no update tool. An update is a new `brain_remember`
+  plus a `brain_forget` on the old entry.
+- Keep memory text in its natural language; TEXT indexes use NOSTEM because
+  the corpus is multilingual. Translation-pipeline fields were deliberately
+  cut from the MVP schema (Step 04, decision 5).
+- Preserve exact names, ids, paths, commands, dates, and numbers in
+  summaries.
+- Keep the canonical storage model as timeline memory. Do not replace topic
+  timeline entries with arbitrary token chunks without an explicit
+  architecture change.
 
-## Identity And Auth
+## Identity
 
 - `brain_id` is the storage isolation boundary.
-- `agent_id` is provenance and permission context, not the default memory
-  namespace.
-- The server should derive trusted `brain_id` and `agent_id` from config or auth
-  context whenever possible.
-- Do not trust an LLM-supplied `agent_id` for authorization.
+- `agent_id` is provenance, not the default memory namespace.
+- There is no auth or permission layer: the service is one shared brain for a
+  set of trusted agents — unifying knowledge across them is the product goal.
+  Do not expose the HTTP transport on an untrusted network.
+- The server binds `brain_id` and `agent_id` from config; tool inputs never
+  carry identity, so an LLM cannot declare its own.
 - Never run storage queries without a `brain_id` filter.
 
 ## Storage Rules
 
-- Redis Stack is the expected MVP backend until the architecture changes.
-- Treat Redis Stack as the source of truth for memory records, vector storage,
-  full-text index, vector index, and TTL retention.
+- Redis 8.8 (bundled Query Engine; >= 8.4 required for `FT.HYBRID`) is the
+  only backend until the architecture changes. It owns memory records, vector
+  storage, full-text index, vector index, and TTL retention.
 - Store memory records as Redis HASH documents with packed FLOAT32 embedding
   bytes in the HASH.
-- Run both vector KNN and BM25 lexical search through RediSearch on Redis.
-- Apply per-memory Redis TTL from importance and refresh TTL when a merge updates
-  a memory.
+- Hybrid search runs as one `FT.HYBRID` call (BM25 + KNN + RRF fused in
+  Redis); the app layer applies the cosine floor before the top-k limit.
+- Apply per-memory Redis TTL from importance. The only renewal is explicit
+  `brain_reinforce`; no read path ever refreshes TTL.
 - Index schema changes must include migration/reindex notes.
-- Embedding dimension changes require explicit reindex handling.
-- Soft delete is the default delete behavior. Hard delete should be admin-only.
-- Health/status output must not reveal secrets.
+- Embedding dimension changes require explicit reindex handling; the server
+  refuses to start on a DIM mismatch.
+- Soft delete is the default delete behavior (index-level exclusion via
+  `deleted_at`). Hard delete and restore are admin-only CLI operations.
+- Health/status and audit output must not reveal secrets or memory text.
 
 ## MCP Rules
 
 - Keep tool names short and stable, using the `brain_*` prefix.
-- Initial tools should match the plan: `brain_remember`, `brain_search`,
-  `brain_recent`, `brain_get`, `brain_forget`, `brain_health`.
-- Tool responses should provide evidence needed for relevance judgment:
-  `memory_id`, canonical content/summary, kind, subject, scope, source,
-  `agent_id`, time, importance, and relevance score.
+- Tool surface (implemented): `brain_remember`, `brain_search`,
+  `brain_recent`, `brain_get`, `brain_reinforce`, `brain_forget`,
+  `brain_health`, `brain_audit`.
+- Search/recent return previews only (`memory_id`, `topic`, `catalog`,
+  `summary`, `timeline_day`, `importance`, `has_content`, relevance evidence);
+  `content` comes from `brain_get`. Never return embeddings.
 - MCP resources should expose machine-readable state, not agent-specific
   behavior.
 

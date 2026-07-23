@@ -3,6 +3,7 @@ expected required/optional params — guards the LLM-facing schema against
 silent renames or dropped parameters."""
 from mcp.server.fastmcp import FastMCP
 
+from app import _SERVER_INSTRUCTIONS
 from server.tools import register_tools
 
 
@@ -44,3 +45,12 @@ async def test_registers_all_brain_tools():
         assert optional == spec["optional"], f"{name}: optional {optional}"
         # description is the LLM contract — must be non-empty.
         assert tools[name].description and tools[name].description.strip()
+
+
+def test_server_instructions_carry_the_recall_loop():
+    """_SERVER_INSTRUCTIONS is the short contract sent at MCP handshake
+    (Step 06, GOAL-002) — hosts that surface it must see the full loop, so
+    the verbs cannot silently rot."""
+    for verb in ("brain_search", "brain_remember", "brain_reinforce",
+                 "brain_forget"):
+        assert verb in _SERVER_INSTRUCTIONS

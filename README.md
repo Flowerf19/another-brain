@@ -2,193 +2,124 @@
 
 Standalone timeline memory for MCP-capable agents.
 
-Another Brain is a planned memory service for agent systems such as Claude,
-Codex, Discord bots, local chat bots, and other MCP hosts. It is designed to
-own long-term memory storage, recall, identity boundaries, language
-normalization, and retrieval policy so client agents do not need to implement
-their own memory stack.
-
-> Status: architecture draft. This repository currently contains planning,
-> agent guidance, and a non-runnable placeholder scaffold. Runtime
-> implementation, package manifests, Docker files, and executable tests have not
-> been added yet.
-
-## Architecture Plan
-
-The detailed architecture plan lives here:
-
-[`.agents/plans/another-brain-architecture.md`](.agents/plans/another-brain-architecture.md)
-
-Read that plan before implementing storage, MCP tools, chunking, identity, or
-packaging. It is the current source of truth for product and technical
-decisions.
+Another Brain is a memory service for agent systems such as Claude, Codex,
+Discord bots, local chat bots, and other MCP hosts. It owns long-term memory
+storage, recall, identity boundaries, and retrieval policy so client agents do
+not need to implement their own memory stack. One shared brain, many agents:
+knowledge stored by one agent is recallable by every other agent on the same
+`brain_id`.
 
 ## Key Ideas
 
-- **MCP-first integration**: expose memory through small, stable MCP tools such
-  as `brain_remember`, `brain_search`, `brain_recent`, `brain_get`,
-  `brain_forget`, and `brain_health`.
-- **Shared brain namespace**: use `brain_id` as the storage isolation boundary
-  and `agent_id` as provenance and permission context.
-- **Timeline memory**: store dated memory entries, not generic key-value notes.
-  A memory chunk represents a semantic topic over a time window.
-- **Redis-native recall**: Redis 8 (bundled Query Engine) stores memory HASH documents, packed
-  FLOAT32 embeddings, RediSearch text/vector indexes, and per-memory TTL. Vector
-  KNN and BM25 both run through Redis `FT.SEARCH`.
-- **Multilingual canonical memory**: preserve the memory's natural language by
-  default, while recording language metadata and allowing optional translation
-  policy when a deployment needs it.
-- **Preserve source context**: keep original content/language when normalization
-  changes the source text or when audit/debug needs it.
-- **Local-first deployment**: Docker is the intended primary deployment shape;
-  npm should be a convenience MCP launcher/adapter, not a second memory engine.
+- **MCP-first integration**: eight stable tools — `brain_remember`,
+  `brain_search`, `brain_recent`, `brain_get`, `brain_reinforce`,
+  `brain_forget`, `brain_health`, `brain_audit`.
+- **Timeline (diary) memory**: one memory = one dated entry —
+  `timeline_day` + `topic` slug + 1-2 sentence `summary`, classified by an
+  open `catalog` vocabulary, with optional `content` detail/checklist.
+  Append-only: updates are a new `brain_remember` plus a `brain_forget`.
+- **Redis-native hybrid recall**: Redis 8.8 (bundled Query Engine) stores one
+  HASH per memory with a packed FLOAT32 embedding. A single `FT.HYBRID` call
+  fuses BM25 and vector KNN with RRF inside Redis; the app applies a cosine
+  floor before cutting to top-k.
+- **Retention by importance**: each key's TTL derives from importance
+  (5=365d ... 1=7d). Reads never extend TTL — only an explicit
+  `brain_reinforce` renews a memory after it proved useful. `brain_forget`
+  soft-deletes with a 30-day admin-recoverable grace window. The system fails
+  toward forgetting, never toward bloat.
+- **No auth layer**: the service is a shared brain for trusted agents.
+  `brain_id`/`agent_id` are bound from server config; tool inputs never carry
+  identity. Do not expose the HTTP transport on untrusted networks.
 
-## Intended Architecture
+## Architecture
 
 ```mermaid
 flowchart TD
-    Host[MCP host / agent] --> Adapter[MCP stdio or HTTP transport]
-    Adapter --> Service[Another Brain service]
-    Service --> MemoryModel[Lightweight memory model]
-    Service --> Embeddings[Embedding provider]
-    Service --> Redis[(Redis 8)]
-
-    MemoryModel --> Normalize[Multilingual normalization and topic chunks]
-    Embeddings --> Packed[Packed FLOAT32 embedding]
-    Packed --> Redis
-    Redis --> Hash[Timeline HASH docs + TTL]
-    Redis --> Index[RediSearch HASH index]
-    Index --> Recall[Vector KNN + BM25 timeline recall]
+    Host[MCP host / agent] --> Transport[MCP stdio or Streamable HTTP]
+    Transport --> Service[MemoryService]
+    Service --> Embed[Local embedding<br/>Harrier 640-dim]
+    Service --> Redis[(Redis 8.8)]
+    Redis --> Hash[Memory HASH + TTL]
+    Redis --> Index[RediSearch index<br/>TEXT + TAG + NUMERIC + VECTOR HNSW]
 ```
 
-The MVP storage backend is Redis 8 (Open Source, bundled Query Engine; 8.4+ required for native hybrid search via FT.HYBRID). It is not just metadata
-storage: it owns the memory HASH records, packed vector field, retention TTL,
-and RediSearch index used for both semantic KNN and BM25 lexical search.
+Canonical design docs: [`.agents/plans/another-brain-architecture.md`](.agents/plans/another-brain-architecture.md)
+and the approved step contracts in `.agents/plans/01`–`05`.
 
-## Planned Memory Model
+## Prerequisites
 
-Another Brain stores timeline records with fields such as:
+- Python >= 3.12, managed with [uv](https://docs.astral.sh/uv/)
+- Docker (for the Redis 8.8 dev instance; any Redis >= 8.4 with the Query
+  Engine works — `FT.HYBRID` is required)
 
-- `memory_id`
-- `brain_id`
-- `agent_id`
-- `scope` / `scope_id`
-- `subject_id`
-- `topic` and `topic_display`
-- canonical multilingual `content`
-- `original_content` and `original_language`
-- `canonical_language`
-- `period_start`, `period_end`, and `timeline_day`
-- `source_event_ids`
-- `importance`, `confidence`, and tags
-- packed FLOAT32 `embedding`
-- `memory_model`, `embedding_model`, and `embedding_dim`
+## Quick Start
 
-Redis stores these records as HASH documents. The embedding belongs
-on the same HASH as packed FLOAT32 bytes, while RediSearch indexes text, tag,
-numeric time fields, and the vector field together. That is what keeps timeline
-storage, retention, semantic search, and BM25 search aligned.
+```bash
+uv sync --extra local                          # install deps + local model support
+docker compose -f docker/docker-compose.yml up -d   # Redis 8.8 on REDIS_PORT
 
-The chunking reference is March7's current T2 diary model:
+MODEL_ALLOW_NETWORK=true \
+  uv run python src/main.py model pull --kind embedding   # one-time, ~270M model
 
-https://github.com/Flowerf19/March7/tree/main/twin/shared/memory/diary
+uv run python src/main.py serve                # MCP over stdio
+uv run python src/main.py serve --transport http      # or Streamable HTTP
+```
 
-That reference currently stores 12 Redis HASH fields, indexes 11 RediSearch
-fields, and adds returned fields such as `summary_id`, KNN `score`, and BM25
-`_score` at query time. The detailed field inventory is in the architecture
-plan.
-
-Use it as a behavior reference only. Another Brain should remain an independent
-repo and service.
-
-## Embedding Direction
-
-The current architecture direction is multilingual recall with
-`microsoft/harrier-oss-v1-270m` as the preferred default embedding model.
-
-| Model | License | Params | Dim | Max tokens | Notes |
-| --- | --- | ---: | ---: | ---: | --- |
-| `microsoft/harrier-oss-v1-270m` | MIT | 268M | 640 | 32,768 | Preferred default: open license, strong Multilingual MTEB v2 score, moderate Redis vector size. |
-| `Qwen/Qwen3-Embedding-0.6B` | Apache-2.0 | 596M | 1,024 | 32,768 | Strong fallback when memory/VRAM budget allows; larger Redis vectors. |
-| `jinaai/jina-embeddings-v5-text-nano` | CC-BY-NC-4.0 | 212-239M | 768 | 8,192 | Good benchmark candidate, but non-commercial license and custom code make it unsuitable as the default. |
-
-Redis vector cost before index overhead is `embedding_dim * 4` bytes per
-memory: Harrier is 2.5 KB/chunk, Qwen3-0.6B is 4 KB/chunk, and Jina v5 nano is
-3 KB/chunk.
-
-References: [Harrier](https://huggingface.co/microsoft/harrier-oss-v1-270m),
-[Qwen3 Embedding 0.6B](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B),
-[Jina v5 text nano](https://huggingface.co/jinaai/jina-embeddings-v5-text-nano),
-and [MTEB Leaderboard](https://huggingface.co/spaces/mteb/leaderboard).
-
-## Repository Layout
-
-Current layout:
+Copy the env template values you need into `.env` (loaded automatically; real
+environment variables win). Minimal local setup:
 
 ```text
-another-brain/
-  README.md
-  docs/
-    architecture.md
-    mcp-tools.md
-    deployment.md
-  src/
-    app.py
-    main.py
-    auth/
-    server/
-    memory/
-    storage/
-    models/
-    audit/
-  docker/
-    README.md
-  packages/
-    npm-launcher/
-      README.md
-      src/
-  tests/
-    unit/
-    integration/
-  .agents/
-    README.md
-    PROJECT_CONTEXT.md
-    AGENT_RULES.md
-    TESTING_GUIDE.md
-    plans/
-      another-brain-architecture.md
+REDIS_PORT=1905
+REDIS_URL=redis://localhost:1905
+BRAIN_ID=flowerf-main
+AGENT_ID=claude-code
 ```
-
-Planned implementation layout is described in the architecture plan.
-
-## Development Status
-
-No runtime implementation exists yet. The `src/`, `docs/`, `docker/`,
-`packages/`, and `tests/` paths are placeholders for the reviewed architecture.
-There are currently no verified commands for installation, local development,
-tests, linting, or Docker startup.
-
-When implementation starts, add exact commands here and mirror operational
-details in `.agents/TESTING_GUIDE.md`.
 
 ## Configuration
 
-The architecture plan defines expected future configuration names, including:
+All settings are environment variables read by `src/config.py` (every
+inconsistency is a startup error). The useful subset:
 
-- `ANOTHER_BRAIN_ID`
-- `ANOTHER_BRAIN_AGENT_ID`
-- `ANOTHER_BRAIN_API_TOKEN`
-- `MEMORY_MODEL_PROVIDER`
-- `MEMORY_MODEL_NAME`
-- `MEMORY_CANONICAL_LANGUAGE`
-- `MEMORY_TRANSLATION_POLICY`
-- `EMBEDDING_PROVIDER`
-- `EMBEDDING_MODEL`
-- `EMBEDDING_DIM`
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `BRAIN_ID` / `AGENT_ID` | `default` | Identity this server writes with |
+| `REDIS_URL` | `redis://localhost:6379` | Redis >= 8.4 connection |
+| `EMBEDDING_MODEL` / `EMBEDDING_DIM` | `microsoft/harrier-oss-v1-270m` / `640` | Local embedding model |
+| `MODEL_DOWNLOAD_POLICY` | `manual` | `disabled`/`manual`/`lazy`/`on_start` |
+| `SEARCH_TOP_K` / `SEARCH_MIN_COSINE` | `20` / `0.30` | Recall page size and quality floor |
+| `TTL_IMPORTANCE_5`...`TTL_IMPORTANCE_1` | 365d...7d | All-or-none override set |
+| `FORGET_GRACE_SECONDS` | `2592000` | Soft-delete recovery window |
+| `TIMELINE_TIMEZONE` | `Asia/Ho_Chi_Minh` | `timeline_day` derivation |
+| `MCP_HTTP_HOST` / `MCP_HTTP_PORT` | `127.0.0.1` / `8000` | HTTP transport bind |
 
-Do not treat these as working runtime env vars until the implementation lands.
+Changing `EMBEDDING_DIM` against an existing index refuses startup — a reindex
+migration is required (Step 04 §5; migration tooling is not implemented yet).
+
+## Connect Agents
+
+Register the MCP server with your host (stdio config in
+`docs/deployment.md`), then install the bundled `brain-memory` skill
+(`npx skills add Flowerf19/another-brain`) so agents learn the recall loop:
+search before answering, remember what matters, reinforce or forget after
+use. Full runbook: [`docs/deployment.md#connect-agents`](docs/deployment.md).
+
+## Development
+
+```bash
+uv run pytest              # full suite: unit + integration (needs dev Redis up)
+uv run pytest tests/unit   # unit only, no Redis needed
+```
+
+Layout: `src/` (`main.py` CLI, `app.py` composition root, `server/` MCP
+surface, `memory/` domain, `storage/` Redis, `models/` local model install,
+`audit/` mutation trail), `tests/unit` + `tests/integration`. Stubs not yet
+implemented: `server/resources.py`, `storage/migrations.py`,
+`memory/normalization.py`, `packages/npm-launcher`, service Dockerfile.
+
+See `.agents/TESTING_GUIDE.md` for the integration-test Redis contract and
+`docs/mcp-tools.md` for the tool surface.
 
 ## For Agents
 
 Start with [`.agents/README.md`](.agents/README.md). Keep the public README,
-the architecture plan, and `.agents` guidance synchronized as the repo grows.
+the plans, and `.agents` guidance synchronized as the repo grows.

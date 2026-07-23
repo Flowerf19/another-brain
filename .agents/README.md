@@ -2,36 +2,33 @@
 
 Read order for agents working in this repo:
 
-1. `README.md` at the repo root - public project overview.
-2. `.agents/plans/01-architecture-foundation.md` - current small review slice.
-3. `.agents/plans/02-directory-and-class-architecture.md` - proposed runtime
-   folders, module names, and core class names.
-4. `.agents/plans/03-model-install-policy.md` - model download, cache, and
-   install policy.
-5. `.agents/plans/another-brain-architecture.md` - canonical architecture plan.
-6. `.agents/PROJECT_CONTEXT.md` - concise project boundaries and architecture.
-7. `.agents/AGENT_RULES.md` - implementation rules and unsafe shortcuts to avoid.
-8. `.agents/TESTING_GUIDE.md` - current test status and expected test shape.
+1. `README.md` at the repo root - public overview, quick start, configuration.
+2. `.agents/plans/another-brain-architecture.md` - canonical architecture plan
+   (source of truth for product and technical decisions).
+3. `.agents/plans/01-architecture-foundation.md` ... `04-...md` - approved step
+   contracts; `05-redis-hybrid-search.md` - `FT.HYBRID` mechanism explainer;
+   `06-agent-usage-guidance.md` - draft: distributing usage guidance to agents.
+4. `.agents/PROJECT_CONTEXT.md` - concise boundaries and runtime state.
+5. `.agents/AGENT_RULES.md` - implementation rules and unsafe shortcuts to avoid.
+6. `.agents/TESTING_GUIDE.md` - test commands and the integration Redis contract.
+7. `docs/architecture.md`, `docs/mcp-tools.md`, `docs/deployment.md` - public
+   module map, tool surface, and deployment notes.
 
 This repo is the standalone home for **Another Brain**, a memory service for
-MCP-capable agent systems. It should remain independent from March7/Evernight;
+MCP-capable agent systems. It must remain independent from March7/Evernight;
 March7's T2 diary code is only a reference for timeline chunking behavior.
 
 Current repo state:
 
-- `README.md` exists and links to the architecture plan.
-- `.agents/plans/01-architecture-foundation.md` contains the current first
-  architecture review slice.
-- `.agents/plans/02-directory-and-class-architecture.md` contains the proposed
-  runtime folder and class architecture.
-- `.agents/plans/03-model-install-policy.md` contains the proposed model
-  download and cache policy.
-- `.agents/plans/another-brain-architecture.md` contains the architecture plan.
-- `.agents/` contains these guidance docs.
-- Placeholder `src/`, `docs/`, `docker/`, `packages/`, and `tests/` paths exist.
-- No runtime implementation, package manifest, Docker config, or executable test
-  suite exists yet.
+- The MVP service is implemented and tested: 8 `brain_*` MCP tools over
+  stdio/HTTP, Redis 8.8 storage with `FT.HYBRID` search, importance TTL,
+  soft delete + audit, local Harrier embedding with model install policy.
+- `uv run pytest` runs 183 unit + 14 integration tests (integration needs the
+  compose Redis on `REDIS_PORT`).
+- Not yet implemented: `server/resources.py`, `storage/migrations.py`,
+  `memory/normalization.py`, external embedding providers (only `local`),
+  `packages/npm-launcher`, the service Dockerfile, `brain_ingest`.
 
-Do not invent implementation facts that are not present in the repo. When adding
-source code later, update these docs in the same change if commands, env vars,
-runtime boundaries, or storage contracts change.
+Do not invent implementation facts that are not present in the repo. When
+changing commands, env vars, runtime boundaries, or storage contracts, update
+these docs in the same change.

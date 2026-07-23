@@ -6,6 +6,16 @@ created: 2026-07-09
 
 # Another Brain Architecture
 
+> Implementation note (2026-07-22): the runtime now implements Steps 01-05.
+> Where this document differs from the approved step contracts — record
+> fields, tool parameters, merge behavior — the step contracts (`.agents/plans/01`-`05`)
+> and the code win. Notable deltas: Step 04 cut the translation/language
+> fields, `subject_id`, `kind`, `tags`, `confidence`, and all merge machinery
+> (the store is append-only); the tool surface gained `brain_reinforce` and
+> `brain_audit`; the auth layer was removed (see "Identity Without Auth");
+> hybrid search runs as one `FT.HYBRID` call on Redis 8.8 (step 05), not two
+> `FT.SEARCH` calls.
+
 `Another Brain` is a standalone memory service for agent systems. It should be
 usable by Claude, Codex, Discord bots, local chat bots, or any other MCP-capable
 host without knowing how those agents are implemented.
@@ -58,22 +68,21 @@ Another Brain has three install shapes:
 
 ## Identity Model
 
-Identity is the core contract. The server should infer trusted identity from
-configuration or auth whenever possible, instead of requiring the LLM to provide
-it correctly in every tool call.
+Identity is the core contract. The server infers trusted identity from
+configuration, instead of requiring the LLM to provide it correctly in every
+tool call.
 
 | Field | Meaning | Source |
 | --- | --- | --- |
-| `brain_id` | Shared memory namespace, e.g. `flowerf-main` | server config, token claim, or admin input |
-| `agent_id` | Calling agent/client, e.g. `claude-desktop`, `march7`, `codex` | env var, token claim, MCP adapter config |
+| `brain_id` | Shared memory namespace, e.g. `flowerf-main` | server config |
+| `agent_id` | Calling agent/client, e.g. `claude-desktop`, `march7`, `codex` | env var or MCP adapter config |
 | `subject_id` | Person/project/entity the memory is about | tool input |
 | `scope` | Memory boundary: `user`, `channel`, `project`, `global`, `entity` | tool input |
 | `scope_id` | Stable id inside the scope | tool input |
 | `source` | Origin detail such as `discord`, `claude`, `manual`, `api` | tool input or adapter default |
 
-`brain_id` is the isolation boundary. `agent_id` is provenance and permission
-context. Agents that share a `brain_id` can share memories unless policy says
-otherwise.
+`brain_id` is the isolation boundary. `agent_id` is provenance. Agents that
+share a `brain_id` share memories.
 
 ## Core Data Model
 
@@ -445,26 +454,28 @@ Resources should expose machine-readable context, not agent instructions:
 Prompts are optional. If added, they should be generic usage hints such as
 `brain-recall-guidance`, not agent-specific behavior.
 
-## Auth and Permissions
+## Identity Without Auth
 
-Local stdio can rely on local process trust, but the server should still require
-configuration:
+Another Brain has no authentication or permission layer. It is one shared
+knowledge store for a set of trusted agents: every connected agent may read,
+write, reinforce, and forget memories in the configured `brain_id`. Unifying
+knowledge across agents is the product goal — partitioning it behind
+permissions would work against it.
 
-```text
-ANOTHER_BRAIN_ID=flowerf-main
-ANOTHER_BRAIN_AGENT_ID=claude-desktop
-ANOTHER_BRAIN_API_TOKEN=...
-```
+Rationale: the service runs next to its agents (stdio subprocess, localhost,
+or a private network). Anyone who can reach the process can already reach the
+underlying Redis, so an auth layer would gate the MCP surface without
+protecting the data. Do not expose the HTTP transport on an untrusted
+network; if that ever becomes a requirement, gate it at the network/proxy
+level rather than building a permission system into the service.
 
-Remote HTTP must authenticate every request. The token should map to:
+Identity still comes from server configuration, never from tool input:
 
-- allowed `brain_id` values;
-- caller `agent_id`;
-- allowed operations: read, write, delete, admin;
-- optional scope restrictions.
+- `brain_id` selects the memory namespace the process serves;
+- `agent_id` is recorded as provenance on writes and audit events.
 
-The LLM should not be trusted to declare its own `agent_id` or permissions.
-Tool inputs may include `agent_id` only for admin/debug use.
+The LLM is not trusted to declare its own `agent_id`: tool schemas carry no
+identity inputs and the service binds the configured values on every write.
 
 ## Storage Architecture
 
@@ -473,7 +484,7 @@ Recommended MVP:
 ```text
 another-brain-server
   -> MCP transport: stdio and/or Streamable HTTP
-  -> service layer: validation, auth context, memory policy
+  -> service layer: validation, identity binding, memory policy
   -> memory model: lightweight translation/normalization/summarization
   -> embedding provider: OpenAI-compatible, Ollama, Gemini, or local model
   -> repository: Redis Stack
@@ -592,7 +603,7 @@ Compose should include:
 - `another-brain` service;
 - `redis-stack` service;
 - named volume for Redis data;
-- `.env` for embedding provider and auth;
+- `.env` for embedding provider and identity;
 - healthcheck for MCP/HTTP and Redis.
 
 ### npm
@@ -626,10 +637,6 @@ another-brain/
     app.py
     config.py
     errors.py
-    auth/
-      context.py
-      permissions.py
-      tokens.py
     server/
       stdio.py
       http.py
@@ -677,7 +684,7 @@ another-brain/
 4. Embedding provider abstraction and `brain_health`.
 5. MCP stdio server with `brain_remember`, `brain_search`, `brain_recent`.
 6. Docker Compose deployment.
-7. Auth context with server-filled `brain_id` and `agent_id`.
+7. Server-filled `brain_id` and `agent_id` identity binding (no auth layer).
 8. `brain_get` and `brain_forget` with audit log.
 9. npm launcher that proxies to the service.
 10. Optional richer observation ingest pipeline.

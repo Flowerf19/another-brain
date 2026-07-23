@@ -40,9 +40,13 @@ except ImportError:  # pragma: no cover - mcp is a core dependency
 logger = logging.getLogger(__name__)
 
 _SERVER_INSTRUCTIONS = (
-    "Shared long-term memory for agents. Store diary-style memories with "
-    "brain_remember, recall them with brain_search/brain_recent/brain_get, and "
-    "close the loop with brain_reinforce (proved useful) or brain_forget (wrong)."
+    "Shared long-term memory for all agents on this brain. Search before "
+    "answering (brain_search/brain_recent) — do not re-ask what memory knows. "
+    "Store decisions, fixes, preferences, and open tasks as diary entries with "
+    "brain_remember (topic slug + 1-2 sentence summary; scope=project with the "
+    "project slug by default, scope=user for personal facts, scope=global for "
+    "cross-project knowledge). After using a memory, close the loop: "
+    "brain_reinforce if it proved correct, brain_forget if it proved wrong."
 )
 
 

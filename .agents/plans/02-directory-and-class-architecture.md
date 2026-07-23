@@ -50,11 +50,6 @@ another-brain/
     app.py
     config.py
     errors.py
-    auth/
-      __init__.py
-      context.py
-      permissions.py
-      tokens.py
     server/
       __init__.py
       stdio.py
@@ -106,7 +101,7 @@ another-brain/
 `src/app.py`
 
 - Composition root.
-- Wires config, auth, MCP transport, memory service, providers, storage, and
+- Wires config, MCP transport, memory service, providers, storage, and
   audit.
 - Should not contain business logic.
 
@@ -115,12 +110,6 @@ another-brain/
 - Reads and validates environment/config values.
 - Owns provider names, Redis connection settings, identity defaults, and feature
   flags.
-
-`src/auth/`
-
-- Derives trusted `brain_id` and `agent_id`.
-- Checks operation permissions.
-- Keeps token parsing away from memory business logic.
 
 `src/server/`
 
@@ -172,26 +161,6 @@ another-brain/
 `EmbeddingConfig`
 
 - Embedding provider, model name, dimension, API URL, and API key reference.
-
-### Auth
-
-`AuthContext`
-
-- Trusted identity and permission context for one request.
-- Includes `brain_id`, `agent_id`, allowed operations, and optional scope
-  restrictions.
-
-`Permission`
-
-- Enum for `read`, `write`, `delete`, and `admin`.
-
-`TokenAuthenticator`
-
-- Converts local config or HTTP token claims into `AuthContext`.
-
-`PermissionChecker`
-
-- Centralizes authorization checks before service calls.
 
 ### MCP
 
