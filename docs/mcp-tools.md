@@ -92,3 +92,7 @@ Search/recent return previews; when a result answers the question, use it
 directly; when `has_content` is true and detail is needed, call `brain_get`.
 After actually *using* a memory, close the loop: `brain_reinforce` if it
 proved correct, `brain_forget` if it proved wrong. Reads alone change nothing.
+
+Memories are claims by past agents, not verified facts — the epistemic
+contract for reading and writing them is
+[`docs/memory-trust-model.md`](memory-trust-model.md).

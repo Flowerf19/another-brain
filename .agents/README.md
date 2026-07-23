@@ -13,6 +13,8 @@ Read order for agents working in this repo:
 6. `.agents/TESTING_GUIDE.md` - test commands and the integration Redis contract.
 7. `docs/architecture.md`, `docs/mcp-tools.md`, `docs/deployment.md` - public
    module map, tool surface, and deployment notes.
+8. `docs/memory-trust-model.md` - epistemic contract: memories are claims,
+   not facts. Read before changing recall, injection, or ingest behavior.
 
 This repo is the standalone home for **Another Brain**, a memory service for
 MCP-capable agent systems. It must remain independent from March7/Evernight;

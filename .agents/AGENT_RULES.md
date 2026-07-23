@@ -25,6 +25,10 @@
 - Keep the canonical storage model as timeline memory. Do not replace topic
   timeline entries with arbitrary token chunks without an explicit
   architecture change.
+- Recall returns unverified claims by past agents, never facts. The
+  epistemic contract (contamination vectors, reader/writer stance) lives in
+  `docs/memory-trust-model.md` — follow it before changing recall,
+  injection, or ingest behavior.
 
 ## Identity
 

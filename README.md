@@ -28,8 +28,13 @@ knowledge stored by one agent is recallable by every other agent on the same
   soft-deletes with a 30-day admin-recoverable grace window. The system fails
   toward forgetting, never toward bloat.
 - **No auth layer**: the service is a shared brain for trusted agents.
-  `brain_id`/`agent_id` are bound from server config; tool inputs never carry
-  identity. Do not expose the HTTP transport on untrusted networks.
+  `brain_id` is bound from server config; `agent_id` is detected per session
+  from the MCP handshake. Tool inputs never carry identity. Do not expose
+  the HTTP transport on untrusted networks.
+- **Memories are claims, not facts**: recall returns unverified assertions
+  by past agents. The trust model — contamination vectors, defenses, and the
+  reader/writer stance — is in
+  [`docs/memory-trust-model.md`](docs/memory-trust-model.md).
 
 ## Architecture
 
