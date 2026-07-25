@@ -1,136 +1,178 @@
 # Another Brain
 
-One shared brain for all your MCP-capable agents — hybrid search, local
-multilingual embeddings, self-expiring memory.
+One shared long-term memory for all your AI agents — a self-hosted MCP
+server with hybrid search, local multilingual embeddings, and self-expiring
+memory.
 
-Another Brain is a memory service for agent systems such as Claude, Codex,
-Discord bots, local chat bots, and other MCP hosts. It owns long-term memory
-storage, recall, identity boundaries, and retrieval policy so client agents do
-not need to implement their own memory stack. One shared brain, many agents:
-knowledge stored by one agent is recallable by every other agent on the same
-`brain_id`.
+## Why this exists
 
-## Key Ideas
+If you work with more than one AI agent — Claude Code, Codex, a Discord
+bot, a local assistant — each one either remembers nothing or remembers in
+its own silo. A bug fixed in a Claude session is invisible to Codex the
+next morning. Every harness that does ship memory quietly re-implements the
+same stack: storage, embeddings, retrieval, retention — and none of them
+share with each other.
 
-- **MCP-first integration**: eight stable tools — `brain_remember`,
-  `brain_search`, `brain_recent`, `brain_get`, `brain_reinforce`,
-  `brain_forget`, `brain_health`, `brain_audit`.
-- **Timeline (diary) memory**: one memory = one dated entry —
-  `timeline_day` + `topic` slug + 1-2 sentence `summary`, classified by an
-  open `catalog` vocabulary, with optional `content` detail/checklist.
-  Append-only: updates are a new `brain_remember` plus a `brain_forget`.
-- **Redis-native hybrid recall**: Redis 8.8 (bundled Query Engine) stores one
-  HASH per memory with a packed FLOAT32 embedding. A single `FT.HYBRID` call
-  fuses BM25 and vector KNN with RRF inside Redis; the app applies a cosine
-  floor before cutting to top-k.
-- **Retention by importance**: each key's TTL derives from importance
-  (5=365d ... 1=7d). Reads never extend TTL — only an explicit
-  `brain_reinforce` renews a memory after it proved useful. `brain_forget`
-  soft-deletes with a 30-day admin-recoverable grace window. The system fails
-  toward forgetting, never toward bloat.
-- **No auth layer**: the service is a shared brain for trusted agents.
-  `brain_id` is bound from server config; `agent_id` is detected per session
-  from the MCP handshake. Tool inputs never carry identity. Do not expose
-  the HTTP transport on untrusted networks.
-- **Memories are claims, not facts**: recall returns unverified assertions
-  by past agents. The trust model — contamination vectors, defenses, and the
-  reader/writer stance — is in
-  [`docs/memory-trust-model.md`](docs/memory-trust-model.md).
+Another Brain pulls memory out of the agents and into one service they all
+connect to. Anything one agent stores is recallable by every other agent on
+the same `brain_id`. It is built around four opinions:
+
+- **Memory belongs to the brain, not the agent.** Agents come and go;
+  the brain persists. Identity (`agent_id`) is provenance, not a partition.
+- **The writer normalizes, the server stores.** There is no LLM inside
+  this service. The calling agent already runs a strong model with full
+  context, so it writes the topic, summary, and importance; the server only
+  embeds and stores. Local footprint stays under ~1 GB.
+- **Memory should expire.** Every entry carries an importance-derived
+  TTL, and only an explicit `brain_reinforce` renews it after real use.
+  The system fails toward forgetting, never toward bloat.
+- **Recall is claims, not facts.** Search returns unverified assertions
+  written by past agents — see the
+  [trust model](docs/memory-trust-model.md) for why this is a feature.
+
+```mermaid
+flowchart LR
+    Claude[Claude Code] --> Brain[(Another Brain)]
+    Codex[Codex] --> Brain
+    Bot[Discord / chat bots] --> Brain
+    Pi[Pi / any MCP host] --> Brain
+    Brain --> Redis[(Redis 8.8<br/>memory + vectors + TTL)]
+```
+
+## What you get
+
+- **Eight MCP tools** — the whole surface:
+
+  | Tool | Purpose |
+  | --- | --- |
+  | `brain_remember` | Append a diary entry (topic + 1-2 sentence summary, optional detail) |
+  | `brain_search` | Hybrid semantic + keyword search, preview lines only |
+  | `brain_recent` | Newest entries on the timeline, no query needed |
+  | `brain_get` | Full detail for one memory |
+  | `brain_reinforce` | Renew retention after a memory proved useful — the only TTL renewal |
+  | `brain_forget` | Soft-delete what proved wrong (30-day admin-recoverable grace) |
+  | `brain_health` | Service + index + identity status |
+  | `brain_audit` | Secret-free mutation trail (who/what/when, never the text) |
+
+  Full parameter contracts: [`docs/mcp-tools.md`](docs/mcp-tools.md).
+- **Timeline (diary) memory** — one memory = one dated entry; append-only,
+  an update is a new `brain_remember` plus a `brain_forget`.
+- **Redis-native hybrid recall** — one `FT.HYBRID` call fuses BM25 and
+  vector KNN inside Redis 8.8; a cosine floor gates quality before top-k.
+- **Retention by importance** — 5=365d, 4=180d, 3=90d, 2=30d, 1=7d.
+  Reads never extend TTL.
+- **Local multilingual embeddings** — Harrier 270M (640-dim), runs
+  offline, handles Vietnamese + English without a translation pipeline.
 
 ## Architecture
 
 ```mermaid
 flowchart TD
     Host[MCP host / agent] --> Transport[MCP stdio or Streamable HTTP]
-    Transport --> Service[MemoryService]
+    Transport --> Tools[8 brain_* tools]
+    Tools --> Service[MemoryService<br/>validation + identity + policy]
     Service --> Embed[Local embedding<br/>Harrier 640-dim]
     Service --> Redis[(Redis 8.8)]
     Redis --> Hash[Memory HASH + TTL]
-    Redis --> Index[RediSearch index<br/>TEXT + TAG + NUMERIC + VECTOR HNSW]
+    Redis --> Index[Query Engine index<br/>TEXT + TAG + NUMERIC + VECTOR HNSW]
+    Service --> Audit[Audit HASH per brain-day]
 ```
 
-Canonical design docs: [`.agents/plans/another-brain-architecture.md`](.agents/plans/another-brain-architecture.md)
-and the approved step contracts in `.agents/plans/01`–`05`.
+Design rationale and step contracts: [`.agents/plans/`](.agents/plans).
 
-## Prerequisites
+## Quick start
 
-- Python >= 3.12, managed with [uv](https://docs.astral.sh/uv/)
-- Docker (for the Redis 8.8 dev instance; any Redis >= 8.4 with the Query
-  Engine works — `FT.HYBRID` is required)
-
-## Quick Start
+Docker is the install shape — it brings up Redis 8.8 and the MCP server
+(HTTP transport), and downloads the embedding model into a volume on first
+boot:
 
 ```bash
-uv sync --extra local                          # install deps + local model support
-docker compose -f docker/docker-compose.yml up -d   # Redis 8.8 on REDIS_PORT
-
-MODEL_ALLOW_NETWORK=true \
-  uv run python src/main.py model pull --kind embedding   # one-time, ~270M model
-
-uv run python src/main.py serve                # MCP over stdio
-uv run python src/main.py serve --transport http      # or Streamable HTTP
+git clone <this repo> && cd another-brain
+docker compose -f docker/docker-compose.yml up -d --build
 ```
 
-Copy the env template values you need into `.env` (loaded automatically; real
-environment variables win). Minimal local setup:
+Defaults work out of the box (`BRAIN_ID=default`, Redis on 6379, MCP on
+8000); create a `.env` and pass `--env-file .env` only to override them.
 
-```text
-REDIS_PORT=1905
-REDIS_URL=redis://localhost:1905
-BRAIN_ID=flowerf-main
+The server is then reachable at `http://localhost:8000/mcp`. Model
+management and the dev (from-source) flow:
+[`docs/deployment.md`](docs/deployment.md).
+
+## Connect your agents
+
+**1. Register the MCP server** with each host — stdio (from a checkout):
+
+```json
+{
+  "mcpServers": {
+    "another-brain": {
+      "command": "uv",
+      "args": ["run", "python", "src/main.py", "serve"]
+    }
+  }
+}
 ```
+
+or point the host at the Streamable HTTP endpoint above. Keep `BRAIN_ID`
+identical everywhere — sharing the brain is the point. `agent_id` needs no
+configuration: the server detects each client from the MCP handshake.
+
+**2. Install the bundled `brain-memory` skill** so agents learn the recall
+loop (search before answering, remember what matters, reinforce or forget
+after use):
+
+```bash
+npx skills add Flowerf19/another-brain --skill brain-memory -g
+```
+
+Without the skill the tools still work, but agents only discover the
+workflow from it.
 
 ## Configuration
 
-All settings are environment variables read by `src/config.py` (every
-inconsistency is a startup error). The useful subset:
+All settings are environment variables (`.env` is loaded automatically;
+real environment variables win). Every inconsistency is a startup error.
+The useful subset:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `BRAIN_ID` | `default` | Brain namespace this server writes to |
-| `REDIS_URL` | `redis://localhost:6379` | Redis >= 8.4 connection |
+| `REDIS_URL` | `redis://localhost:6379` | Redis >= 8.4 (Query Engine required) |
 | `EMBEDDING_MODEL` / `EMBEDDING_DIM` | `microsoft/harrier-oss-v1-270m` / `640` | Local embedding model |
-| `MODEL_DOWNLOAD_POLICY` | `manual` | `disabled`/`manual`/`lazy`/`on_start` |
+| `MODEL_DOWNLOAD_POLICY` | `manual` | `disabled` / `manual` / `lazy` / `on_start` |
 | `SEARCH_TOP_K` / `SEARCH_MIN_COSINE` | `20` / `0.30` | Recall page size and quality floor |
 | `TTL_IMPORTANCE_5`...`TTL_IMPORTANCE_1` | 365d...7d | All-or-none override set |
 | `FORGET_GRACE_SECONDS` | `2592000` | Soft-delete recovery window |
 | `TIMELINE_TIMEZONE` | `Asia/Ho_Chi_Minh` | `timeline_day` derivation |
 | `MCP_HTTP_HOST` / `MCP_HTTP_PORT` | `127.0.0.1` / `8000` | HTTP transport bind |
 
-`agent_id` needs no configuration: the server detects each client from the
-MCP handshake (`clientInfo`) per session and records it as provenance on
-writes and audit events.
+Changing `EMBEDDING_DIM` against an existing index refuses startup — a
+reindex is required (migration tooling is not implemented yet).
 
-Changing `EMBEDDING_DIM` against an existing index refuses startup — a reindex
-migration is required (Step 04 §5; migration tooling is not implemented yet).
+## Safety & trust
 
-## Connect Agents
-
-Register the MCP server with your host (stdio config in
-`docs/deployment.md`), then install the bundled `brain-memory` skill
-(`npx skills add Flowerf19/another-brain`) so agents learn the recall loop:
-search before answering, remember what matters, reinforce or forget after
-use. Full runbook: [`docs/deployment.md#connect-agents`](docs/deployment.md).
+- **No auth layer, by design.** Every connected caller can read and write
+  the whole brain. Bind the HTTP transport to localhost or a private
+  network only.
+- **Memories are claims, not facts.** Treat recall like advice from a
+  colleague, not ground truth: [`docs/memory-trust-model.md`](docs/memory-trust-model.md).
+- **No secrets in memory or audit.** The audit trail records actions and
+  ids, never memory text; don't store credentials in memories either.
 
 ## Development
 
 ```bash
-uv run pytest              # full suite: unit + integration (needs dev Redis up)
-uv run pytest tests/unit   # unit only, no Redis needed
+uv sync --extra local        # deps + local model support
+uv run pytest                # full suite (integration needs the compose Redis)
+uv run pytest tests/unit     # unit only, no Redis needed
 ```
 
 Layout: `src/` (`main.py` CLI, `app.py` composition root, `server/` MCP
 surface, `memory/` domain, `storage/` Redis, `models/` local model install,
-`audit/` mutation trail), `tests/unit` + `tests/integration`,
-`docker/` (Redis 8.8 + server image). Stubs not yet implemented:
-`server/resources.py`, `storage/migrations.py`. Cut by decision: the
-server-side memory model (2026-07-23 — normalization is the calling agent's
-job) and the npm launcher (2026-07-25 — Docker is the only install shape).
+`audit/` mutation trail), `docker/`, `skills/brain-memory/`, `tests/`.
+Testing contract: [`.agents/TESTING_GUIDE.md`](.agents/TESTING_GUIDE.md).
 
-See `.agents/TESTING_GUIDE.md` for the integration-test Redis contract and
-`docs/mcp-tools.md` for the tool surface.
+## For agents working in this repo
 
-## For Agents
-
-Start with [`.agents/README.md`](.agents/README.md). Keep the public README,
-the plans, and `.agents` guidance synchronized as the repo grows.
+Start with [`.agents/README.md`](.agents/README.md) — read order, module
+ownership, and the rules that keep these docs honest.

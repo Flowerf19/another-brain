@@ -45,7 +45,7 @@ services:
     environment:
       # Internal compose network — the host REDIS_PORT mapping does not apply.
       REDIS_URL: redis://redis:6379
-      BRAIN_ID: ${BRAIN_ID:-flowerf-main}
+      BRAIN_ID: ${BRAIN_ID:-default}
       # First boot downloads the embedding model into the cache volume.
       MODEL_DOWNLOAD_POLICY: on_start
       MODEL_ALLOW_NETWORK: "true"

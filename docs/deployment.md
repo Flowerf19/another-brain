@@ -13,12 +13,15 @@
 ## Full deployment (server + Redis in compose)
 
 ```bash
-docker compose -f docker/docker-compose.yml --env-file .env up -d --build
+docker compose -f docker/docker-compose.yml up -d --build
 ```
 
-- `--env-file .env` is required: compose reads env files from the compose
-  file's directory (`docker/`), not the repo root, so without it
-  `REDIS_PORT` falls back to 6379 and can collide with other projects.
+- Defaults work out of the box (`BRAIN_ID=default`, Redis on 6379, MCP on
+  8000). To override, create a `.env` at the repo root and add
+  `--env-file .env` — compose reads env files from the compose file's
+  directory (`docker/`), not the repo root, so the flag is required for
+  overrides to apply (e.g. a custom `REDIS_PORT` to avoid colliding with
+  another Redis on 6379).
 - `server` serves MCP over HTTP on `${MCP_HTTP_PORT:-8000}`
   (`MCP_HTTP_HOST=0.0.0.0` is set in the image). Register
   `http://localhost:8000/mcp` as a streamable-HTTP MCP server, or keep
