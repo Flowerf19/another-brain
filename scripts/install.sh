@@ -44,6 +44,11 @@ say "[1/4] Checking prerequisites"
 have git || die "git is required: https://git-scm.com/downloads"
 have docker || die "docker is required: https://docs.docker.com/get-docker/"
 docker compose version >/dev/null 2>&1 || die "the docker compose plugin is required (Docker Desktop / docker-compose-plugin)"
+# `docker compose version` works without daemon access — verify the socket too,
+# otherwise a missing docker group only surfaces later as a cryptic pull failure.
+if [ "${AB_SKIP_DOCKER:-}" != "1" ] && ! docker info >/dev/null 2>&1; then
+    die "cannot reach the docker daemon — start it (sudo systemctl enable --now docker) and/or add your user to the docker group: sudo usermod -aG docker $USER (then re-login or run: newgrp docker)"
+fi
 if ! have npx; then
     warn "npx not found — step 4 (agent skill) will be skipped; install Node.js >= 18 and run:"
     warn "  npx skills add Flowerf19/another-brain -g"

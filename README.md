@@ -4,6 +4,61 @@ One shared long-term memory for all your AI agents — a self-hosted MCP
 server with hybrid search, local multilingual embeddings, and self-expiring
 memory.
 
+## Quick start
+
+Requirements: `git`, Docker with the compose plugin and a reachable daemon
+(on Linux, if `docker ps` says permission denied: `sudo usermod -aG docker
+$USER`, then re-login), and optionally Node.js >= 18 (`npx`) for the
+agent-skill step.
+
+One command installs everything — Redis 8.8 + the MCP server via Docker,
+then asks which of your detected agent harnesses get the `another-brain`
+skill:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Flowerf19/another-brain/main/scripts/install.sh | sh
+```
+
+Or by hand — Docker is the install shape; it brings up Redis 8.8 and the
+MCP server (HTTP transport), and downloads the embedding model into a
+volume on first boot:
+
+```bash
+git clone <this repo> && cd another-brain
+docker compose -f docker/docker-compose.yml up -d --build
+```
+
+Defaults work out of the box (`BRAIN_ID=default`, Redis on 1905, MCP on
+8000); create a `.env` and pass `--env-file .env` only to override them.
+
+The server is then reachable at `http://localhost:8000/mcp`. Model
+management and the dev (from-source) flow:
+[`docs/deployment.md`](docs/deployment.md).
+
+## Connect your agents
+
+Per-harness setup — registers the MCP server in the harness's own config
+**and** installs the `another-brain` skill for it:
+
+```bash
+scripts/connect.sh                    # list detected harnesses
+scripts/connect.sh claude-code codex  # connect the ones you use
+```
+
+Supported: `claude-code` and `codex` (via their native CLIs), `gemini-cli`
+and `cursor` (JSON config merge), `pi` (project `.mcp.json`; needs an MCP
+extension). Other harnesses: register the Streamable HTTP endpoint
+`http://localhost:8000/mcp` (or stdio from a checkout — see
+[`docs/deployment.md`](docs/deployment.md)) and install the skill with
+`npx skills add Flowerf19/another-brain -g -y`.
+
+or simply tell your agent: *"install the another-brain skill from
+Flowerf19/another-brain"* — it runs the same command and asks for your
+confirmation first.
+
+Without the skill the tools still work, but agents only discover the
+workflow from it.
+
 ## Why this exists
 
 If you work with more than one AI agent — Claude Code, Codex, a Discord
@@ -79,56 +134,6 @@ flowchart TD
 ```
 
 Design rationale and step contracts: [`.agents/plans/`](.agents/plans).
-
-## Quick start
-
-One command installs everything — Redis 8.8 + the MCP server via Docker,
-then asks which of your detected agent harnesses get the `another-brain`
-skill:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/Flowerf19/another-brain/main/scripts/install.sh | sh
-```
-
-Or by hand — Docker is the install shape; it brings up Redis 8.8 and the
-MCP server (HTTP transport), and downloads the embedding model into a
-volume on first boot:
-
-```bash
-git clone <this repo> && cd another-brain
-docker compose -f docker/docker-compose.yml up -d --build
-```
-
-Defaults work out of the box (`BRAIN_ID=default`, Redis on 1905, MCP on
-8000); create a `.env` and pass `--env-file .env` only to override them.
-
-The server is then reachable at `http://localhost:8000/mcp`. Model
-management and the dev (from-source) flow:
-[`docs/deployment.md`](docs/deployment.md).
-
-## Connect your agents
-
-Per-harness setup — registers the MCP server in the harness's own config
-**and** installs the `another-brain` skill for it:
-
-```bash
-scripts/connect.sh                    # list detected harnesses
-scripts/connect.sh claude-code codex  # connect the ones you use
-```
-
-Supported: `claude-code` and `codex` (via their native CLIs), `gemini-cli`
-and `cursor` (JSON config merge), `pi` (project `.mcp.json`; needs an MCP
-extension). Other harnesses: register the Streamable HTTP endpoint
-`http://localhost:8000/mcp` (or stdio from a checkout — see
-[`docs/deployment.md`](docs/deployment.md)) and install the skill with
-`npx skills add Flowerf19/another-brain -g -y`.
-
-or simply tell your agent: *"install the another-brain skill from
-Flowerf19/another-brain"* — it runs the same command and asks for your
-confirmation first.
-
-Without the skill the tools still work, but agents only discover the
-workflow from it.
 
 ## Configuration
 
