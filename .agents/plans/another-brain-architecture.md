@@ -35,8 +35,8 @@ client agent only sends observations or explicit memories and asks for recall.
   the calling agent already runs a strong LLM with full context. The service
   contains no LLM — only an embedding model.
 - Run locally first, with a Docker deployment that includes persistent storage.
-- Allow an npm package to act as a convenient MCP launcher, not as the core
-  storage implementation.
+- Docker is the only install shape (the npm launcher was cut 2026-07-25);
+  MCP hosts connect over stdio or Streamable HTTP directly.
 
 ## Non-Goals
 
@@ -51,7 +51,8 @@ client agent only sends observations or explicit memories and asks for recall.
 
 ## Product Shape
 
-Another Brain has three install shapes:
+Another Brain has two install shapes (a third, the npm launcher, was cut
+2026-07-25):
 
 1. **Docker service**
    - Primary deployment.
@@ -63,11 +64,11 @@ Another Brain has three install shapes:
    - Can either run the service in-process for simple local use or proxy to a
      Docker/HTTP service.
 
-3. **npm launcher**
-   - Convenience package such as `@another-brain/mcp`.
-   - Provides a familiar MCP config for clients that prefer `npx`.
-   - Should not reimplement the memory engine in Node unless the project later
-     chooses a TypeScript core.
+3. ~~npm launcher~~ **Cut (2026-07-25)**: a stdio↔HTTP proxy still
+   required a running service, and a self-contained npm install would have
+   meant shipping Redis/Python binaries for every platform — re-implementing
+   Docker by hand. Docker compose is the single install path; hosts speak
+   stdio (from source) or HTTP to the service.
 
 ## Identity Model
 
@@ -582,20 +583,10 @@ Compose should include:
 
 ### npm
 
-Secondary install target:
-
-```text
-npx -y @another-brain/mcp
-```
-
-The npm package should:
-
-- read MCP client env/config;
-- start a stdio adapter;
-- connect to a configured HTTP service, or optionally start Docker if enabled;
-- avoid owning the database itself.
-
-This keeps the easy MCP UX without making Node the source of truth.
+**Cut (2026-07-25)**: no npm install target. The `npx` UX either proxied to
+an already-running service (no install value) or had to bootstrap Redis +
+Python natively per platform (a hand-rolled package manager, no Windows
+support). Docker compose covers the real install story.
 
 ## Suggested Repository Layout
 
@@ -642,10 +633,6 @@ another-brain/
   docker/
     Dockerfile
     docker-compose.yml
-  packages/
-    npm-launcher/
-      package.json
-      src/
   tests/
 ```
 
@@ -665,7 +652,8 @@ another-brain/
    first-boot `on_start` download).
 7. Server-filled `brain_id` and `agent_id` identity binding (no auth layer).
 8. `brain_get` and `brain_forget` with audit log.
-9. npm launcher that proxies to the service.
+9. ~~npm launcher that proxies to the service.~~ **Cut (2026-07-25)**:
+   Docker is the only install shape; see "Product Shape".
 10. Optional richer observation ingest pipeline.
 
 ## Migration From Existing T2

@@ -97,8 +97,6 @@ Success criteria:
 - `npx skills add` resolves a plain GitHub repo containing `skills/<name>/`
   — verified against vercel-labs/skills README (source formats + layout);
   TASK-002 re-verifies locally before docs recommend it.
-- The npm launcher (not yet implemented) will later offer the same
-  install command; no launcher work in this step.
 - The skill text lives only in this repo; the user's personal
   `~/.claude/skills` clone consumes it via the installer, not by
   duplicating the file.

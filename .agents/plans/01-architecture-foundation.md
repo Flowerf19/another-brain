@@ -62,7 +62,6 @@ Another Brain does not own:
 flowchart TD
     subgraph Clients["Client side"]
         Host["MCP host / agent"]
-        Npm["npm launcher<br/>optional convenience adapter"]
     end
 
     subgraph Transport["Transport boundary"]
@@ -88,8 +87,6 @@ flowchart TD
 
     Host --> Stdio
     Host --> Http
-    Npm --> Stdio
-    Npm --> Http
 
     Stdio --> Mcp
     Http --> Mcp
@@ -256,8 +253,8 @@ Do not introduce a separate vector database in the first implementation.
 Approve or change these before moving to Step 02:
 
 1. Another Brain is MCP-first and has no frontend in the initial architecture.
-2. Docker service is the primary deployment shape; npm is only a launcher or
-   adapter.
+2. Docker service is the only deployment shape (the npm launcher/adapter
+   was cut 2026-07-25 — hosts connect over stdio or HTTP directly).
 3. Redis Stack is the only MVP database, search engine, vector store, and TTL
    mechanism.
 4. `brain_id` is the storage isolation boundary.

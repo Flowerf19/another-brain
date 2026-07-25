@@ -30,8 +30,10 @@ Use explicit or lazy download instead:
    - `lazy`: download on first use;
    - `on_start`: download during service startup;
    - `manual`: require an explicit command before startup is considered ready.
-4. npm launcher install must never download large model files. It may call or
-   document the server-side model install command after user opt-in.
+4. Any future package installer must never download large model files. It may
+   call or document the server-side model install command after user opt-in.
+   (The npm launcher referenced here was cut 2026-07-25; the principle stands
+   for any packaging added later.)
 
 Default policy: `manual` for production-like installs, `lazy` for local
 developer quickstart only after explicit opt-in.
@@ -42,7 +44,7 @@ Install-time model download is fragile:
 
 - package installs become slow and failure-prone;
 - CI and offline installs become unpredictable;
-- npm install hooks are a poor place to fetch hundreds of MB or GB;
+- package install hooks are a poor place to fetch hundreds of MB or GB;
 - Docker builds become large and less cache-friendly;
 - users may not have accepted model licenses or chosen a provider yet;
 - model revisions and embedding dimensions affect Redis index compatibility.
@@ -322,13 +324,13 @@ should stay focused on embedding calls after a provider is ready.
 
 Approve or change these before implementation:
 
-1. No model download during npm/package install.
+1. No model download during package install.
 2. Local model download requires explicit opt-in or a configured policy.
 3. Default production policy is `manual`.
 4. Local developer quickstart may use `lazy` only after opt-in.
 5. Model cache is separate from Redis data.
-6. npm launcher delegates model management to the server; it does not own model
-   downloads.
+6. Any launcher/packaging delegates model management to the server; it does
+   not own model downloads.
 7. Health output exposes model status but no API keys or signed URLs.
 8. Embedding dimension mismatch blocks writes until migration/reindex is handled.
 9. Redis vector dtype defaults to `FLOAT32`.

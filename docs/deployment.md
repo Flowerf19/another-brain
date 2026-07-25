@@ -161,9 +161,3 @@ their own session-start mechanism.
 There is no auth layer by design — every connected caller can read and write
 the whole `brain_id`. Bind the HTTP transport to localhost or a private
 network only; gate at the network/proxy level if it must be reachable further.
-
-## npm launcher
-
-`packages/npm-launcher/` is a scaffold only (no `package.json` yet). Planned
-shape: `npx @another-brain/mcp` starts the stdio adapter or proxies to a
-running service; it will never own the database.

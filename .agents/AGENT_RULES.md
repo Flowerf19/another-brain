@@ -75,8 +75,10 @@
 ## Packaging Rules
 
 - Docker is the real deployment target for the service and persistent storage.
-- npm should be a launcher/adapter for MCP clients, not a second implementation
-  of the memory engine.
+- There is no npm launcher (cut 2026-07-25): Docker is the only install
+  shape; MCP clients connect over stdio or Streamable HTTP directly. Do not
+  reintroduce a second implementation of the memory engine in another
+  language.
 - Avoid adding package managers or frameworks until the first implementation
   plan chooses the runtime stack.
 

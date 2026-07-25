@@ -38,10 +38,14 @@ MCP host → transport (stdio / Streamable HTTP) → `MemoryService` → Redis 8
 | `models/` | local model install policy, registry, cache, installer, runtime profile |
 | `audit/` | secret-free mutation events |
 
-Not yet implemented: `server/resources.py`, `storage/migrations.py`,
-external embedding providers (only `local` works),
-`packages/npm-launcher`.
+Not yet implemented (scaffold only): `server/resources.py`,
+`server/schemas.py`, `storage/migrations.py`, `memory/repository.py`;
+external embedding providers (only `local` works).
 
 Cut by decision (2026-07-23): the server-side memory model
 (normalization/summarization) — normalization is the calling agent's job;
 see the architecture plan, milestone 2.
+
+Cut by decision (2026-07-25): the npm launcher (`packages/npm-launcher`) —
+Docker is the only install shape; MCP hosts connect via stdio or Streamable
+HTTP directly.

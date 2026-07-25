@@ -121,10 +121,11 @@ uv run pytest tests/unit   # unit only, no Redis needed
 
 Layout: `src/` (`main.py` CLI, `app.py` composition root, `server/` MCP
 surface, `memory/` domain, `storage/` Redis, `models/` local model install,
-`audit/` mutation trail), `tests/unit` + `tests/integration`. Stubs not yet
-implemented: `server/resources.py`, `storage/migrations.py`,
-`packages/npm-launcher`, service Dockerfile. (The server-side memory
-model was cut by decision — normalization is the calling agent's job.)
+`audit/` mutation trail), `tests/unit` + `tests/integration`,
+`docker/` (Redis 8.8 + server image). Stubs not yet implemented:
+`server/resources.py`, `storage/migrations.py`. Cut by decision: the
+server-side memory model (2026-07-23 — normalization is the calling agent's
+job) and the npm launcher (2026-07-25 — Docker is the only install shape).
 
 See `.agents/TESTING_GUIDE.md` for the integration-test Redis contract and
 `docs/mcp-tools.md` for the tool surface.

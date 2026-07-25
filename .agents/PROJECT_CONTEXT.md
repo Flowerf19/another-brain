@@ -20,9 +20,9 @@ Core decisions:
 
 - MCP is the primary integration surface (stdio and Streamable HTTP, both
   implemented).
-- Docker is the primary deployment shape; today compose provides Redis 8.8 and
-  the server runs from source. npm is a planned convenience launcher, not a
-  second memory engine.
+- Docker is the deployment shape; today compose provides Redis 8.8 and
+  the server image (HTTP transport, model cache volume). There is no npm
+  launcher — cut 2026-07-25, hosts connect via stdio or HTTP directly.
 - Redis 8.8 (>= 8.4 for `FT.HYBRID`) is the only database: memory HASH records,
   packed FLOAT32 embeddings, RediSearch index, TTL retention.
 - Memory is a timeline diary: `timeline_day` + `topic` + `summary` (embedded) +
@@ -54,7 +54,7 @@ carry identity. Every storage query carries the `brain_id` filter.
 
 ## Runtime State
 
-Implemented and tested (197 tests): the full tool surface
+Implemented and tested (201 tests): the full tool surface
 (`brain_remember/search/recent/get/reinforce/forget/health/audit`), Redis
 storage + index startup checks, soft delete/restore/hard delete, audit trail,
 model install CLI (`model plan/pull/status`), admin CLI
@@ -62,9 +62,10 @@ model install CLI (`model plan/pull/status`), admin CLI
 
 Stubs / not implemented: `server/resources.py`, `server/schemas.py`,
 `storage/migrations.py`, `memory/repository.py`,
-external embedding providers, `packages/npm-launcher`,
-`brain_ingest`. Cut (2026-07-23): server-side memory model —
-normalization is the calling agent's job (architecture plan, milestone 2).
+external embedding providers, `brain_ingest`. Cut (2026-07-23):
+server-side memory model — normalization is the calling agent's job
+(architecture plan, milestone 2). Cut (2026-07-25): npm launcher —
+Docker is the only install shape.
 
 ## Runtime Shape
 

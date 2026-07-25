@@ -19,7 +19,6 @@ exists for review; implementation logic still belongs in a later step.
 - Repository name: `another-brain`.
 - Runtime source root: `src/`.
 - Service command name: `another-brain-server`.
-- npm launcher package name: `@another-brain/mcp`.
 - Redis key prefix: `ab`.
 - MCP tool prefix: `brain_`.
 
@@ -87,10 +86,6 @@ another-brain/
   docker/
     Dockerfile
     docker-compose.yml
-  packages/
-    npm-launcher/
-      package.json
-      src/
   tests/
     unit/
     integration/
