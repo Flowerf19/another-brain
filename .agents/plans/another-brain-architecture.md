@@ -279,7 +279,7 @@ multilingual, so no translation is required for cross-language retrieval.
 
 **Normalization is client-side.** The calling agent produces the structured
 record (topic, summary, catalog, importance, language-appropriate text)
-following the `brain-memory` skill contract — it has the conversation
+following the `another-brain` skill contract — it has the conversation
 context a server-side model would lack, and it costs the deployment
 nothing. The service validates and stores verbatim; it does not rewrite.
 Guidance for writers:

@@ -7,7 +7,7 @@
 # For each chosen harness this does the full setup, idempotently:
 #   1. registers the Another Brain MCP server (Streamable HTTP) in the
 #      harness's own MCP config — via its native CLI when it has one
-#   2. installs the brain-memory skill for that harness (skills CLI)
+#   2. installs the another-brain skill for that harness (skills CLI)
 #
 # MCP_URL overrides the endpoint (default http://localhost:8000/mcp).
 set -u
@@ -120,7 +120,7 @@ done
 
 if [ -n "$SKILL_AGENTS" ]; then
     if have npx; then
-        say "Installing the brain-memory skill for:$SKILL_AGENTS"
+        say "Installing the another-brain skill for:$SKILL_AGENTS"
         # shellcheck disable=SC2086
         npx -y skills add Flowerf19/another-brain -g -y $SKILL_AGENTS < /dev/null || status=1
     else

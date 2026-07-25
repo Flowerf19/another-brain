@@ -114,7 +114,7 @@ connection (e.g. `pi-mcp-another-brain`, `claude-code`).
 
 ### Install the usage skill
 
-The repo ships a standard Agent Skills package at `skills/brain-memory/`.
+The repo ships a standard Agent Skills package at `skills/another-brain/`.
 Any harness that supports the Agent Skills format can load it; the
 [`skills` CLI](https://github.com/vercel-labs/skills) knows the skill
 directory of ~70 agents and auto-detects which ones are installed:
@@ -127,11 +127,11 @@ With `-y` (and no `--all`) the CLI detects installed harnesses from their
 config dirs and installs only for those: the universal `~/.agents/skills/`
 path, plus symlinks for agents that need their own directory (e.g.
 `~/.claude/skills/`). To choose agents yourself, run interactively
-(`npx skills add Flowerf19/another-brain --skill brain-memory -g`) or name
+(`npx skills add Flowerf19/another-brain --skill another-brain -g`) or name
 one: `-a claude-code`. From a local checkout, replace the repo argument
 with `.`.
 
-Manual fallback — copy `skills/brain-memory/` into the harness's skill
+Manual fallback — copy `skills/another-brain/` into the harness's skill
 directory: `~/.claude/skills/` (Claude Code), `~/.codex/skills/` (Codex),
 `~/.gemini/skills/` (Gemini CLI), or the shared `~/.agents/skills/` where
 supported. Without the skill, agents still see the tool descriptions and the
@@ -139,7 +139,7 @@ server's handshake instructions, but the recall-loop workflow is only taught
 by the skill.
 
 The skill is the canonical usage contract — when tool behavior or
-conventions change, update `skills/brain-memory/SKILL.md` in the same
+conventions change, update `skills/another-brain/SKILL.md` in the same
 commit and refresh installs (`npx skills update`, or re-run the add
 command).
 

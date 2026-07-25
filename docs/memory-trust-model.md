@@ -93,7 +93,7 @@ its content.
   command in `~/.claude/settings.json` prepends an "unverified claims"
   line), deliberately NOT in the CLI: `python src/main.py recent` is a
   neutral, general-purpose output and must stay usable by other consumers.
-- [x] Reader-stance text in `skills/brain-memory/SKILL.md` — "claims, not
+- [x] Reader-stance text in `skills/another-brain/SKILL.md` — "claims, not
   facts; code wins; forget-on-conflict" section added.
 - [ ] Whether hook injection should filter by `catalog` (e.g. inject
   `task`/`decision` only) or by `min_importance`.

@@ -37,8 +37,8 @@ Core decisions:
 - No auth layer: one shared brain for trusted agents; identity is config-bound.
   Do not expose HTTP on untrusted networks.
 - Agent guidance ships two ways (step 06): a short recall loop in the MCP
-  server `instructions`, and the canonical `brain-memory` skill at
-  `skills/brain-memory/` (install via `npx skills add`).
+  server `instructions`, and the canonical `another-brain` skill at
+  `skills/another-brain/` (install via `npx skills add`).
 
 ## Identity Model
 

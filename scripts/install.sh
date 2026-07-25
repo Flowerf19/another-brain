@@ -3,36 +3,50 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/Flowerf19/another-brain/main/scripts/install.sh | sh
 #
-# What it does, in order:
-#   1. preflight — needs git, docker (with the compose plugin), and npx
-#   2. repo      — uses the current directory when run from a checkout,
-#                  otherwise clones to $INSTALL_DIR (default ~/another-brain)
-#   3. system    — docker compose up: Redis 8.8 + the MCP server
-#                  (first boot downloads the ~0.5 GB embedding model)
-#   4. skill     — installs the brain-memory skill for every supported
-#                  agent via the skills CLI (npx skills add ... -g --all)
+# Steps: preflight -> fetch repo -> Docker stack (Redis 8.8 + MCP server)
+# -> pick which agent harnesses get the another-brain skill.
+# Verbose child output goes to $LOG; the terminal stays compact.
 #
-# Everything is overridable via env: INSTALL_DIR, AB_SKIP_DOCKER=1,
-# AB_SKIP_SKILL=1.
-set -eu
+# Overrides: INSTALL_DIR, AB_SKIP_DOCKER=1, AB_SKIP_SKILL=1, LOG.
+set -u
 
 REPO_URL="https://github.com/Flowerf19/another-brain.git"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/another-brain}"
+LOG="${LOG:-${TMPDIR:-/tmp}/another-brain-install.log}"
 
-say() { printf '\033[1m==>\033[0m %s\n' "$*"; }
+say() { printf '\033[1m%s\033[0m\n' "$*"; }
 warn() { printf 'warning: %s\n' "$*" >&2; }
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
 
-say "Another Brain installer — will: fetch repo -> start Docker stack -> install agent skill"
+# run_quiet <label> <cmd...>: compact status + dots while working; on
+# failure dump the log tail and exit.
+run_quiet() {
+    label="$1"; shift
+    printf '%s...' "$label"
+    : >>"$LOG"
+    "$@" >>"$LOG" 2>&1 &
+    pid=$!
+    while kill -0 "$pid" 2>/dev/null; do printf '.'; sleep 5; done
+    if wait "$pid"; then
+        printf ' OK\n'
+    else
+        printf ' FAILED\n' >&2
+        tail -n 25 "$LOG" >&2
+        exit 1
+    fi
+}
+
+say "Another Brain installer — log: $LOG"
 
 # ---------------------------------------------------------------- preflight
+say "[1/4] Checking prerequisites"
 have git || die "git is required: https://git-scm.com/downloads"
 have docker || die "docker is required: https://docs.docker.com/get-docker/"
 docker compose version >/dev/null 2>&1 || die "the docker compose plugin is required (Docker Desktop / docker-compose-plugin)"
 if ! have npx; then
     warn "npx not found — step 4 (agent skill) will be skipped; install Node.js >= 18 and run:"
-    warn "  npx skills add Flowerf19/another-brain -g -y"
+    warn "  npx skills add Flowerf19/another-brain -g"
 fi
 if have nc; then
     for port in 6379 8000; do
@@ -44,17 +58,15 @@ if have nc; then
 fi
 
 # --------------------------------------------------------------------- repo
-if [ -f docker/docker-compose.yml ] && [ -f skills/brain-memory/SKILL.md ]; then
+if [ -f docker/docker-compose.yml ] && [ -f skills/another-brain/SKILL.md ]; then
     SRC="$PWD"
-    say "Using the current checkout: $SRC"
+    say "[2/4] Repo — using current checkout ($SRC)"
 elif [ -d "$INSTALL_DIR/.git" ]; then
     SRC="$INSTALL_DIR"
-    say "Updating existing clone: $SRC"
-    git -C "$SRC" pull --ff-only < /dev/null || warn "git pull failed — continuing with the existing checkout"
+    run_quiet "[2/4] Updating repo ($SRC)" git -C "$SRC" pull --ff-only
 else
     SRC="$INSTALL_DIR"
-    say "Cloning $REPO_URL -> $SRC"
-    git clone "$REPO_URL" "$SRC" < /dev/null
+    run_quiet "[2/4] Cloning repo -> $SRC" git clone "$REPO_URL" "$SRC"
 fi
 
 # ------------------------------------------------------------------- system
@@ -66,16 +78,14 @@ if [ -f "$SRC/.env" ]; then
 fi
 
 if [ "${AB_SKIP_DOCKER:-}" = "1" ]; then
-    say "AB_SKIP_DOCKER=1 — skipping the Docker stack"
+    say "[3/4] Docker stack — skipped (AB_SKIP_DOCKER=1)"
 else
-    say "Starting Redis 8.8 + MCP server (first build/pull takes a few minutes)"
     # shellcheck disable=SC2086
-    docker compose -f "$SRC/docker/docker-compose.yml" $COMPOSE_ENV_ARG up -d --build < /dev/null
+    run_quiet "[3/4] Starting Redis + MCP server (first run takes minutes)" \
+        docker compose -f "$SRC/docker/docker-compose.yml" $COMPOSE_ENV_ARG up -d --build
 fi
 
-# ---------------------------------------------------------- skill detection
-# Map harness config dirs in $HOME to skills-CLI agent ids. Only the common
-# ones — anything else is covered by the manual command printed at the end.
+# -------------------------------------------------------------------- skill
 detect_skill_agents() {
     found=""
     [ -d "$HOME/.claude" ] && found="$found claude-code"
@@ -86,26 +96,25 @@ detect_skill_agents() {
     echo "$found" | xargs 2>/dev/null
 }
 
-# -------------------------------------------------------------------- skill
 if [ "${AB_SKIP_SKILL:-}" = "1" ]; then
-    say "AB_SKIP_SKILL=1 — skipping the agent skill"
+    say "[4/4] Agent skill — skipped (AB_SKIP_SKILL=1)"
 elif ! have npx; then
-    say "Skipping the agent skill (npx missing) — see the warning above"
+    say "[4/4] Agent skill — skipped (npx missing)"
 elif [ -w /dev/tty ]; then
     detected=$(detect_skill_agents)
     if [ -z "$detected" ]; then
-        say "No known agent harness detected in \$HOME — skipping the skill."
-        say "Install later with the full picker: npx skills add Flowerf19/another-brain -g"
+        say "[4/4] Agent skill — no known harness detected; install later:"
+        say "      npx skills add Flowerf19/another-brain -g"
     else
         # Ask on the terminal, not stdin: under `curl | sh` stdin IS the
         # rest of this script.
         i=0
         for a in $detected; do i=$((i + 1)); eval "choice_$i=$a"; done
         {
-            printf 'Detected agent harnesses:\n'
+            printf '[4/4] Install the another-brain skill for which harnesses?\n'
             i=0
             for a in $detected; do i=$((i + 1)); printf '  %d) %s\n' "$i" "$a"; done
-            printf 'Install the brain-memory skill for which? [numbers, space-separated; a=all; n=skip] '
+            printf '      [numbers, space-separated; a=all; n=skip] '
         } > /dev/tty
         read -r answer < /dev/tty || answer="n"
         chosen=""
@@ -123,28 +132,18 @@ elif [ -w /dev/tty ]; then
         if [ -n "$chosen" ]; then
             agent_args=""
             for a in $chosen; do agent_args="$agent_args -a $a"; done
-            say "Installing the brain-memory skill for: $chosen"
             # shellcheck disable=SC2086
-            npx -y skills add Flowerf19/another-brain -g -y $agent_args < /dev/null
+            run_quiet "[4/4] Installing skill for: $chosen" \
+                npx -y skills add Flowerf19/another-brain -g -y $agent_args
         else
-            say "Skipping the skill — pick agents later: npx skills add Flowerf19/another-brain -g"
+            say "[4/4] Agent skill — skipped; install later: npx skills add Flowerf19/another-brain -g"
         fi
     fi
 else
     # Non-interactive run: never install to agents silently.
-    say "No terminal available — skipping the skill. Install later:"
-    say "  npx skills add Flowerf19/another-brain -g"
+    say "[4/4] Agent skill — no terminal; install later: npx skills add Flowerf19/another-brain -g"
 fi
 
-say "Done."
-cat <<'EOF'
-
-The memory service is at http://localhost:8000/mcp (Streamable HTTP).
-To connect a harness (registers the MCP server + installs the skill):
-
-    scripts/connect.sh              # list detected harnesses
-    scripts/connect.sh claude-code codex
-
-First boot downloads the embedding model (~0.5 GB) — the first recall may
-take a few minutes. More: docs/deployment.md in the repo.
-EOF
+say "Done — MCP endpoint: http://localhost:8000/mcp"
+say "Connect a harness later: scripts/connect.sh <name>   (in $SRC)"
+say "First boot downloads the embedding model (~0.5 GB); first recall may take minutes."

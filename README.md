@@ -83,7 +83,7 @@ Design rationale and step contracts: [`.agents/plans/`](.agents/plans).
 ## Quick start
 
 One command installs everything — Redis 8.8 + the MCP server via Docker,
-then asks which of your detected agent harnesses get the `brain-memory`
+then asks which of your detected agent harnesses get the `another-brain`
 skill:
 
 ```bash
@@ -109,7 +109,7 @@ management and the dev (from-source) flow:
 ## Connect your agents
 
 Per-harness setup — registers the MCP server in the harness's own config
-**and** installs the `brain-memory` skill for it:
+**and** installs the `another-brain` skill for it:
 
 ```bash
 scripts/connect.sh                    # list detected harnesses
@@ -123,7 +123,7 @@ extension). Other harnesses: register the Streamable HTTP endpoint
 [`docs/deployment.md`](docs/deployment.md)) and install the skill with
 `npx skills add Flowerf19/another-brain -g -y`.
 
-or simply tell your agent: *"install the brain-memory skill from
+or simply tell your agent: *"install the another-brain skill from
 Flowerf19/another-brain"* — it runs the same command and asks for your
 confirmation first.
 
@@ -171,7 +171,7 @@ uv run pytest tests/unit     # unit only, no Redis needed
 
 Layout: `src/` (`main.py` CLI, `app.py` composition root, `server/` MCP
 surface, `memory/` domain, `storage/` Redis, `models/` local model install,
-`audit/` mutation trail), `docker/`, `skills/brain-memory/`, `tests/`.
+`audit/` mutation trail), `docker/`, `skills/another-brain/`, `tests/`.
 Testing contract: [`.agents/TESTING_GUIDE.md`](.agents/TESTING_GUIDE.md).
 
 ## For agents working in this repo

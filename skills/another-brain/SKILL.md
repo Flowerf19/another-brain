@@ -1,5 +1,5 @@
 ---
-name: brain-memory
+name: another-brain
 description: Use the another-brain MCP tools (brain_remember, brain_search, brain_recent, brain_get, brain_reinforce, brain_forget) as shared long-term memory. Activates at the start of a task that may continue previous work, when recalling past decisions/fixes/preferences, when learning something worth remembering across sessions or agents, or after using a recalled memory.
 argument-hint: Recall, store, or maintain long-term memories via the brain_* tools.
 ---
