@@ -176,7 +176,7 @@ async def build_service(
 
 
 async def build_server(config: AppConfig) -> tuple[FastMCP, aioredis.Redis]:
-    """Build the FastMCP server with the 7 brain_* tools attached, plus the
+    """Build the FastMCP server with the 8 brain_* tools attached, plus the
     Redis client to close on shutdown."""
     if FastMCP is None:  # pragma: no cover
         raise ConfigError("the 'mcp' package is required to run the server")

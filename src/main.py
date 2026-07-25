@@ -4,6 +4,8 @@
     python src/main.py model pull
     python src/main.py model status
     python src/main.py serve        [--transport stdio|http]
+    python src/main.py recent       --scope ... [--days N] [--limit N]
+    python src/main.py admin        restore|hard-delete <memory_id>
 
 `serve` runs the MCP server; the model subcommands manage the local model cache
 (Step 03 "Proposed Commands"). Both honor `.env` (loaded in main()).

@@ -18,7 +18,7 @@ class ModelSpec:
     """Resolved download/runtime metadata for one configured model."""
 
     name: str                        # configured name == HF repo id
-    kind: str                        # embedding | memory
+    kind: str                        # only "embedding" exists (server-side memory model cut)
     expected_dim: int | None         # embedding models only
     query_prompt_name: str | None    # ST prompt name for queries, if the model has one
 

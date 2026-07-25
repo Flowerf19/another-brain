@@ -11,7 +11,7 @@ from typing import Any
 
 @dataclass(frozen=True)
 class ModelStatus:
-    kind: str                    # embedding | memory
+    kind: str                    # only "embedding" exists (server-side memory model cut)
     provider: str                # openai_compat | ollama | gemini | local
     model_name: str
     revision: str                # pinned revision, "" if unpinned
