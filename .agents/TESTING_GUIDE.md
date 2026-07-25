@@ -19,10 +19,9 @@ Integration tests (`tests/integration/`) need a Redis 8.4+ with the RediSearch
 module that ships `FT.HYBRID` (native hybrid search). The dev instance is the
 compose service `another-brain-redis` (image `redis:8.8`).
 
-- Host port is `REDIS_PORT` from `.env` (**1905** here, to avoid a clash with a
-  neighbouring redis-stack on 6379). `tests/conftest.py` reads that port and
-  points `REDIS_TEST_URL` at it automatically, so a bare `uv run pytest` targets
-  the right server.
+- Host port is `REDIS_PORT` (default **1905**; `.env` may override).
+  `tests/conftest.py` reads that port and points `REDIS_TEST_URL` at it
+  automatically, so a bare `uv run pytest` targets the right server.
 - Override explicitly with `REDIS_TEST_URL=redis://host:port uv run pytest`
   (e.g. in CI).
 - If the reachable Redis has a RediSearch older than 8.4 (redis-stack 7.2 loads

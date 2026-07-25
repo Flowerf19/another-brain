@@ -20,12 +20,11 @@ compose command below, then installs the agent skill —
 docker compose -f docker/docker-compose.yml up -d --build
 ```
 
-- Defaults work out of the box (`BRAIN_ID=default`, Redis on 6379, MCP on
+- Defaults work out of the box (`BRAIN_ID=default`, Redis on 1905, MCP on
   8000). To override, create a `.env` at the repo root and add
   `--env-file .env` — compose reads env files from the compose file's
   directory (`docker/`), not the repo root, so the flag is required for
-  overrides to apply (e.g. a custom `REDIS_PORT` to avoid colliding with
-  another Redis on 6379).
+  overrides to apply (e.g. a custom `REDIS_PORT`).
 - `server` serves MCP over HTTP on `${MCP_HTTP_PORT:-8000}`
   (`MCP_HTTP_HOST=0.0.0.0` is set in the image). Register
   `http://localhost:8000/mcp` as a streamable-HTTP MCP server, or keep
@@ -45,10 +44,10 @@ docker compose -f docker/docker-compose.yml --env-file .env up -d redis
 - Image `redis:8.8` (Open Source, bundled Query Engine). Redis >= 8.4 is a
   hard requirement: search runs on `FT.HYBRID`, which older servers and
   `redis-stack-server` 7.x do not provide.
-- Host port comes from `REDIS_PORT` in `.env` (`1905` on this dev machine, to
-  avoid clashing with a neighbouring redis-stack on 6379). Container port
-  stays 6379.
-- Point the server at it with `REDIS_URL=redis://localhost:1905`.
+- Host port defaults to `REDIS_PORT=1905` (overridable in `.env`).
+  Container port stays 6379.
+- Point the server at it with `REDIS_URL=redis://localhost:1905` (the
+  config default).
 
 ## Running the server
 

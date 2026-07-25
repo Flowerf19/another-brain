@@ -98,7 +98,7 @@ git clone <this repo> && cd another-brain
 docker compose -f docker/docker-compose.yml up -d --build
 ```
 
-Defaults work out of the box (`BRAIN_ID=default`, Redis on 6379, MCP on
+Defaults work out of the box (`BRAIN_ID=default`, Redis on 1905, MCP on
 8000); create a `.env` and pass `--env-file .env` only to override them.
 
 The server is then reachable at `http://localhost:8000/mcp`. Model
@@ -153,7 +153,7 @@ The useful subset:
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `BRAIN_ID` | `default` | Brain namespace this server writes to |
-| `REDIS_URL` | `redis://localhost:6379` | Redis >= 8.4 (Query Engine required) |
+| `REDIS_URL` | `redis://localhost:1905` | Redis >= 8.4 (Query Engine required) |
 | `EMBEDDING_MODEL` / `EMBEDDING_DIM` | `microsoft/harrier-oss-v1-270m` / `640` | Local embedding model |
 | `MODEL_DOWNLOAD_POLICY` | `manual` | `disabled` / `manual` / `lazy` / `on_start` |
 | `SEARCH_TOP_K` / `SEARCH_MIN_COSINE` | `20` / `0.30` | Recall page size and quality floor |

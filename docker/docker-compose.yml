@@ -23,7 +23,7 @@ services:
     networks:
       - another-brain-net
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "${REDIS_PORT:-1905}:6379"
     volumes:
       - another-brain-redis-data:/data
     healthcheck:

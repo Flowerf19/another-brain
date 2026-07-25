@@ -17,7 +17,7 @@ from storage.redis_index import RedisIndexManager
 from storage.redis_keys import RedisKeyBuilder
 from storage.redis_repository import RedisMemoryRepository
 
-REDIS_URL = os.environ.get("REDIS_TEST_URL", "redis://localhost:6379")
+REDIS_URL = os.environ.get("REDIS_TEST_URL", "redis://localhost:1905")
 TZ = "Asia/Ho_Chi_Minh"
 DIM = 8
 GRACE = 3600

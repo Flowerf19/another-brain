@@ -1,10 +1,10 @@
 """Shared pytest bootstrap.
 
-Integration tests read REDIS_TEST_URL (default redis://localhost:6379). On this
-project the another-brain Redis publishes on the REDIS_PORT from .env (1905, to
-dodge a host-port clash with a neighbouring redis-stack on 6379). Derive the URL
-from that port so a bare `uv run pytest` targets the right server instead of the
-6379 neighbour — without overriding an explicit REDIS_TEST_URL a CI run may set.
+Integration tests read REDIS_TEST_URL (default redis://localhost:1905,
+matching the compose default REDIS_PORT). If .env overrides REDIS_PORT,
+derive the URL from that port so a bare `uv run pytest` targets the right
+server instead of anything else on the default port — without overriding an
+explicit REDIS_TEST_URL a CI run may set.
 """
 from __future__ import annotations
 

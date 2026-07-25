@@ -150,7 +150,7 @@ class AppConfig:
                 f"got {index_mode!r}"
             )
         redis = RedisConfig(
-            url=_str(env, "REDIS_URL", "redis://localhost:6379"),
+            url=_str(env, "REDIS_URL", "redis://localhost:1905"),
             key_prefix=key_prefix,
             index_name=_str(env, "REDIS_INDEX_NAME", f"{key_prefix}:idx:memory"),
             vector_dtype=vector_dtype,
