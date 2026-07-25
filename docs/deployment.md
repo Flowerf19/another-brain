@@ -87,7 +87,10 @@ the Redis data volume.
 ## Connect agents
 
 Two things per agent host: register the MCP server, and install the usage
-skill that teaches agents the recall loop.
+skill that teaches agents the recall loop. `scripts/connect.sh <harness>`
+does both for one harness (native CLI for claude-code/codex, JSON merge
+for gemini-cli/cursor, project `.mcp.json` for pi); the manual paths below
+remain for everything else.
 
 ### Register the MCP server
 

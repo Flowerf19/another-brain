@@ -89,9 +89,10 @@ say "Done."
 cat <<'EOF'
 
 The memory service is at http://localhost:8000/mcp (Streamable HTTP).
-To connect an MCP host, either point it at that URL or register stdio:
+To connect a harness (registers the MCP server + installs the skill):
 
-    "command": "uv", "args": ["run", "python", "src/main.py", "serve"]
+    scripts/connect.sh              # list detected harnesses
+    scripts/connect.sh claude-code codex
 
 First boot downloads the embedding model (~0.5 GB) — the first recall may
 take a few minutes. More: docs/deployment.md in the repo.

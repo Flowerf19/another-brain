@@ -107,40 +107,24 @@ management and the dev (from-source) flow:
 
 ## Connect your agents
 
-**1. Register the MCP server** with each host — stdio (from a checkout):
-
-```json
-{
-  "mcpServers": {
-    "another-brain": {
-      "command": "uv",
-      "args": ["run", "python", "src/main.py", "serve"]
-    }
-  }
-}
-```
-
-or point the host at the Streamable HTTP endpoint above. Keep `BRAIN_ID`
-identical everywhere — sharing the brain is the point. `agent_id` needs no
-configuration: the server detects each client from the MCP handshake.
-
-**2. Install the bundled `brain-memory` skill** so agents learn the recall
-loop (search before answering, remember what matters, reinforce or forget
-after use) — one command, no prompts, covers every agent you use:
+Per-harness setup — registers the MCP server in the harness's own config
+**and** installs the `brain-memory` skill for it:
 
 ```bash
-npx skills add Flowerf19/another-brain -g -y
+scripts/connect.sh                    # list detected harnesses
+scripts/connect.sh claude-code codex  # connect the ones you use
 ```
+
+Supported: `claude-code` and `codex` (via their native CLIs), `gemini-cli`
+and `cursor` (JSON config merge), `pi` (project `.mcp.json`; needs an MCP
+extension). Other harnesses: register the Streamable HTTP endpoint
+`http://localhost:8000/mcp` (or stdio from a checkout — see
+[`docs/deployment.md`](docs/deployment.md)) and install the skill with
+`npx skills add Flowerf19/another-brain -g -y`.
 
 or simply tell your agent: *"install the brain-memory skill from
 Flowerf19/another-brain"* — it runs the same command and asks for your
 confirmation first.
-
-The CLI auto-detects which agent harnesses you actually have (from their
-config dirs) and installs only for those: the universal `~/.agents/skills/`
-path plus agent-specific directories like `~/.claude/skills/`. Prefer
-picking agents yourself? Drop `-y` for the interactive picker. Refresh
-later with `npx skills update`.
 
 Without the skill the tools still work, but agents only discover the
 workflow from it.
