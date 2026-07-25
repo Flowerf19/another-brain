@@ -37,8 +37,8 @@ fi
 if have nc; then
     for port in 6379 8000; do
         if nc -z 127.0.0.1 "$port" 2>/dev/null; then
-            warn "port $port is already in use — create a .env next to the repo with"
-            warn "REDIS_PORT=<free port> or MCP_HTTP_PORT=<free port> and re-run with --env-file .env"
+            warn "port $port is already in use — create $INSTALL_DIR/.env with"
+            warn "REDIS_PORT=<free port> or MCP_HTTP_PORT=<free port>, then re-run this script"
         fi
     done
 fi
@@ -58,11 +58,19 @@ else
 fi
 
 # ------------------------------------------------------------------- system
+COMPOSE_ENV_ARG=""
+if [ -f "$SRC/.env" ]; then
+    # compose reads env files from the compose file's directory, not the
+    # repo root — pass overrides explicitly.
+    COMPOSE_ENV_ARG="--env-file $SRC/.env"
+fi
+
 if [ "${AB_SKIP_DOCKER:-}" = "1" ]; then
     say "AB_SKIP_DOCKER=1 — skipping the Docker stack"
 else
     say "Starting Redis 8.8 + MCP server (first build/pull takes a few minutes)"
-    docker compose -f "$SRC/docker/docker-compose.yml" up -d --build
+    # shellcheck disable=SC2086
+    docker compose -f "$SRC/docker/docker-compose.yml" $COMPOSE_ENV_ARG up -d --build
 fi
 
 # -------------------------------------------------------------------- skill
