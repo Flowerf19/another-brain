@@ -83,7 +83,8 @@ Design rationale and step contracts: [`.agents/plans/`](.agents/plans).
 ## Quick start
 
 One command installs everything — Redis 8.8 + the MCP server via Docker,
-then the `brain-memory` skill for your agents:
+then asks which of your detected agent harnesses get the `brain-memory`
+skill:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Flowerf19/another-brain/main/scripts/install.sh | sh

@@ -73,16 +73,67 @@ else
     docker compose -f "$SRC/docker/docker-compose.yml" $COMPOSE_ENV_ARG up -d --build < /dev/null
 fi
 
+# ---------------------------------------------------------- skill detection
+# Map harness config dirs in $HOME to skills-CLI agent ids. Only the common
+# ones — anything else is covered by the manual command printed at the end.
+detect_skill_agents() {
+    found=""
+    [ -d "$HOME/.claude" ] && found="$found claude-code"
+    [ -d "$HOME/.codex" ] && found="$found codex"
+    [ -d "$HOME/.gemini" ] && found="$found gemini-cli"
+    [ -d "$HOME/.cursor" ] && found="$found cursor"
+    [ -d "$HOME/.pi" ] && found="$found pi"
+    echo "$found" | xargs 2>/dev/null
+}
+
 # -------------------------------------------------------------------- skill
 if [ "${AB_SKIP_SKILL:-}" = "1" ]; then
     say "AB_SKIP_SKILL=1 — skipping the agent skill"
-elif have npx; then
-    say "Installing the brain-memory skill for your agents"
-    # -y without --all: the skills CLI auto-detects installed harnesses from
-    # their config dirs and installs only for those (+ universal path).
-    # < /dev/null: under `curl | sh` our own stdin IS the rest of the
-    # script — a child that reads stdin would eat the lines below.
-    npx -y skills add Flowerf19/another-brain -g -y < /dev/null
+elif ! have npx; then
+    say "Skipping the agent skill (npx missing) — see the warning above"
+elif [ -w /dev/tty ]; then
+    detected=$(detect_skill_agents)
+    if [ -z "$detected" ]; then
+        say "No known agent harness detected in \$HOME — skipping the skill."
+        say "Install later with the full picker: npx skills add Flowerf19/another-brain -g"
+    else
+        # Ask on the terminal, not stdin: under `curl | sh` stdin IS the
+        # rest of this script.
+        i=0
+        for a in $detected; do i=$((i + 1)); eval "choice_$i=$a"; done
+        {
+            printf 'Detected agent harnesses:\n'
+            i=0
+            for a in $detected; do i=$((i + 1)); printf '  %d) %s\n' "$i" "$a"; done
+            printf 'Install the brain-memory skill for which? [numbers, space-separated; a=all; n=skip] '
+        } > /dev/tty
+        read -r answer < /dev/tty || answer="n"
+        chosen=""
+        case "$answer" in
+            n|N|no|No|NO) : ;;
+            a|A|all|ALL) chosen="$detected" ;;
+            *)
+                for num in $answer; do
+                    eval "agent=\${choice_$num:-}"
+                    [ -n "$agent" ] && chosen="$chosen $agent"
+                done
+                chosen=$(echo "$chosen" | xargs 2>/dev/null)
+                ;;
+        esac
+        if [ -n "$chosen" ]; then
+            agent_args=""
+            for a in $chosen; do agent_args="$agent_args -a $a"; done
+            say "Installing the brain-memory skill for: $chosen"
+            # shellcheck disable=SC2086
+            npx -y skills add Flowerf19/another-brain -g -y $agent_args < /dev/null
+        else
+            say "Skipping the skill — pick agents later: npx skills add Flowerf19/another-brain -g"
+        fi
+    fi
+else
+    # Non-interactive run: never install to agents silently.
+    say "No terminal available — skipping the skill. Install later:"
+    say "  npx skills add Flowerf19/another-brain -g"
 fi
 
 say "Done."
