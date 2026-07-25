@@ -50,11 +50,11 @@ if [ -f docker/docker-compose.yml ] && [ -f skills/brain-memory/SKILL.md ]; then
 elif [ -d "$INSTALL_DIR/.git" ]; then
     SRC="$INSTALL_DIR"
     say "Updating existing clone: $SRC"
-    git -C "$SRC" pull --ff-only || warn "git pull failed — continuing with the existing checkout"
+    git -C "$SRC" pull --ff-only < /dev/null || warn "git pull failed — continuing with the existing checkout"
 else
     SRC="$INSTALL_DIR"
     say "Cloning $REPO_URL -> $SRC"
-    git clone "$REPO_URL" "$SRC"
+    git clone "$REPO_URL" "$SRC" < /dev/null
 fi
 
 # ------------------------------------------------------------------- system
@@ -70,7 +70,7 @@ if [ "${AB_SKIP_DOCKER:-}" = "1" ]; then
 else
     say "Starting Redis 8.8 + MCP server (first build/pull takes a few minutes)"
     # shellcheck disable=SC2086
-    docker compose -f "$SRC/docker/docker-compose.yml" $COMPOSE_ENV_ARG up -d --build
+    docker compose -f "$SRC/docker/docker-compose.yml" $COMPOSE_ENV_ARG up -d --build < /dev/null
 fi
 
 # -------------------------------------------------------------------- skill
@@ -78,7 +78,9 @@ if [ "${AB_SKIP_SKILL:-}" = "1" ]; then
     say "AB_SKIP_SKILL=1 — skipping the agent skill"
 elif have npx; then
     say "Installing the brain-memory skill for your agents"
-    npx -y skills add Flowerf19/another-brain -g --all
+    # < /dev/null everywhere: under `curl | sh` our own stdin IS the rest of
+    # the script — a child that reads stdin (npx) would eat the lines below.
+    npx -y skills add Flowerf19/another-brain -g --all < /dev/null
 fi
 
 say "Done."
