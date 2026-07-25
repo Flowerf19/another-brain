@@ -82,9 +82,16 @@ Design rationale and step contracts: [`.agents/plans/`](.agents/plans).
 
 ## Quick start
 
-Docker is the install shape — it brings up Redis 8.8 and the MCP server
-(HTTP transport), and downloads the embedding model into a volume on first
-boot:
+One command installs everything — Redis 8.8 + the MCP server via Docker,
+then the `brain-memory` skill for your agents:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Flowerf19/another-brain/main/scripts/install.sh | sh
+```
+
+Or by hand — Docker is the install shape; it brings up Redis 8.8 and the
+MCP server (HTTP transport), and downloads the embedding model into a
+volume on first boot:
 
 ```bash
 git clone <this repo> && cd another-brain
@@ -119,11 +126,20 @@ configuration: the server detects each client from the MCP handshake.
 
 **2. Install the bundled `brain-memory` skill** so agents learn the recall
 loop (search before answering, remember what matters, reinforce or forget
-after use):
+after use) — one command, no prompts, covers every agent you use:
 
 ```bash
-npx skills add Flowerf19/another-brain --skill brain-memory -g
+npx skills add Flowerf19/another-brain -g --all
 ```
+
+or simply tell your agent: *"install the brain-memory skill from
+Flowerf19/another-brain"* — it runs the same command and asks for your
+confirmation first.
+
+This installs the skill to the universal `~/.agents/skills/` path (which
+Codex and most agents read natively) and symlinks it for agents with their
+own directory (Claude Code, ...). Prefer picking agents interactively?
+Drop `--all`. Refresh later with `npx skills update`.
 
 Without the skill the tools still work, but agents only discover the
 workflow from it.

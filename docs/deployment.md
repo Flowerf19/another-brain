@@ -12,6 +12,10 @@
 
 ## Full deployment (server + Redis in compose)
 
+One-shot alternative: `scripts/install.sh` fetches the repo, runs the
+compose command below, then installs the agent skill —
+`curl -fsSL https://raw.githubusercontent.com/Flowerf19/another-brain/main/scripts/install.sh | sh`.
+
 ```bash
 docker compose -f docker/docker-compose.yml up -d --build
 ```
@@ -111,13 +115,19 @@ connection (e.g. `pi-mcp-another-brain`, `claude-code`).
 The repo ships a standard Agent Skills package at `skills/brain-memory/`.
 Any harness that supports the Agent Skills format can load it; the
 [`skills` CLI](https://github.com/vercel-labs/skills) knows the skill
-directory of ~70 agents:
+directory of ~70 agents. One non-interactive command covers every
+supported agent on the machine:
 
 ```bash
-npx skills add Flowerf19/another-brain --skill brain-memory -g
-# or from a local checkout:
-npx skills add . --skill brain-memory -g -a claude-code
+npx skills add Flowerf19/another-brain -g --all
 ```
+
+It installs the canonical copy to the universal `~/.agents/skills/`
+(most agents read it natively) and symlinks it into agent-specific
+directories that cannot (e.g. `~/.claude/skills/`). To choose agents
+yourself, run interactively (`npx skills add Flowerf19/another-brain
+--skill brain-memory -g`) or name one: `-a claude-code`. From a local
+checkout, replace the repo argument with `.`.
 
 Manual fallback — copy `skills/brain-memory/` into the harness's skill
 directory: `~/.claude/skills/` (Claude Code), `~/.codex/skills/` (Codex),
