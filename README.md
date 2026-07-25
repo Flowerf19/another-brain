@@ -183,3 +183,8 @@ Testing contract: [`.agents/TESTING_GUIDE.md`](.agents/TESTING_GUIDE.md).
 
 Start with [`.agents/README.md`](.agents/README.md) — read order, module
 ownership, and the rules that keep these docs honest.
+
+## License
+
+[MIT](LICENSE) — Redis and the embedding model are third-party artifacts
+under their own licenses.

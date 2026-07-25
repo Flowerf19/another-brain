@@ -2,6 +2,7 @@
 name = "another-brain"
 version = "0.1.0"
 description = "Shared long-term memory for MCP agents — one brain, many agents. Hybrid search on Redis 8.8, local multilingual embeddings, self-expiring diary model."
+license = "MIT"
 requires-python = ">=3.12"
 dependencies = [
     "mcp>=1.2",
