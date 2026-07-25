@@ -32,7 +32,7 @@ have docker || die "docker is required: https://docs.docker.com/get-docker/"
 docker compose version >/dev/null 2>&1 || die "the docker compose plugin is required (Docker Desktop / docker-compose-plugin)"
 if ! have npx; then
     warn "npx not found — step 4 (agent skill) will be skipped; install Node.js >= 18 and run:"
-    warn "  npx skills add Flowerf19/another-brain -g --all"
+    warn "  npx skills add Flowerf19/another-brain -g -y"
 fi
 if have nc; then
     for port in 6379 8000; do
@@ -78,9 +78,11 @@ if [ "${AB_SKIP_SKILL:-}" = "1" ]; then
     say "AB_SKIP_SKILL=1 — skipping the agent skill"
 elif have npx; then
     say "Installing the brain-memory skill for your agents"
-    # < /dev/null everywhere: under `curl | sh` our own stdin IS the rest of
-    # the script — a child that reads stdin (npx) would eat the lines below.
-    npx -y skills add Flowerf19/another-brain -g --all < /dev/null
+    # -y without --all: the skills CLI auto-detects installed harnesses from
+    # their config dirs and installs only for those (+ universal path).
+    # < /dev/null: under `curl | sh` our own stdin IS the rest of the
+    # script — a child that reads stdin would eat the lines below.
+    npx -y skills add Flowerf19/another-brain -g -y < /dev/null
 fi
 
 say "Done."

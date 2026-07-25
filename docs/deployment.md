@@ -114,19 +114,19 @@ connection (e.g. `pi-mcp-another-brain`, `claude-code`).
 The repo ships a standard Agent Skills package at `skills/brain-memory/`.
 Any harness that supports the Agent Skills format can load it; the
 [`skills` CLI](https://github.com/vercel-labs/skills) knows the skill
-directory of ~70 agents. One non-interactive command covers every
-supported agent on the machine:
+directory of ~70 agents and auto-detects which ones are installed:
 
 ```bash
-npx skills add Flowerf19/another-brain -g --all
+npx skills add Flowerf19/another-brain -g -y
 ```
 
-It installs the canonical copy to the universal `~/.agents/skills/`
-(most agents read it natively) and symlinks it into agent-specific
-directories that cannot (e.g. `~/.claude/skills/`). To choose agents
-yourself, run interactively (`npx skills add Flowerf19/another-brain
---skill brain-memory -g`) or name one: `-a claude-code`. From a local
-checkout, replace the repo argument with `.`.
+With `-y` (and no `--all`) the CLI detects installed harnesses from their
+config dirs and installs only for those: the universal `~/.agents/skills/`
+path, plus symlinks for agents that need their own directory (e.g.
+`~/.claude/skills/`). To choose agents yourself, run interactively
+(`npx skills add Flowerf19/another-brain --skill brain-memory -g`) or name
+one: `-a claude-code`. From a local checkout, replace the repo argument
+with `.`.
 
 Manual fallback — copy `skills/brain-memory/` into the harness's skill
 directory: `~/.claude/skills/` (Claude Code), `~/.codex/skills/` (Codex),

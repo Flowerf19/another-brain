@@ -129,17 +129,18 @@ loop (search before answering, remember what matters, reinforce or forget
 after use) — one command, no prompts, covers every agent you use:
 
 ```bash
-npx skills add Flowerf19/another-brain -g --all
+npx skills add Flowerf19/another-brain -g -y
 ```
 
 or simply tell your agent: *"install the brain-memory skill from
 Flowerf19/another-brain"* — it runs the same command and asks for your
 confirmation first.
 
-This installs the skill to the universal `~/.agents/skills/` path (which
-Codex and most agents read natively) and symlinks it for agents with their
-own directory (Claude Code, ...). Prefer picking agents interactively?
-Drop `--all`. Refresh later with `npx skills update`.
+The CLI auto-detects which agent harnesses you actually have (from their
+config dirs) and installs only for those: the universal `~/.agents/skills/`
+path plus agent-specific directories like `~/.claude/skills/`. Prefer
+picking agents yourself? Drop `-y` for the interactive picker. Refresh
+later with `npx skills update`.
 
 Without the skill the tools still work, but agents only discover the
 workflow from it.
