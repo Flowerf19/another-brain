@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "another-brain": {
-      "command": "uv",
-      "args": ["run", "python", "src/main.py", "serve", "--transport", "stdio"]
-    }
-  }
-}
