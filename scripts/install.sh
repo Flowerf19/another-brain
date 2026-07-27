@@ -11,7 +11,7 @@
 set -u
 
 REPO_URL="https://github.com/Flowerf19/another-brain.git"
-INSTALL_DIR="${INSTALL_DIR:-$HOME/another-brain}"
+INSTALL_DIR="${INSTALL_DIR:-$HOME/.another-brain}"
 LOG="${LOG:-${TMPDIR:-/tmp}/another-brain-install.log}"
 
 say() { printf '\033[1m%s\033[0m\n' "$*"; }
@@ -88,6 +88,14 @@ else
     # shellcheck disable=SC2086
     run_quiet "[3/4] Starting Redis + MCP server (first run takes minutes)" \
         docker compose -f "$SRC/docker/docker-compose.yml" $COMPOSE_ENV_ARG up -d --build
+
+    # Pre-download the embedding model (~0.5 GB, one-time) into the shared
+    # cache volume: the server lazy-loads it, so a cold first brain_* call
+    # would stall or fail. `run` reuses the service volumes.
+    # shellcheck disable=SC2086
+    run_quiet "      Pre-downloading the embedding model (~0.5 GB, one-time)" \
+        docker compose -f "$SRC/docker/docker-compose.yml" $COMPOSE_ENV_ARG \
+        run --rm --no-deps server model pull
 fi
 
 # -------------------------------------------------------------------- skill
@@ -151,4 +159,3 @@ fi
 
 say "Done — MCP endpoint: http://localhost:8000/mcp"
 say "Connect a harness later: scripts/connect.sh <name>   (in $SRC)"
-say "First boot downloads the embedding model (~0.5 GB); first recall may take minutes."

@@ -29,9 +29,11 @@ docker compose -f docker/docker-compose.yml up -d --build
   (`MCP_HTTP_HOST=0.0.0.0` is set in the image). Register
   `http://localhost:8000/mcp` as a streamable-HTTP MCP server, or keep
   using stdio-from-source for local agents.
-- The embedding model is NOT baked into the image: on first boot
-  (`MODEL_DOWNLOAD_POLICY=on_start`) it downloads ~0.5 GB into the
-  `another-brain-model-cache` volume; later boots reuse it.
+- The embedding model is NOT baked into the image: `scripts/install.sh`
+  pre-downloads it (~0.5 GB) into the `another-brain-model-cache` volume
+  via `docker compose run --rm --no-deps server model pull`. Without the
+  installer, the first embedding call downloads it lazily; later boots
+  reuse the volume either way.
 - The container shares the same Redis and `BRAIN_ID` as a from-source
   server, so both see the same brain.
 
