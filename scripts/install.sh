@@ -42,12 +42,51 @@ say "Another Brain installer — log: $LOG"
 # ---------------------------------------------------------------- preflight
 say "[1/4] Checking prerequisites"
 have git || die "git is required: https://git-scm.com/downloads"
-have docker || die "docker is required: https://docs.docker.com/get-docker/"
+if ! have docker; then
+    say "      docker not installed — installing automatically"
+    have curl || die "curl is required to install docker: https://docs.docker.com/get-docker/"
+    curl -fsSL https://get.docker.com | sudo sh >>"$LOG" 2>&1 \
+        || die "docker installation failed (see $LOG) — install manually: https://docs.docker.com/get-docker/"
+    have docker || die "docker was installed but is not on PATH — re-run this script"
+fi
 docker compose version >/dev/null 2>&1 || die "the docker compose plugin is required (Docker Desktop / docker-compose-plugin)"
 # `docker compose version` works without daemon access — verify the socket too,
 # otherwise a missing docker group only surfaces later as a cryptic pull failure.
 if [ "${AB_SKIP_DOCKER:-}" != "1" ] && ! docker info >/dev/null 2>&1; then
-    die "cannot reach the docker daemon — start it (sudo systemctl enable --now docker) and/or add your user to the docker group: sudo usermod -aG docker $USER (then re-login or run: newgrp docker)"
+    # Auto-remediate without asking: start the daemon, then grant this user
+    # docker access. sudo may still prompt for a password (on /dev/tty).
+    say "      docker daemon unreachable — attempting automatic fix"
+    if have systemctl; then
+        sudo systemctl enable --now docker >>"$LOG" 2>&1 \
+            || sudo service docker start >>"$LOG" 2>&1 \
+            || warn "could not start the docker service (see $LOG)"
+    elif have service; then
+        sudo service docker start >>"$LOG" 2>&1 \
+            || warn "could not start the docker service (see $LOG)"
+    fi
+    if ! docker info >/dev/null 2>&1 \
+        && ! id -nG "$USER" 2>/dev/null | tr ' ' '\n' | grep -qx docker; then
+        sudo usermod -aG docker "$USER" >>"$LOG" 2>&1 \
+            || warn "could not add $USER to the docker group (see $LOG)"
+    fi
+    if ! docker info >/dev/null 2>&1; then
+        # Group membership only applies to new sessions. If the user IS in the
+        # docker group (just added, or a stale session), re-run once with the
+        # group active via `sg` — no re-login, no confirmation needed.
+        if [ "${AB_DOCKER_REEXEC:-}" != "1" ] && have sg \
+            && id -nG "$USER" 2>/dev/null | tr ' ' '\n' | grep -qx docker; then
+            say "      docker group granted — re-running installer with it active"
+            self="$0"
+            if [ ! -f "$self" ]; then
+                # `curl | sh`: the script is stdin, re-fetch it to a file.
+                self="$(mktemp "${TMPDIR:-/tmp}/another-brain-install.XXXXXX.sh")"
+                curl -fsSL "https://raw.githubusercontent.com/Flowerf19/another-brain/main/scripts/install.sh" -o "$self" \
+                    || die "could not re-download the installer for the docker-group re-run"
+            fi
+            AB_DOCKER_REEXEC=1 exec sg docker -c "sh '$self'"
+        fi
+        die "cannot reach the docker daemon — start it (sudo systemctl enable --now docker) and/or re-login so the docker group takes effect, then re-run this script"
+    fi
 fi
 if ! have npx; then
     warn "npx not found — step 4 (agent skill) will be skipped; install Node.js >= 18 and run:"
