@@ -4,10 +4,10 @@
 #   curl -fsSL https://raw.githubusercontent.com/Flowerf19/another-brain/main/scripts/install.sh | sh
 #
 # Steps: preflight -> fetch repo -> Docker stack (Redis 8.8 + MCP server)
-# -> pick which agent harnesses get the another-brain skill.
+# -> connect chosen harnesses via connect.sh (MCP registration + skill).
 # Verbose child output goes to $LOG; the terminal stays compact.
 #
-# Overrides: INSTALL_DIR, AB_SKIP_DOCKER=1, AB_SKIP_SKILL=1, LOG.
+# Overrides: INSTALL_DIR, AB_SKIP_DOCKER=1, AB_SKIP_SKILL=1, MCP_URL, LOG.
 set -u
 
 REPO_URL="https://github.com/Flowerf19/another-brain.git"
@@ -19,9 +19,11 @@ warn() { printf 'warning: %s\n' "$*" >&2; }
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
 
-# run_quiet <label> <cmd...>: compact status + dots while working; on
-# failure dump the log tail and exit.
+# run_quiet [-soft] <label> <cmd...>: compact status + dots while working; on
+# failure dump the log tail and exit — or, with -soft, return 1 instead.
 run_quiet() {
+    fatal=1
+    if [ "$1" = "-soft" ]; then fatal=0; shift; fi
     label="$1"; shift
     printf '%s...' "$label"
     : >>"$LOG"
@@ -30,11 +32,12 @@ run_quiet() {
     while kill -0 "$pid" 2>/dev/null; do printf '.'; sleep 5; done
     if wait "$pid"; then
         printf ' OK\n'
-    else
-        printf ' FAILED\n' >&2
-        tail -n 25 "$LOG" >&2
-        exit 1
+        return 0
     fi
+    printf ' FAILED\n' >&2
+    tail -n 25 "$LOG" >&2
+    [ "$fatal" = "1" ] && exit 1
+    return 1
 }
 
 say "Another Brain installer — log: $LOG"
@@ -88,12 +91,8 @@ if [ "${AB_SKIP_DOCKER:-}" != "1" ] && ! docker info >/dev/null 2>&1; then
         die "cannot reach the docker daemon — start it (sudo systemctl enable --now docker) and/or re-login so the docker group takes effect, then re-run this script"
     fi
 fi
-if ! have npx; then
-    warn "npx not found — step 4 (agent skill) will be skipped; install Node.js >= 18 and run:"
-    warn "  npx skills add Flowerf19/another-brain -g"
-fi
 if have nc; then
-    for port in 6379 8000; do
+    for port in 1906 1905; do
         if nc -z 127.0.0.1 "$port" 2>/dev/null; then
             warn "port $port is already in use — create $INSTALL_DIR/.env with"
             warn "REDIS_PORT=<free port> or MCP_HTTP_PORT=<free port>, then re-run this script"
@@ -137,7 +136,18 @@ else
         run --rm --no-deps server model pull
 fi
 
-# -------------------------------------------------------------------- skill
+# ---------------------------------------------------------------- harnesses
+# Step 4 delegates to connect.sh, which does BOTH halves per harness:
+# register the MCP server in the harness's config AND install the skill.
+# A skill without the registered server is inert — the brain_* tools it
+# references would not exist in the session.
+if [ -z "${MCP_URL:-}" ] && [ -f "$SRC/.env" ]; then
+    # Honor a port override so the registered endpoint matches the stack.
+    port=$(sed -n 's/^MCP_HTTP_PORT=//p' "$SRC/.env" | tail -n 1)
+    [ -n "$port" ] && MCP_URL="http://localhost:$port/mcp"
+fi
+MCP_URL="${MCP_URL:-http://localhost:1905/mcp}"
+
 detect_skill_agents() {
     found=""
     [ -d "$HOME/.claude" ] && found="$found claude-code"
@@ -149,21 +159,19 @@ detect_skill_agents() {
 }
 
 if [ "${AB_SKIP_SKILL:-}" = "1" ]; then
-    say "[4/4] Agent skill — skipped (AB_SKIP_SKILL=1)"
-elif ! have npx; then
-    say "[4/4] Agent skill — skipped (npx missing)"
+    say "[4/4] Harness connection — skipped (AB_SKIP_SKILL=1)"
 elif [ -w /dev/tty ]; then
     detected=$(detect_skill_agents)
     if [ -z "$detected" ]; then
-        say "[4/4] Agent skill — no known harness detected; install later:"
-        say "      npx skills add Flowerf19/another-brain -g"
+        say "[4/4] Harness connection — no known harness detected; connect later:"
+        say "      sh $SRC/scripts/connect.sh <harness>"
     else
         # Ask on the terminal, not stdin: under `curl | sh` stdin IS the
         # rest of this script.
         i=0
         for a in $detected; do i=$((i + 1)); eval "choice_$i=$a"; done
         {
-            printf '[4/4] Install the another-brain skill for which harnesses?\n'
+            printf '[4/4] Connect Another Brain (MCP server + skill) to which harnesses?\n'
             i=0
             for a in $detected; do i=$((i + 1)); printf '  %d) %s\n' "$i" "$a"; done
             printf '      [numbers, space-separated; a=all; n=skip] '
@@ -182,19 +190,20 @@ elif [ -w /dev/tty ]; then
                 ;;
         esac
         if [ -n "$chosen" ]; then
-            agent_args=""
-            for a in $chosen; do agent_args="$agent_args -a $a"; done
+            # Not fatal on failure: the server is already up, and the
+            # connection can be redone any time with connect.sh.
             # shellcheck disable=SC2086
-            run_quiet "[4/4] Installing skill for: $chosen" \
-                npx -y skills add Flowerf19/another-brain -g -y $agent_args
+            run_quiet -soft "[4/4] Connecting (MCP registration + skill): $chosen" \
+                env MCP_URL="$MCP_URL" sh "$SRC/scripts/connect.sh" $chosen \
+                || warn "connection incomplete — re-run: sh $SRC/scripts/connect.sh $chosen"
         else
-            say "[4/4] Agent skill — skipped; install later: npx skills add Flowerf19/another-brain -g"
+            say "[4/4] Harness connection — skipped; connect later: sh $SRC/scripts/connect.sh <harness>"
         fi
     fi
 else
-    # Non-interactive run: never install to agents silently.
-    say "[4/4] Agent skill — no terminal; install later: npx skills add Flowerf19/another-brain -g"
+    # Non-interactive run: never touch agent configs silently.
+    say "[4/4] Harness connection — no terminal; connect later: sh $SRC/scripts/connect.sh <harness>"
 fi
 
-say "Done — MCP endpoint: http://localhost:8000/mcp"
-say "Connect a harness later: scripts/connect.sh <name>   (in $SRC)"
+say "Done — MCP endpoint: $MCP_URL"
+say "Restart connected harnesses so they pick up the MCP server."

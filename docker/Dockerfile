@@ -24,6 +24,6 @@ ENV PYTHONUNBUFFERED=1 \
     MODEL_CACHE_DIR=/data/models \
     MCP_HTTP_HOST=0.0.0.0
 
-EXPOSE 8000
+EXPOSE 1905
 ENTRYPOINT ["/app/.venv/bin/python", "src/main.py"]
 CMD ["serve", "--transport", "http"]

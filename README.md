@@ -28,10 +28,10 @@ git clone <this repo> && cd another-brain
 docker compose -f docker/docker-compose.yml up -d --build
 ```
 
-Defaults work out of the box (`BRAIN_ID=default`, Redis on 1905, MCP on
-8000); create a `.env` and pass `--env-file .env` only to override them.
+Defaults work out of the box (`BRAIN_ID=default`, Redis on 1906, MCP on
+1905); create a `.env` and pass `--env-file .env` only to override them.
 
-The server is then reachable at `http://localhost:8000/mcp`. Model
+The server is then reachable at `http://localhost:1905/mcp`. Model
 management and the dev (from-source) flow:
 [`docs/deployment.md`](docs/deployment.md).
 
@@ -48,7 +48,7 @@ scripts/connect.sh claude-code codex  # connect the ones you use
 Supported: `claude-code` and `codex` (via their native CLIs), `gemini-cli`
 and `cursor` (JSON config merge), `pi` (project `.mcp.json`; needs an MCP
 extension). Other harnesses: register the Streamable HTTP endpoint
-`http://localhost:8000/mcp` (or stdio from a checkout — see
+`http://localhost:1905/mcp` (or stdio from a checkout — see
 [`docs/deployment.md`](docs/deployment.md)) and install the skill with
 `npx skills add Flowerf19/another-brain -g -y`.
 
@@ -151,7 +151,7 @@ The useful subset:
 | `TTL_IMPORTANCE_5`...`TTL_IMPORTANCE_1` | 365d...7d | All-or-none override set |
 | `FORGET_GRACE_SECONDS` | `2592000` | Soft-delete recovery window |
 | `TIMELINE_TIMEZONE` | `Asia/Ho_Chi_Minh` | `timeline_day` derivation |
-| `MCP_HTTP_HOST` / `MCP_HTTP_PORT` | `127.0.0.1` / `8000` | HTTP transport bind |
+| `MCP_HTTP_HOST` / `MCP_HTTP_PORT` | `127.0.0.1` / `1905` | HTTP transport bind |
 
 Changing `EMBEDDING_DIM` against an existing index refuses startup — a
 reindex is required (migration tooling is not implemented yet).

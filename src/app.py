@@ -185,7 +185,7 @@ async def build_server(config: AppConfig) -> tuple[FastMCP, aioredis.Redis]:
         "another-brain",
         instructions=_SERVER_INSTRUCTIONS,
         host=os.environ.get("MCP_HTTP_HOST", "127.0.0.1"),
-        port=int(os.environ.get("MCP_HTTP_PORT", "8000")),
+        port=int(os.environ.get("MCP_HTTP_PORT", "1905")),
     )
     register_tools(server, service)
     return server, redis

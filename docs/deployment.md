@@ -20,14 +20,14 @@ compose command below, then installs the agent skill —
 docker compose -f docker/docker-compose.yml up -d --build
 ```
 
-- Defaults work out of the box (`BRAIN_ID=default`, Redis on 1905, MCP on
-  8000). To override, create a `.env` at the repo root and add
+- Defaults work out of the box (`BRAIN_ID=default`, Redis on 1906, MCP on
+  1905). To override, create a `.env` at the repo root and add
   `--env-file .env` — compose reads env files from the compose file's
   directory (`docker/`), not the repo root, so the flag is required for
   overrides to apply (e.g. a custom `REDIS_PORT`).
-- `server` serves MCP over HTTP on `${MCP_HTTP_PORT:-8000}`
+- `server` serves MCP over HTTP on `${MCP_HTTP_PORT:-1905}`
   (`MCP_HTTP_HOST=0.0.0.0` is set in the image). Register
-  `http://localhost:8000/mcp` as a streamable-HTTP MCP server, or keep
+  `http://localhost:1905/mcp` as a streamable-HTTP MCP server, or keep
   using stdio-from-source for local agents.
 - The embedding model is NOT baked into the image: `scripts/install.sh`
   pre-downloads it (~0.5 GB) into the `another-brain-model-cache` volume

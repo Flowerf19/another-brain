@@ -23,7 +23,7 @@ services:
     networks:
       - another-brain-net
     ports:
-      - "${REDIS_PORT:-1905}:6379"
+      - "${REDIS_PORT:-1906}:6379"
     volumes:
       - another-brain-redis-data:/data
     healthcheck:
@@ -50,7 +50,7 @@ services:
       MODEL_DOWNLOAD_POLICY: on_start
       MODEL_ALLOW_NETWORK: "true"
     ports:
-      - "${MCP_HTTP_PORT:-8000}:8000"
+      - "${MCP_HTTP_PORT:-1905}:1905"
     volumes:
       - another-brain-model-cache:/data/models
     networks:
