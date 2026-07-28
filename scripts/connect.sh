@@ -15,8 +15,14 @@ set -u
 MCP_URL="${MCP_URL:-http://localhost:1905/mcp}"
 SERVER_NAME="another-brain"
 
-say() { printf '\033[1m==>\033[0m %s\n' "$*"; }
-warn() { printf 'warning: %s\n' "$*" >&2; }
+# Same output style as install.sh; plain when piped or NO_COLOR is set.
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+    C_HEAD='\033[1;34m'; C_WARN='\033[33m'; C_OFF='\033[0m'
+else
+    C_HEAD=''; C_WARN=''; C_OFF=''
+fi
+say() { printf '%b==>%b %s\n' "$C_HEAD" "$C_OFF" "$*"; }
+warn() { printf '%bwarning:%b %s\n' "$C_WARN" "$C_OFF" "$*" >&2; }
 have() { command -v "$1" >/dev/null 2>&1; }
 
 KNOWN="claude-code codex gemini-cli cursor pi"

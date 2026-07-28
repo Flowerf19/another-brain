@@ -14,18 +14,30 @@ REPO_URL="https://github.com/Flowerf19/another-brain.git"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.another-brain}"
 LOG="${LOG:-${TMPDIR:-/tmp}/another-brain-install.log}"
 
-say() { printf '\033[1m%s\033[0m\n' "$*"; }
-warn() { printf 'warning: %s\n' "$*" >&2; }
-die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+# Homebrew-style output: bold blue "==>" section headers, results indented
+# under them, one blank line between sections. Colors only when stdout is a
+# TTY and NO_COLOR (https://no-color.org) is unset.
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+    C_HEAD='\033[1;34m'; C_BOLD='\033[1m'; C_OK='\033[32m'
+    C_ERR='\033[31m'; C_WARN='\033[33m'; C_DIM='\033[2m'; C_OFF='\033[0m'
+else
+    C_HEAD=''; C_BOLD=''; C_OK=''; C_ERR=''; C_WARN=''; C_DIM=''; C_OFF=''
+fi
+
+section() { printf '\n%b==>%b %b%s%b\n' "$C_HEAD" "$C_OFF" "$C_BOLD" "$*" "$C_OFF"; }
+note() { printf '    %s\n' "$*"; }
+ok_() { printf '    %bok:%b %s\n' "$C_OK" "$C_OFF" "$*"; }
+warn() { printf '    %bwarning:%b %s\n' "$C_WARN" "$C_OFF" "$*" >&2; }
+die() { printf '    %berror:%b %s\n' "$C_ERR" "$C_OFF" "$*" >&2; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
 
-# run_quiet [-soft] <label> <cmd...>: one status line per step while the
-# command's verbose output streams to $LOG. On a TTY the line below the
-# label live-updates with the child's latest log line, so slow steps (image
-# build, the ~0.5 GB model download) show real progress; on success it
-# collapses back to a single "label OK (Ns)" line. Without a TTY it prints
-# dots. On failure dump the log tail and exit — or, with -soft, return 1.
-run_quiet() {
+# run_task [-soft] <label> <cmd...>: one "ok:/FAILED:" result line under the
+# current section while the command's verbose output streams to $LOG. On a
+# TTY a dim line live-updates with the child's latest log line, so slow
+# steps (image build, the ~0.5 GB model download) show real progress.
+# On failure print this task's own log excerpt (not the whole shared log)
+# and exit — or, with -soft, return 1 instead.
+run_task() {
     fatal=1
     if [ "$1" = "-soft" ]; then fatal=0; shift; fi
     label="$1"; shift
@@ -38,49 +50,53 @@ run_quiet() {
     if [ -t 1 ]; then
         cols=$(tput cols 2>/dev/null) || cols=80
         case "$cols" in *[!0-9]*|"") cols=80 ;; esac
-        width=$((cols - 8)); [ "$width" -lt 20 ] && width=20
-        printf '%s\n' "$label"
+        width=$((cols - 6)); [ "$width" -lt 20 ] && width=20
         while kill -0 "$pid" 2>/dev/null; do
-            # Latest line this step wrote: split \r-progress (tqdm) into
+            # Latest line this task wrote: split \r-progress (tqdm) into
             # lines, drop control chars and non-ASCII (avoids cutting a
             # UTF-8 char in half), fit the terminal.
             line=$(tail -c "+$((log_start + 1))" "$LOG" 2>/dev/null \
                 | tr '\r' '\n' | tr -cd '[:print:]\n' \
                 | grep -v '^[[:space:]]*$' | tail -n 1 | cut -c "1-$width")
-            [ -n "$line" ] || line="... ($(($(date +%s) - t0))s)"
-            printf '\r\033[K      %s' "$line"
+            [ -n "$line" ] || line="$label... ($(($(date +%s) - t0))s)"
+            printf '\r\033[K    %b%s%b' "$C_DIM" "$line" "$C_OFF"
             sleep 1
         done
         wait "$pid" && ok=1
         dt=$(($(date +%s) - t0))
-        # Clear the live line, move up, rewrite the label line with the verdict.
-        printf '\r\033[K\033[1A\r\033[K'
+        printf '\r\033[K'
         if [ "$ok" = 1 ]; then
-            printf '%s OK (%ss)\n' "$label" "$dt"
+            printf '    %bok:%b %s %b(%ss)%b\n' "$C_OK" "$C_OFF" "$label" "$C_DIM" "$dt" "$C_OFF"
             return 0
         fi
-        printf '%s FAILED (%ss)\n' "$label" "$dt" >&2
+        printf '    %bFAILED:%b %s %b(%ss)%b\n' "$C_ERR" "$C_OFF" "$label" "$C_DIM" "$dt" "$C_OFF" >&2
     else
-        printf '%s...' "$label"
+        printf '    %s...' "$label"
         while kill -0 "$pid" 2>/dev/null; do printf '.'; sleep 5; done
         if wait "$pid"; then
-            printf ' OK\n'
+            printf ' ok\n'
             return 0
         fi
         printf ' FAILED\n' >&2
     fi
-    tail -n 25 "$LOG" >&2
+    # Only this task's output, prefixed and dimmed.
+    printf '%b' "$C_DIM" >&2
+    tail -c "+$((log_start + 1))" "$LOG" 2>/dev/null | tr '\r' '\n' \
+        | grep -v '^[[:space:]]*$' | tail -n 15 | sed 's/^/      | /' >&2
+    printf '%b' "$C_OFF" >&2
+    note "full log: $LOG" >&2
     [ "$fatal" = "1" ] && exit 1
     return 1
 }
 
-say "Another Brain installer — log: $LOG"
+printf '%b==>%b %bAnother Brain installer%b\n' "$C_HEAD" "$C_OFF" "$C_BOLD" "$C_OFF"
+printf '    %blog: %s%b\n' "$C_DIM" "$LOG" "$C_OFF"
 
 # ---------------------------------------------------------------- preflight
-say "[1/4] Checking prerequisites"
+section "[1/4] Prerequisites"
 have git || die "git is required: https://git-scm.com/downloads"
 if ! have docker; then
-    say "      docker not installed — installing automatically"
+    note "docker not installed — installing automatically"
     have curl || die "curl is required to install docker: https://docs.docker.com/get-docker/"
     curl -fsSL https://get.docker.com | sudo sh >>"$LOG" 2>&1 \
         || die "docker installation failed (see $LOG) — install manually: https://docs.docker.com/get-docker/"
@@ -92,7 +108,7 @@ docker compose version >/dev/null 2>&1 || die "the docker compose plugin is requ
 if [ "${AB_SKIP_DOCKER:-}" != "1" ] && ! docker info >/dev/null 2>&1; then
     # Auto-remediate without asking: start the daemon, then grant this user
     # docker access. sudo may still prompt for a password (on /dev/tty).
-    say "      docker daemon unreachable — attempting automatic fix"
+    note "docker daemon unreachable — attempting automatic fix"
     if have systemctl; then
         sudo systemctl enable --now docker >>"$LOG" 2>&1 \
             || sudo service docker start >>"$LOG" 2>&1 \
@@ -112,7 +128,7 @@ if [ "${AB_SKIP_DOCKER:-}" != "1" ] && ! docker info >/dev/null 2>&1; then
         # group active via `sg` — no re-login, no confirmation needed.
         if [ "${AB_DOCKER_REEXEC:-}" != "1" ] && have sg \
             && id -nG "$USER" 2>/dev/null | tr ' ' '\n' | grep -qx docker; then
-            say "      docker group granted — re-running installer with it active"
+            note "docker group granted — re-running installer with it active"
             self="$0"
             if [ ! -f "$self" ]; then
                 # `curl | sh`: the script is stdin, re-fetch it to a file.
@@ -125,6 +141,7 @@ if [ "${AB_SKIP_DOCKER:-}" != "1" ] && ! docker info >/dev/null 2>&1; then
         die "cannot reach the docker daemon — start it (sudo systemctl enable --now docker) and/or re-login so the docker group takes effect, then re-run this script"
     fi
 fi
+ok_ "git, docker, compose"
 if have nc; then
     for port in 1906 1905; do
         if nc -z 127.0.0.1 "$port" 2>/dev/null; then
@@ -135,15 +152,16 @@ if have nc; then
 fi
 
 # --------------------------------------------------------------------- repo
+section "[2/4] Repository"
 if [ -f docker/docker-compose.yml ] && [ -f skills/another-brain/SKILL.md ]; then
     SRC="$PWD"
-    say "[2/4] Repo — using current checkout ($SRC)"
+    ok_ "using current checkout ($SRC)"
 elif [ -d "$INSTALL_DIR/.git" ]; then
     SRC="$INSTALL_DIR"
-    run_quiet "[2/4] Updating repo ($SRC)" git -C "$SRC" pull --ff-only
+    run_task "updated ($SRC)" git -C "$SRC" pull --ff-only
 else
     SRC="$INSTALL_DIR"
-    run_quiet "[2/4] Cloning repo -> $SRC" git clone "$REPO_URL" "$SRC"
+    run_task "cloned -> $SRC" git clone "$REPO_URL" "$SRC"
 fi
 
 # ------------------------------------------------------------------- system
@@ -154,18 +172,19 @@ if [ -f "$SRC/.env" ]; then
     COMPOSE_ENV_ARG="--env-file $SRC/.env"
 fi
 
+section "[3/4] Docker stack"
 if [ "${AB_SKIP_DOCKER:-}" = "1" ]; then
-    say "[3/4] Docker stack — skipped (AB_SKIP_DOCKER=1)"
+    note "skipped (AB_SKIP_DOCKER=1)"
 else
     # shellcheck disable=SC2086
-    run_quiet "[3/4] Starting Redis + MCP server (first run takes minutes)" \
+    run_task "Redis + MCP server" \
         docker compose -f "$SRC/docker/docker-compose.yml" $COMPOSE_ENV_ARG up -d --build
 
     # Pre-download the embedding model (~0.5 GB, one-time) into the shared
     # cache volume: the server lazy-loads it, so a cold first brain_* call
     # would stall or fail. `run` reuses the service volumes.
     # shellcheck disable=SC2086
-    run_quiet "      Pre-downloading the embedding model (~0.5 GB, one-time)" \
+    run_task "embedding model — ~0.5 GB, one-time" \
         docker compose -f "$SRC/docker/docker-compose.yml" $COMPOSE_ENV_ARG \
         run --rm --no-deps server model pull
 fi
@@ -192,23 +211,23 @@ detect_skill_agents() {
     echo "$found" | xargs 2>/dev/null
 }
 
+section "[4/4] Connect harnesses (MCP server + skill)"
 if [ "${AB_SKIP_SKILL:-}" = "1" ]; then
-    say "[4/4] Harness connection — skipped (AB_SKIP_SKILL=1)"
+    note "skipped (AB_SKIP_SKILL=1)"
 elif [ -w /dev/tty ]; then
     detected=$(detect_skill_agents)
     if [ -z "$detected" ]; then
-        say "[4/4] Harness connection — no known harness detected; connect later:"
-        say "      sh $SRC/scripts/connect.sh <harness>"
+        note "no known harness detected; connect later: sh $SRC/scripts/connect.sh <harness>"
     else
         # Ask on the terminal, not stdin: under `curl | sh` stdin IS the
         # rest of this script.
         i=0
         for a in $detected; do i=$((i + 1)); eval "choice_$i=$a"; done
         {
-            printf '[4/4] Connect Another Brain (MCP server + skill) to which harnesses?\n'
             i=0
-            for a in $detected; do i=$((i + 1)); printf '  %d) %s\n' "$i" "$a"; done
-            printf '      [numbers, space-separated; a=all; n=skip] '
+            printf '     '
+            for a in $detected; do i=$((i + 1)); printf ' %d) %s  ' "$i" "$a"; done
+            printf '\n    select [numbers / a=all / n=skip]: '
         } > /dev/tty
         read -r answer < /dev/tty || answer="n"
         chosen=""
@@ -227,17 +246,17 @@ elif [ -w /dev/tty ]; then
             # Not fatal on failure: the server is already up, and the
             # connection can be redone any time with connect.sh.
             # shellcheck disable=SC2086
-            run_quiet -soft "[4/4] Connecting (MCP registration + skill): $chosen" \
+            run_task -soft "$chosen" \
                 env MCP_URL="$MCP_URL" sh "$SRC/scripts/connect.sh" $chosen \
-                || warn "connection incomplete — re-run: sh $SRC/scripts/connect.sh $chosen"
+                || note "re-run: sh $SRC/scripts/connect.sh $chosen"
         else
-            say "[4/4] Harness connection — skipped; connect later: sh $SRC/scripts/connect.sh <harness>"
+            note "skipped; connect later: sh $SRC/scripts/connect.sh <harness>"
         fi
     fi
 else
     # Non-interactive run: never touch agent configs silently.
-    say "[4/4] Harness connection — no terminal; connect later: sh $SRC/scripts/connect.sh <harness>"
+    note "no terminal; connect later: sh $SRC/scripts/connect.sh <harness>"
 fi
 
-say "Done — MCP endpoint: $MCP_URL"
-say "Restart connected harnesses so they pick up the MCP server."
+section "Done — MCP endpoint: $MCP_URL"
+note "Restart connected harnesses so they pick up the MCP server."
