@@ -19,22 +19,56 @@ warn() { printf 'warning: %s\n' "$*" >&2; }
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
 
-# run_quiet [-soft] <label> <cmd...>: compact status + dots while working; on
-# failure dump the log tail and exit — or, with -soft, return 1 instead.
+# run_quiet [-soft] <label> <cmd...>: one status line per step while the
+# command's verbose output streams to $LOG. On a TTY the line below the
+# label live-updates with the child's latest log line, so slow steps (image
+# build, the ~0.5 GB model download) show real progress; on success it
+# collapses back to a single "label OK (Ns)" line. Without a TTY it prints
+# dots. On failure dump the log tail and exit — or, with -soft, return 1.
 run_quiet() {
     fatal=1
     if [ "$1" = "-soft" ]; then fatal=0; shift; fi
     label="$1"; shift
-    printf '%s...' "$label"
     : >>"$LOG"
+    log_start=$(wc -c <"$LOG" | tr -d '[:space:]')
     "$@" >>"$LOG" 2>&1 &
     pid=$!
-    while kill -0 "$pid" 2>/dev/null; do printf '.'; sleep 5; done
-    if wait "$pid"; then
-        printf ' OK\n'
-        return 0
+    t0=$(date +%s)
+    ok=0
+    if [ -t 1 ]; then
+        cols=$(tput cols 2>/dev/null) || cols=80
+        case "$cols" in *[!0-9]*|"") cols=80 ;; esac
+        width=$((cols - 8)); [ "$width" -lt 20 ] && width=20
+        printf '%s\n' "$label"
+        while kill -0 "$pid" 2>/dev/null; do
+            # Latest line this step wrote: split \r-progress (tqdm) into
+            # lines, drop control chars and non-ASCII (avoids cutting a
+            # UTF-8 char in half), fit the terminal.
+            line=$(tail -c "+$((log_start + 1))" "$LOG" 2>/dev/null \
+                | tr '\r' '\n' | tr -cd '[:print:]\n' \
+                | grep -v '^[[:space:]]*$' | tail -n 1 | cut -c "1-$width")
+            [ -n "$line" ] || line="... ($(($(date +%s) - t0))s)"
+            printf '\r\033[K      %s' "$line"
+            sleep 1
+        done
+        wait "$pid" && ok=1
+        dt=$(($(date +%s) - t0))
+        # Clear the live line, move up, rewrite the label line with the verdict.
+        printf '\r\033[K\033[1A\r\033[K'
+        if [ "$ok" = 1 ]; then
+            printf '%s OK (%ss)\n' "$label" "$dt"
+            return 0
+        fi
+        printf '%s FAILED (%ss)\n' "$label" "$dt" >&2
+    else
+        printf '%s...' "$label"
+        while kill -0 "$pid" 2>/dev/null; do printf '.'; sleep 5; done
+        if wait "$pid"; then
+            printf ' OK\n'
+            return 0
+        fi
+        printf ' FAILED\n' >&2
     fi
-    printf ' FAILED\n' >&2
     tail -n 25 "$LOG" >&2
     [ "$fatal" = "1" ] && exit 1
     return 1
