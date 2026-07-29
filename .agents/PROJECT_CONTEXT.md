@@ -54,11 +54,17 @@ carry identity. Every storage query carries the `brain_id` filter.
 
 ## Runtime State
 
-Implemented and tested (201 tests): the full tool surface
-(`brain_remember/search/recent/get/reinforce/forget/health/audit`), Redis
-storage + index startup checks, soft delete/restore/hard delete, audit trail,
-model install CLI (`model plan/pull/status`), admin CLI
+Implemented and tested (204 tests: 190 unit, 14 integration): the full tool
+surface (`brain_remember/search/recent/get/reinforce/forget/health/audit`),
+Redis storage + index startup checks, soft delete/restore/hard delete, audit
+trail, model install CLI (`model plan/pull/status`), admin CLI
 (`admin restore/hard-delete`).
+
+Health surface: `GET /health` on the HTTP transport (the compose `server`
+healthcheck probes it) and `brain_health` share `MemoryService.health()` —
+Redis reachability, index meta, and embedding load state
+(`embedding_ready`/`embedding_error`). Model loading is lazy by design; only
+a recorded load failure degrades health.
 
 Stubs / not implemented: `server/resources.py`, `server/schemas.py`,
 `storage/migrations.py`, `memory/repository.py`,

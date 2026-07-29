@@ -201,21 +201,13 @@ if [ -z "${MCP_URL:-}" ] && [ -f "$SRC/.env" ]; then
 fi
 MCP_URL="${MCP_URL:-http://localhost:1905/mcp}"
 
-detect_skill_agents() {
-    found=""
-    [ -d "$HOME/.claude" ] && found="$found claude-code"
-    [ -d "$HOME/.codex" ] && found="$found codex"
-    [ -d "$HOME/.gemini" ] && found="$found gemini-cli"
-    [ -d "$HOME/.cursor" ] && found="$found cursor"
-    [ -d "$HOME/.pi" ] && found="$found pi"
-    echo "$found" | xargs 2>/dev/null
-}
-
 section "[4/4] Connect harnesses (MCP server + skill)"
 if [ "${AB_SKIP_SKILL:-}" = "1" ]; then
     note "skipped (AB_SKIP_SKILL=1)"
 elif [ -w /dev/tty ]; then
-    detected=$(detect_skill_agents)
+    # connect.sh owns the harness list (scripts/harnesses/*.sh) — one
+    # detector, no duplicated per-harness knowledge here.
+    detected=$(sh "$SRC/scripts/connect.sh" detect 2>/dev/null)
     if [ -z "$detected" ]; then
         note "no known harness detected; connect later: sh $SRC/scripts/connect.sh <harness>"
     else
@@ -224,10 +216,10 @@ elif [ -w /dev/tty ]; then
         i=0
         for a in $detected; do i=$((i + 1)); eval "choice_$i=$a"; done
         {
+            printf '     detected harnesses:\n'
             i=0
-            printf '     '
-            for a in $detected; do i=$((i + 1)); printf ' %d) %s  ' "$i" "$a"; done
-            printf '\n    select [numbers / a=all / n=skip]: '
+            for a in $detected; do i=$((i + 1)); printf '       %d) %s\n' "$i" "$a"; done
+            printf '     select [numbers / a=all / n=skip]: '
         } > /dev/tty
         read -r answer < /dev/tty || answer="n"
         chosen=""

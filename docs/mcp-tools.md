@@ -76,7 +76,10 @@ expire.
 
 Service status: Redis reachability, active index contract (embedding model,
 dim, dtype, metric, index mode), the server-bound `brain_id`, and your
-client identity as detected from the MCP handshake. Secret-free.
+client identity as detected from the MCP handshake. Also reports embedding
+load state — `embedding_ready` (model in memory; loading is lazy, so
+`false` before the first embed is normal) and `embedding_error` (last load
+failure, degrades status). Secret-free.
 
 ## brain_audit
 

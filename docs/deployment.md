@@ -6,14 +6,17 @@
   `another-brain-redis`, appendonly on, named volume) and `server` (the MCP
   server, built from `docker/Dockerfile`). Compose project name is pinned
   to `another-brain` so it never collides with a neighbouring repo's
-  compose project.
+  compose project. The `server` service carries a Docker healthcheck that
+  probes `GET /health` (Redis + index + embedding load state); its
+  `start_period` covers the first-boot model download, which happens
+  before the HTTP server binds.
 - The server can also run from source (`uv run python src/main.py serve`)
   — that remains the dev default.
 
 ## Full deployment (server + Redis in compose)
 
 One-shot alternative: `scripts/install.sh` fetches the repo, runs the
-compose command below, then installs the agent skill —
+compose command below, then offers to connect detected agent harnesses —
 `curl -fsSL https://raw.githubusercontent.com/Flowerf19/another-brain/main/scripts/install.sh | sh`.
 
 ```bash
@@ -46,10 +49,11 @@ docker compose -f docker/docker-compose.yml --env-file .env up -d redis
 - Image `redis:8.8` (Open Source, bundled Query Engine). Redis >= 8.4 is a
   hard requirement: search runs on `FT.HYBRID`, which older servers and
   `redis-stack-server` 7.x do not provide.
-- Host port defaults to `REDIS_PORT=1905` (overridable in `.env`).
+- Host port defaults to `REDIS_PORT=1906` (overridable in `.env`).
   Container port stays 6379.
-- Point the server at it with `REDIS_URL=redis://localhost:1905` (the
-  config default).
+- Point a from-source server at it with `REDIS_URL=redis://localhost:1906`
+  — the `REDIS_URL` config default still says `localhost:1905`, so set it
+  explicitly (default mismatch; unifying the two is a pending fix).
 
 ## Running the server
 
@@ -90,9 +94,13 @@ the Redis data volume.
 
 Two things per agent host: register the MCP server, and install the usage
 skill that teaches agents the recall loop. `scripts/connect.sh <harness>`
-does both for one harness (native CLI for claude-code/codex, JSON merge
-for gemini-cli/cursor, project `.mcp.json` for pi); the manual paths below
-remain for everything else.
+does both; per-harness logic lives in `scripts/harnesses/<name>.sh` — one
+file per harness, so supporting a new host means adding one file
+(`scripts/connect.sh detect` lists what is installed). claude-code/codex
+register via their native CLIs, gemini-cli/cursor merge JSON config, and
+pi upserts the shared `~/.config/mcp/mcp.json` that the pi-mcp-adapter
+extension reads in every project. The manual paths below remain for
+everything else.
 
 ### Register the MCP server
 

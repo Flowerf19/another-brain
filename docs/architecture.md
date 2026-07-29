@@ -30,7 +30,7 @@ MCP host → transport (stdio / Streamable HTTP) → `MemoryService` → Redis 8
 | Module | Role |
 | --- | --- |
 | `main.py` | CLI: `serve`, `model plan/pull/status`, `admin restore/hard-delete` |
-| `app.py` | composition root: config → installer → embedder → index → repo → engine → service → tools |
+| `app.py` | composition root: config → installer → embedder → index → repo → engine → service → tools; `/health` HTTP route on the HTTP transport |
 | `config.py` | env validation; every inconsistency is a startup `ConfigError` |
 | `server/` | FastMCP surface (`tools.py`), stdio/HTTP transports |
 | `memory/` | domain (`models.py`), use cases (`service.py`), `FT.HYBRID` orchestration + cosine gate (`search.py`), local embedding provider (`embeddings.py`), TTL table (`retention.py`) |

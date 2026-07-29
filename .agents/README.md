@@ -25,7 +25,7 @@ Current repo state:
 - The MVP service is implemented and tested: 8 `brain_*` MCP tools over
   stdio/HTTP, Redis 8.8 storage with `FT.HYBRID` search, importance TTL,
   soft delete + audit, local Harrier embedding with model install policy.
-- `uv run pytest` runs 187 unit + 14 integration tests (integration needs the
+- `uv run pytest` runs 190 unit + 14 integration tests (integration needs the
   compose Redis on `REDIS_PORT`).
 - Not yet implemented: `server/resources.py`, `storage/migrations.py`,
   external embedding providers (only `local`), `brain_ingest`.
