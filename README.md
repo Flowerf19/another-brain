@@ -1,6 +1,6 @@
 # Another Brain
 
-**v0.10.0**
+**v0.11.0**
 
 One shared long-term memory for all your AI agents — a self-hosted MCP
 server with hybrid search, local multilingual embeddings, and

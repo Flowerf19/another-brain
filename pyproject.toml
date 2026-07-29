@@ -1,6 +1,6 @@
 [project]
 name = "another-brain"
-version = "0.10.0"
+version = "0.11.0"
 description = "Shared long-term memory for MCP agents — one brain, many agents. Hybrid search on Redis 8.8, local multilingual embeddings, self-expiring diary model."
 license = "MIT"
 requires-python = ">=3.12"
