@@ -36,6 +36,12 @@ class EmbeddingProvider(Protocol):
 
     async def embed_query(self, text: str) -> EmbeddingVector: ...
 
+    @property
+    def is_loaded(self) -> bool: ...
+
+    @property
+    def load_error(self) -> str | None: ...
+
 
 class LocalEmbeddingProvider:
     """SentenceTransformers-backed provider (Step 03 Harrier profile).
@@ -60,6 +66,7 @@ class LocalEmbeddingProvider:
         self._profile = profile
         self._model_factory = model_factory
         self._model: Any = None
+        self._load_error: str | None = None
         self._query_prompt: str | None = None
         self._lock = threading.Lock()
 
@@ -70,6 +77,18 @@ class LocalEmbeddingProvider:
     @property
     def dim(self) -> int:
         return self._dim
+
+    @property
+    def is_loaded(self) -> bool:
+        """True once the model is in memory. Loading is lazy by design, so
+        False is a normal pre-first-embed state, not a failure."""
+        return self._model is not None
+
+    @property
+    def load_error(self) -> str | None:
+        """The last load failure, if any — health surfaces this as degraded.
+        Cleared by a successful (re)load."""
+        return self._load_error
 
     async def embed_document(self, text: str) -> EmbeddingVector:
         return await asyncio.to_thread(self._encode, text, False)
@@ -83,11 +102,18 @@ class LocalEmbeddingProvider:
         with self._lock:
             if self._model is not None:
                 return self._model
-            if self._model_factory is not None:
-                model = self._model_factory()
-            else:
-                model = self._load_sentence_transformer()
-            self._query_prompt = self._resolve_query_prompt(model)
+            try:
+                if self._model_factory is not None:
+                    model = self._model_factory()
+                else:
+                    model = self._load_sentence_transformer()
+                self._query_prompt = self._resolve_query_prompt(model)
+            except Exception as exc:
+                # Remember the failure so health can report degraded; the
+                # next embed retries the load (self._model stays None).
+                self._load_error = f"{type(exc).__name__}: {exc}"
+                raise
+            self._load_error = None
             self._model = model
             return model
 

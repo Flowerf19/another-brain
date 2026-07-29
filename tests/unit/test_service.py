@@ -16,6 +16,10 @@ class FakeEmbedder:
     model_name = "fake-model"
     dim = DIM
 
+    def __init__(self):
+        self.is_loaded = False
+        self.load_error = None
+
     async def embed_document(self, text):
         return EmbeddingVector.from_list([1.0, 0.0, 0.0, 0.0], DIM)
 
@@ -31,11 +35,14 @@ class FakeRepo:
         self.recent_calls.append(limit)
         return []
 
+    async def ping(self):
+        return True
 
-def make_service(repo=None, **env):
+
+def make_service(repo=None, embedder=None, **env):
     config = AppConfig.from_env(env)
     return MemoryService(repo or FakeRepo(), engine=None,
-                         embedder=FakeEmbedder(), config=config)
+                         embedder=embedder or FakeEmbedder(), config=config)
 
 
 async def test_recent_default_limit_clamps_to_max():
@@ -81,3 +88,23 @@ async def test_metadata_rejects_nan_and_infinity():
                 agent_id="test-agent",
                 scope="user", scope_id="flowerf", metadata={"ratio": bad},
             )
+
+
+async def test_health_reports_embedding_state():
+    """Lazy loading means embedding_ready=False is a normal pre-first-embed
+    state; only a recorded load failure degrades the service."""
+    embedder = FakeEmbedder()
+    service = make_service(embedder=embedder)
+
+    report = await service.health(agent_id="tester")
+    assert report["status"] == "ok"
+    assert report["redis"] is True
+    assert report["embedding_ready"] is False
+    assert report["embedding_error"] is None
+
+    embedder.is_loaded = True
+    embedder.load_error = "OSError: missing weights"
+    degraded = await service.health(agent_id="tester")
+    assert degraded["status"] == "degraded"
+    assert degraded["embedding_ready"] is True
+    assert degraded["embedding_error"] == "OSError: missing weights"

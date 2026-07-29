@@ -34,6 +34,8 @@ from memory.retention import RetentionPolicy
 
 try:
     from mcp.server.fastmcp import FastMCP
+    from starlette.requests import Request
+    from starlette.responses import JSONResponse
 except ImportError:  # pragma: no cover - mcp is a core dependency
     FastMCP = None  # type: ignore[assignment]
 
@@ -188,4 +190,17 @@ async def build_server(config: AppConfig) -> tuple[FastMCP, aioredis.Redis]:
         port=int(os.environ.get("MCP_HTTP_PORT", "1905")),
     )
     register_tools(server, service)
+
+    @server.custom_route("/health", methods=["GET"], include_in_schema=False)
+    async def health(request: Request) -> JSONResponse:
+        try:
+            report = await service.health(agent_id="http-health")
+        except Exception as exc:  # health must degrade, never 500
+            return JSONResponse(
+                {"status": "unhealthy", "error": f"{type(exc).__name__}: {exc}"},
+                status_code=503,
+            )
+        status_code = 200 if report["status"] == "ok" else 503
+        return JSONResponse(report, status_code=status_code)
+
     return server, redis

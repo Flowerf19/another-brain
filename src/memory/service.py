@@ -301,7 +301,14 @@ class MemoryService:
                 index_meta = await self._index.read_meta()
             except Exception:
                 index_meta = {}
-        ok = redis_ok and (self._index is None or bool(index_meta))
+        # Embedding loads lazily by design, so "not loaded yet" is healthy;
+        # only a failed load degrades the service.
+        embedding_error = self._embedder.load_error
+        ok = (
+            redis_ok
+            and embedding_error is None
+            and (self._index is None or bool(index_meta))
+        )
         return {
             "status": "ok" if ok else "degraded",
             "redis": redis_ok,
@@ -310,6 +317,8 @@ class MemoryService:
             "agent_id": agent_id,
             "embedding_model": self._embedder.model_name,
             "embedding_dim": self._embedder.dim,
+            "embedding_ready": self._embedder.is_loaded,
+            "embedding_error": embedding_error,
         }
 
     # -------------------------------------------------------------- helpers

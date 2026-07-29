@@ -55,6 +55,15 @@ services:
       - another-brain-model-cache:/data/models
     networks:
       - another-brain-net
+    healthcheck:
+      # Slim image has no curl/wget — probe /health with the venv python.
+      # start_period covers the first-boot embedding model download (~0.5 GB),
+      # which happens before the HTTP server binds.
+      test: ["CMD", "/app/.venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:1905/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 120s
 
 volumes:
   another-brain-redis-data:

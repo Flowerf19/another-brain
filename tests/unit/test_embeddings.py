@@ -62,6 +62,46 @@ class TestLazyLoading:
         assert calls["count"] == 1
 
 
+class TestLoadState:
+    async def test_successful_load_sets_is_loaded_and_clears_error(self):
+        provider, _calls = make_provider(StubModel())
+        assert provider.is_loaded is False
+        assert provider.load_error is None
+
+        await provider.embed_document("hello")
+
+        assert provider.is_loaded is True
+        assert provider.load_error is None
+
+    async def test_failed_load_records_error_and_retries_next_embed(self):
+        attempts = {"count": 0}
+
+        def flaky_factory():
+            attempts["count"] += 1
+            if attempts["count"] == 1:
+                raise OSError("missing weights")
+            return StubModel()
+
+        provider = LocalEmbeddingProvider(
+            "/fake/model/path",
+            model_name="fake/model",
+            dim=DIM,
+            profile=ModelRuntimeProfile(),
+            model_factory=flaky_factory,
+        )
+
+        with pytest.raises(OSError, match="missing weights"):
+            await provider.embed_document("hello")
+        assert provider.is_loaded is False
+        assert provider.load_error == "OSError: missing weights"
+
+        # The model stays unloaded after a failure, so the next embed retries.
+        await provider.embed_document("hello")
+        assert attempts["count"] == 2
+        assert provider.is_loaded is True
+        assert provider.load_error is None
+
+
 class TestEncodingArgs:
     async def test_embed_document_has_no_prompt_name(self):
         model = StubModel(prompts={"query": "q: "})
