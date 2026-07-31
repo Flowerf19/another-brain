@@ -1,91 +1,127 @@
 # Agent Rules
 
-## Source Of Truth
+## Source of truth
 
-- Treat `.agents/plans/another-brain-architecture.md` as the current
-  architecture plan.
-- Keep root `README.md` linked to that plan and suitable for GitHub readers.
-- Keep `.agents/` docs aligned with real files and commands as the repo grows.
-- This repo is independent; do not import March7/Evernight runtime code.
+For the `v0.11.0` clean rebuild, read in this order:
 
-## Memory Contract
+1. `.agents/plans/another-brain-architecture.md` — approved target architecture.
+2. `.agents/plans/07-multiplatform-embedded-runtime.md` — execution plan and gates.
+3. `.agents/PROJECT_CONTEXT.md` — transition state and boundaries.
+4. `.agents/TESTING_GUIDE.md` — phase-aware test commands.
+5. `docs/memory-trust-model.md` — claims-not-facts contract before changing
+   recall, injection, or ingest behavior.
 
-- Diary model (Step 04): one memory = `timeline_day` + `topic` slug + 1-2
-  sentence `summary`, classified by an open-vocabulary `catalog`, with
-  optional `content` detail/checklist (max `CONTENT_MAX_CHARS`).
-- `summary` is the canonical text: it is what gets embedded and previewed in
-  search. `content` is BM25-searchable but never embedded.
-- Append-only: no merge, no update tool. An update is a new `brain_remember`
-  plus a `brain_forget` on the old entry.
-- Keep memory text in its natural language; TEXT indexes use NOSTEM because
-  the corpus is multilingual. Translation-pipeline fields were deliberately
-  cut from the MVP schema (Step 04, decision 5).
-- Preserve exact names, ids, paths, commands, dates, and numbers in
-  summaries.
-- Keep the canonical storage model as timeline memory. Do not replace topic
-  timeline entries with arbitrary token chunks without an explicit
-  architecture change.
-- Recall returns unverified claims by past agents, never facts. The
-  epistemic contract (contamination vectors, reader/writer stance) lives in
-  `docs/memory-trust-model.md` — follow it before changing recall,
-  injection, or ingest behavior.
+Plans 01–05 are historical Redis-era contracts and are superseded for this
+branch. Plan 06 remains the usage-guidance history. Keep root `README.md` and
+`.agents/` docs aligned with the target when implementation changes.
 
-## Identity
+## Branch transition
 
-- `brain_id` is the storage isolation boundary.
-- `agent_id` is provenance, not the default memory namespace.
-- There is no auth or permission layer: the service is one shared brain for a
-  set of trusted agents — unifying knowledge across them is the product goal.
-  Do not expose the HTTP transport on an untrusted network.
-- The server binds `brain_id` from config and detects `agent_id` per session
-  from the MCP handshake; tool inputs never carry identity, so an LLM cannot
-  declare its own.
-- Never run storage queries without a `brain_id` filter.
+`main` at `edc0e57` is the legacy Redis/Docker behavior oracle. Compare with it
+from a separate worktree:
 
-## Storage Rules
+```bash
+git worktree add ../another-brain-main main
+```
 
-- Redis 8.8 (bundled Query Engine; >= 8.4 required for `FT.HYBRID`) is the
-  only backend until the architecture changes. It owns memory records, vector
-  storage, full-text index, vector index, and TTL retention.
-- Store memory records as Redis HASH documents with packed FLOAT32 embedding
-  bytes in the HASH.
-- Hybrid search runs as one `FT.HYBRID` call (BM25 + KNN + RRF fused in
-  Redis); the app layer applies the cosine floor before the top-k limit.
-- Apply per-memory Redis TTL from importance. The only renewal is explicit
-  `brain_reinforce`; no read path ever refreshes TTL.
-- Index schema changes must include migration/reindex notes.
-- Embedding dimension changes require explicit reindex handling; the server
-  refuses to start on a DIM mismatch.
-- Soft delete is the default delete behavior (index-level exclusion via
-  `deleted_at`). Hard delete and restore are admin-only CLI operations.
-- Health/status and audit output must not reveal secrets or memory text.
+Do not import Redis code, add a `STORAGE_BACKEND` switch, or make the new
+protocols implement Redis. Branch `v0.11.0` removes Redis, Docker, Torch, and
+SentenceTransformers early, after the final package shell/domain tests are
+working. A maintenance branch based on `main` may provide a one-time JSONL
+export; the clean branch only imports JSONL.
 
-## MCP Rules
+## Final runtime boundary
 
-- Keep tool names short and stable, using the `brain_*` prefix.
-- Tool surface (implemented): `brain_remember`, `brain_search`,
-  `brain_recent`, `brain_get`, `brain_reinforce`, `brain_forget`,
-  `brain_health`, `brain_audit`.
-- Search/recent return previews only (`memory_id`, `topic`, `catalog`,
-  `summary`, `timeline_day`, `importance`, `has_content`, relevance evidence);
-  `content` comes from `brain_get`. Never return embeddings.
-- MCP resources should expose machine-readable state, not agent-specific
-  behavior.
+The target runtime is:
 
-## Packaging Rules
+```text
+MCP stdio
+  -> MemoryService
+  -> ONNX Runtime CPU / Harrier q4
+  -> SQLite repository + FTS5 + sqlite-vec scalar
+  -> app-layer lexical/vector RRF
+```
 
-- Docker is the real deployment target for the service and persistent storage.
-- There is no npm launcher (cut 2026-07-25): Docker is the only install
-  shape; MCP clients connect over stdio or Streamable HTTP directly. Do not
-  reintroduce a second implementation of the memory engine in another
-  language.
-- Avoid adding package managers or frameworks until the first implementation
-  plan chooses the runtime stack.
+No Docker daemon, Redis server, Redis dependency, Torch, SentenceTransformers,
+LanceDB, DuckDB, ANN sidecar, or hidden model daemon belongs in the clean
+runtime. SQLite is the only storage backend; there is no backend environment
+flag.
 
-## Documentation Rules
+## Memory contract
 
-- If source paths, commands, env vars, or service names are added, update
-  `.agents/PROJECT_CONTEXT.md` and `.agents/TESTING_GUIDE.md`.
-- If chunking, identity, or language policy changes, update
-  `.agents/plans/another-brain-architecture.md` first, keep root `README.md`
-  linked, and then mirror the operational consequences here.
+- One memory is one append-only timeline entry.
+- `brain_id` is server-bound storage isolation; `agent_id` is MCP provenance.
+- Scope is `user | project | global`; global pins `scope_id=global`.
+- `topic` is a stable reusable semantic subject, not a workflow label.
+- Topic is lowercase-kebab; target 3–8 Harrier tokens after humanizing hyphens,
+  hard maximum 12.
+- `summary` is one or two self-contained sentences.
+- One vector is generated from `humanized topic + newline + summary`.
+- `content` is FTS5-only and never embedded.
+- Catalog, metadata, scope, time, and importance are filters/provenance.
+- Token limits use the pinned Harrier tokenizer: topic 12, document 256,
+  prompted query 128, content 1,024. Reject over-limit input; never silently
+  truncate or auto-chunk.
+- Reads do not renew TTL. Reinforce is the only normal renewal.
+- Search/recent previews never return content or embeddings; use `brain_get` for
+  detail.
+
+## Storage rules
+
+- Use ordinary SQLite tables as source of truth.
+- Use `sqlite-vec` scalar exact cosine on regular FLOAT32 BLOBs; use NumPy exact
+  scan only as the compatibility fallback.
+- Use FTS5 over topic, summary, and content with initial weights 5:3:1.
+- Every query includes `brain_id`, scope, scope_id, `expires_at > now`, and
+  `deleted_at IS NULL` before applying limits.
+- Configure WAL, `foreign_keys=ON`, `synchronous=NORMAL`, 5-second busy timeout,
+  short transactions, and bounded retries.
+- Persist `expires_at`; correctness cannot depend on a cleanup sweep.
+- Store model/revision/precision/dimension/input version in an embedding profile.
+- Schema and model installation must be cross-process locked and crash-safe.
+- Never expose secrets or memory text in audit/health output.
+
+## Retrieval rules
+
+- Lexical and vector retrieval are separate modules.
+- Vector candidates use the cosine floor `0.30`.
+- Lexical-only candidates do **not** need to pass cosine; this fixes the legacy
+  content-only match bug.
+- Fuse equal branch ranks with RRF `k=60`; use deterministic tie-breaking.
+- A no-safe-term query uses vector retrieval only.
+- FTS5 query construction must not expose MATCH syntax injection.
+- Preserve exact names, ids, commands, paths, dates, and numbers in summaries.
+
+## Embedding rules
+
+- Runtime is raw `onnxruntime` CPU + `tokenizers`.
+- Use pinned ordinary q4 artifact and matching `.onnx_data`, verified by hash.
+- The graph already returns normalized `sentence_embedding[640]`; do not repeat
+  pooling or normalization.
+- Query prompt is used only for queries, never documents.
+- Do not auto-select q4f16/int8 by hardware.
+- A model/prompt/payload change requires input-version migration and re-embedding.
+- Do not load the model merely to answer health/status.
+
+## MCP rules
+
+- Keep stable `brain_*` tool names.
+- Bind `brain_id` from config and `agent_id` from the MCP handshake; never add
+  either as a tool argument.
+- Keep `brain_remember` guidance explicit about the topic+summary vector and
+  topic token contract.
+- Search/recent return previews; `brain_get` returns full content/metadata.
+- Keep the trust loop: search, get when needed, reinforce only after use,
+  forget when wrong.
+
+## Coding workflow
+
+- Implement the plan in phase order; do not broaden scope with speculative
+  abstractions.
+- Keep module boundaries explicit: domain, embedding, storage, retrieval, MCP.
+- Run focused tests after each task and the full clean suite at each gate.
+- Use `read` for source inspection, `rg` for references, and exact targeted
+  edits for existing files.
+- Do not modify runtime code while doing a documentation-only sync.
+- When source paths, commands, env vars, or behavior changes, update
+  `.agents/PROJECT_CONTEXT.md` and `.agents/TESTING_GUIDE.md` in the same change.

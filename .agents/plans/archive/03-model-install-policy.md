@@ -1,14 +1,21 @@
 ---
-status: approved
+status: superseded
 approved: 2026-07-10
 owner: architecture
 created: 2026-07-09
 last_updated: 2026-07-09
 scope: step-03
-depends_on: .agents/plans/02-directory-and-class-architecture.md
+depends_on: .agents/plans/archive/02-directory-and-class-architecture.md
+superseded_by: .agents/plans/07-multiplatform-embedded-runtime.md
 ---
 
 # Step 03 - Model Install And Download Policy
+
+> **Superseded for `v0.11.0` (2026-07-31).** This file is retained as
+> Redis-era architecture history and legacy-oracle evidence. The approved
+> target is `.agents/plans/another-brain-architecture.md`; execution is Plan
+> 07. Do not implement new runtime behavior from this document.
+
 
 This step defines how Another Brain should handle local model downloads during
 installation and first run. It is policy-only: do not implement download code,

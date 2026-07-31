@@ -4,8 +4,8 @@ created: 2026-07-22
 last_updated: 2026-07-22
 scope: step-06
 depends_on:
-  - .agents/plans/01-architecture-foundation.md
-  - .agents/plans/02-directory-and-class-architecture.md
+  - .agents/plans/archive/01-architecture-foundation.md
+  - .agents/plans/archive/02-directory-and-class-architecture.md
 ---
 
 # Step 06 - Agent Usage Guidance Distribution

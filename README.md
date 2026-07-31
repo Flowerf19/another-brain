@@ -2,6 +2,14 @@
 
 **v0.11.0**
 
+> **Development-branch notice:** `v0.11.0` is being rebuilt as a standalone
+> SQLite/FTS5/ONNX tool with no Docker or Redis. The runnable commands below
+> still describe the legacy implementation preserved on `main` (`edc0e57`)
+> until the clean wheel lands. For implementation, use the
+> [approved target architecture](.agents/plans/another-brain-architecture.md)
+> and [Plan 07](.agents/plans/07-multiplatform-embedded-runtime.md), not the
+> legacy deployment instructions.
+
 One shared long-term memory for all your AI agents — a self-hosted MCP
 server with hybrid search, local multilingual embeddings, and
 self-expiring memory.

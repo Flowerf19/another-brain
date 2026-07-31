@@ -1,5 +1,12 @@
 # MCP Tools
 
+> **Transition note:** tool names and the diary/trust loop remain stable, but
+> this page still describes the currently checked-in Redis implementation. The
+> `v0.11.0` target embeds one vector from humanized topic + summary, makes
+> content FTS5-only, applies cosine floor only to vector candidates, and uses
+> tokenizer limits topic/document/query/content = 12/256/128/1,024. See the
+> [target architecture](../.agents/plans/another-brain-architecture.md).
+
 Server name: `another-brain`. Eight tools, implemented in
 [`src/server/tools.py`](../src/server/tools.py). `brain_id` and `agent_id` are
 bound from server config — no tool accepts identity input.

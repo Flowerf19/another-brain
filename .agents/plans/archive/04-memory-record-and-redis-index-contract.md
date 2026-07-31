@@ -1,17 +1,24 @@
 ---
-status: approved
+status: superseded
 approved: 2026-07-11
 owner: architecture
 created: 2026-07-10
 updated: 2026-07-11
 scope: step-04
 depends_on:
-  - .agents/plans/01-architecture-foundation.md
-  - .agents/plans/02-directory-and-class-architecture.md
-  - .agents/plans/03-model-install-policy.md
+  - .agents/plans/archive/01-architecture-foundation.md
+  - .agents/plans/archive/02-directory-and-class-architecture.md
+  - .agents/plans/archive/03-model-install-policy.md
+superseded_by: .agents/plans/07-multiplatform-embedded-runtime.md
 ---
 
 # Step 04 - Memory Record And Redis Index Contract
+
+> **Superseded for `v0.11.0` (2026-07-31).** This file is retained as
+> Redis-era architecture history and legacy-oracle evidence. The approved
+> target is `.agents/plans/another-brain-architecture.md`; execution is Plan
+> 07. Do not implement new runtime behavior from this document.
+
 
 This step defines the storage contract: memory fields, Redis key format,
 RediSearch index schema, TTL policy, and migration/reindex rules. After this

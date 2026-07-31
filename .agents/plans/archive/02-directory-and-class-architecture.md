@@ -1,14 +1,21 @@
 ---
-status: approved
+status: superseded
 approved: 2026-07-10
 updated: 2026-07-11
 owner: architecture
 created: 2026-07-09
 scope: step-02
-depends_on: .agents/plans/01-architecture-foundation.md
+depends_on: .agents/plans/archive/01-architecture-foundation.md
+superseded_by: .agents/plans/07-multiplatform-embedded-runtime.md
 ---
 
 # Step 02 - Directory And Class Architecture
+
+> **Superseded for `v0.11.0` (2026-07-31).** This file is retained as
+> Redis-era architecture history and legacy-oracle evidence. The approved
+> target is `.agents/plans/another-brain-architecture.md`; execution is Plan
+> 07. Do not implement new runtime behavior from this document.
+
 
 This step standardizes folder names, module names, and the first class/interface
 names before implementation starts. A non-runnable placeholder scaffold now

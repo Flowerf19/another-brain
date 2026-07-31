@@ -1,15 +1,22 @@
 ---
-status: explainer
+status: superseded
 owner: architecture
 created: 2026-07-11
 updated: 2026-07-11
 scope: step-05
 depends_on:
-  - .agents/plans/01-architecture-foundation.md
-  - .agents/plans/04-memory-record-and-redis-index-contract.md
+  - .agents/plans/archive/01-architecture-foundation.md
+  - .agents/plans/archive/04-memory-record-and-redis-index-contract.md
+superseded_by: .agents/plans/07-multiplatform-embedded-runtime.md
 ---
 
 # Step 05 - FT.HYBRID trên Redis 8.8
+
+> **Superseded for `v0.11.0` (2026-07-31).** This file is retained as
+> Redis-era architecture history and legacy-oracle evidence. The approved
+> target is `.agents/plans/another-brain-architecture.md`; execution is Plan
+> 07. Do not implement new runtime behavior from this document.
+
 
 Tài liệu giải thích, không phải tài liệu quyết định. Mục đích: cho thấy cơ chế
 `FT.HYBRID` hoạt động thế nào trước khi duyệt thiết kế search chính thức

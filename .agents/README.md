@@ -1,39 +1,63 @@
 # Agent Docs
 
-Read order for agents working in this repo:
+## Read order for `v0.11.0`
 
-1. `README.md` at the repo root - public overview, quick start, configuration.
-2. `.agents/plans/another-brain-architecture.md` - canonical architecture plan
-   (source of truth for product and technical decisions).
-3. `.agents/plans/01-architecture-foundation.md` ... `04-...md` - approved step
-   contracts; `05-redis-hybrid-search.md` - `FT.HYBRID` mechanism explainer;
-   `06-agent-usage-guidance.md` - done: distributing usage guidance to agents.
-4. `.agents/PROJECT_CONTEXT.md` - concise boundaries and runtime state.
-5. `.agents/AGENT_RULES.md` - implementation rules and unsafe shortcuts to avoid.
-6. `.agents/TESTING_GUIDE.md` - test commands and the integration Redis contract.
-7. `docs/architecture.md`, `docs/mcp-tools.md`, `docs/deployment.md` - public
-   module map, tool surface, and deployment notes.
-8. `docs/memory-trust-model.md` - epistemic contract: memories are claims,
-   not facts. Read before changing recall, injection, or ingest behavior.
+1. `.agents/AGENT_RULES.md` — branch rules and prohibited legacy shortcuts.
+2. `.agents/PROJECT_CONTEXT.md` — concise transition and locked contracts.
+3. `.agents/plans/another-brain-architecture.md` — approved target architecture.
+4. `.agents/plans/07-multiplatform-embedded-runtime.md` — active implementation
+   plan, execution order, gates, and append-only task IDs.
+5. `.agents/TESTING_GUIDE.md` — phase-aware commands and acceptance layers.
+6. `docs/memory-trust-model.md` — memories are claims, not facts.
+7. `skills/another-brain/SKILL.md` — agent-facing recall/write/close-loop
+   guidance.
 
-This repo is the standalone home for **Another Brain**, a memory service for
-MCP-capable agent systems. It must remain independent from March7/Evernight;
-March7's T2 diary code is only a reference for timeline chunking behavior.
+The root README and public deployment/tool docs still describe the runnable
+legacy implementation until the clean wheel lands; each carries a transition
+notice. Do not use legacy Docker/Redis commands as target architecture.
 
-Current repo state:
+## Plan lifecycle
 
-- The MVP service is implemented and tested: 8 `brain_*` MCP tools over
-  stdio/HTTP, Redis 8.8 storage with `FT.HYBRID` search, importance TTL,
-  soft delete + audit, local Harrier embedding with model install policy.
-- `uv run pytest` runs 190 unit + 14 integration tests (integration needs the
-  compose Redis on `REDIS_PORT`).
-- Not yet implemented: `server/resources.py`, `storage/migrations.py`,
-  external embedding providers (only `local`), `brain_ingest`.
-- Cut by decision (2026-07-23): the server-side memory model —
-  normalization is the calling agent's job (architecture plan, milestone 2).
-- Cut by decision (2026-07-25): the npm launcher — Docker is the only
-  install shape; hosts connect via stdio or Streamable HTTP directly.
+- `another-brain-architecture.md` — approved source of truth.
+- `07-multiplatform-embedded-runtime.md` — only active implementation plan,
+  status `in-progress`.
+- Plans 01–05 — superseded Redis-era history; useful only for legacy evidence.
+- Plan 06 — completed usage-guidance history; still applicable where it does
+  not conflict with the new topic/embedding contract.
 
-Do not invent implementation facts that are not present in the repo. When
-changing commands, env vars, runtime boundaries, or storage contracts, update
-these docs in the same change.
+GOAL and TASK IDs are append-only. Follow the explicit execution order in Plan
+07 rather than numeric GOAL order: package shell, early legacy deletion, then
+embedding/SQLite/retrieval/service.
+
+## Branch boundary
+
+`main` baseline `edc0e57` preserves the full Redis/Docker runtime. Use a
+separate worktree for comparison:
+
+```bash
+git worktree add ../another-brain-main main
+```
+
+Branch `v0.11.0` must not retain or reintroduce Redis/Docker merely for parity.
+If migration export is required, produce it from a maintenance branch based on
+`main`; this branch imports neutral JSONL only.
+
+## Critical target summary
+
+```text
+MCP stdio -> MemoryService
+           -> Harrier q4 / raw ONNX Runtime CPU
+           -> SQLite regular tables
+           -> FTS5 + sqlite-vec scalar/NumPy exact
+           -> app-layer RRF
+```
+
+One memory stores one vector from humanized topic + summary. Content is
+lexical-only. Vector cosine floor applies only to vector candidates; lexical-
+only results remain valid. Durable expiry/deletion filters apply before branch
+limits. No Docker, Redis, Torch, SentenceTransformers, dual backend, ANN
+sidecar, silent truncation, or auto-chunking belongs in the final runtime.
+
+Do not invent implementation facts that have not landed. When commands, paths,
+env vars, behavior, or support claims become real, update these docs and public
+docs in the same change.

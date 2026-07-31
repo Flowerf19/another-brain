@@ -1,7 +1,7 @@
 """Domain models: MemoryRecord, MemoryIdentity, MemoryScope, MemoryCatalog,
 EmbeddingVector, SearchFilters, MemorySearchResult.
 
-Contract: .agents/plans/04-memory-record-and-redis-index-contract.md.
+Contract: .agents/plans/archive/04-memory-record-and-redis-index-contract.md.
 """
 from __future__ import annotations
 

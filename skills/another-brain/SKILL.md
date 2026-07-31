@@ -32,14 +32,19 @@ session or by another agent:
 - a fact or convention about the project (`catalog=fact` or `note`)
 - an open task or work-in-progress state (`catalog=task`)
 
-Write it as a diary entry: `topic` = stable lowercase-kebab slug
-(e.g. `redis-upgrade`, `auth-decision`), `summary` = 1-2 sentences holding
-the actual knowledge (names, commands, versions, dates preserved exactly).
-Put long detail or checklists in `content`. Set `importance` honestly — it
-sets retention (5=365d, 3=90d, 1=7d); the default 3 is fine for most
-entries. Repeats of the same knowledge are acceptable; the store is
-append-only, and an update is a new `brain_remember` plus `brain_forget` on
-the old entry.
+Write it as a diary entry. `topic` is a stable reusable lowercase-kebab
+retrieval subject, not the event/catalog/workflow state: prefer
+`sqlite-embedded-storage` or `harrier-q4-precision`, not `decision`,
+`plan-review`, `shortlist`, or a keyword list. Related entries about the same
+subproblem should reuse the topic. The service humanizes topic and combines it
+with `summary` into one semantic vector; target 3–8 Harrier tokens and never
+exceed 12 after humanization. `summary` is 1–2 self-contained sentences holding
+the actual knowledge with names, commands, versions, and dates preserved
+exactly. Put long detail, hashes, and checklists in lexical-only `content`.
+Set `importance` honestly — it sets retention (5=365d, 3=90d, 1=7d); the
+default 3 is fine for most entries. Repeats are acceptable; the store is
+append-only, and an update is a new `brain_remember` plus `brain_forget` on the
+old entry.
 
 ## Scope conventions (shared contract — do not improvise)
 

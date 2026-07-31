@@ -1,5 +1,12 @@
 # Deployment
 
+> **Legacy runtime reference during the `v0.11.0` rebuild.** The commands below
+> match `main`/the not-yet-deleted Redis implementation; they are not the target
+> install contract. The clean release uses `uv tool install another-brain`, an
+> installed stdio executable, SQLite, and ONNX q4 with no Docker/Redis. See
+> [`docs/architecture.md`](architecture.md) and
+> [Plan 07](../.agents/plans/07-multiplatform-embedded-runtime.md).
+
 ## What exists today
 
 - `docker/docker-compose.yml` — two services: `redis` (Redis 8.8, container

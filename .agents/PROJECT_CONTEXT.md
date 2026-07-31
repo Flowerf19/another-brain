@@ -1,87 +1,154 @@
 # Project Context
 
-## Product Boundary
+## Branch state
 
-Another Brain is a standalone memory service for many agent systems. It exposes
-memory over MCP and owns storage, retrieval, identity boundaries, and memory
-policy.
+Branch `v0.11.0` is an approved clean rebuild in progress. The checked-in
+runtime still contains the legacy Redis/Docker implementation until the early
+cleanup phase, so distinguish code evidence from target architecture:
 
-Clients send explicit memories and ask for recall. The service must not depend
-on any client agent's loop, persona, Discord integration, or project-specific
-runtime.
+- target: `.agents/plans/another-brain-architecture.md`;
+- execution: `.agents/plans/07-multiplatform-embedded-runtime.md`;
+- legacy oracle: `main` baseline `edc0e57`, preferably in a separate worktree;
+- public README/deployment commands: legacy until the installed wheel exists.
 
-## Canonical Architecture
+Do not preserve Redis in this branch merely for comparison. Main can be
+inspected with `git show main:<path>` or executed from another worktree.
 
-The root `README.md` is the public overview. The architecture source of truth
-is `.agents/plans/another-brain-architecture.md`; the approved contracts are
-`.agents/plans/01`–`04` plus the `05` FT.HYBRID explainer.
+## Product boundary
 
-Core decisions:
+Another Brain is a standalone MCP memory service shared by trusted agent
+systems. It owns timeline memory validation, identity binding, local embedding,
+storage, retrieval, retention, audit, and MCP transport. It does not own client
+agent loops, personas, Discord/project integrations, truth verification, or a
+server-side summarization LLM.
 
-- MCP is the primary integration surface (stdio and Streamable HTTP, both
-  implemented).
-- Docker is the deployment shape; today compose provides Redis 8.8 and
-  the server image (HTTP transport, model cache volume). There is no npm
-  launcher — cut 2026-07-25, hosts connect via stdio or HTTP directly.
-- Redis 8.8 (>= 8.4 for `FT.HYBRID`) is the only database: memory HASH records,
-  packed FLOAT32 embeddings, RediSearch index, TTL retention.
-- Memory is a timeline diary: `timeline_day` + `topic` + `summary` (embedded) +
-  optional `content`, open-vocabulary `catalog`. Append-only, no merge, no
-  update tool.
-- Retention by importance TTL (365/180/90/30/7 days); only explicit
-  `brain_reinforce` renews. Reads are pure. Failure direction is forgetting.
-- Search is one `FT.HYBRID` call fused in Redis, then an app-layer cosine
-  floor (`SEARCH_MIN_COSINE=0.30`), gate before limit.
-- Embedding: local `microsoft/harrier-oss-v1-270m` (640-dim, SentenceTransformers,
-  query prompt `web_search_query`). External providers are not implemented.
-- No auth layer: one shared brain for trusted agents; identity is config-bound.
-  Do not expose HTTP on untrusted networks.
-- Agent guidance ships two ways (step 06): a short recall loop in the MCP
-  server `instructions`, and the canonical `another-brain` skill at
-  `skills/another-brain/` (install via `npx skills add`).
+Memories are claims, not facts. Code/current state wins; see
+`docs/memory-trust-model.md`.
 
-## Identity Model
-
-- `brain_id` - shared memory namespace and storage isolation boundary.
-- `agent_id` - calling client/agent, recorded as provenance on writes/audit.
-- `scope` - `user | project | global` (no `channel`: memory is unified across
-  conversations; conversation origin is provenance in `metadata`).
-- `scope_id` - stable id inside the scope; `scope=global` pins `"global"`.
-
-`brain_id` comes from server config; `agent_id` is detected per session from
-the MCP handshake (`clientInfo`) — no per-host config. Tool inputs never
-carry identity. Every storage query carries the `brain_id` filter.
-
-## Runtime State
-
-Implemented and tested (204 tests: 190 unit, 14 integration): the full tool
-surface (`brain_remember/search/recent/get/reinforce/forget/health/audit`),
-Redis storage + index startup checks, soft delete/restore/hard delete, audit
-trail, model install CLI (`model plan/pull/status`), admin CLI
-(`admin restore/hard-delete`).
-
-Health surface: `GET /health` on the HTTP transport (the compose `server`
-healthcheck probes it) and `brain_health` share `MemoryService.health()` —
-Redis reachability, index meta, and embedding load state
-(`embedding_ready`/`embedding_error`). Model loading is lazy by design; only
-a recorded load failure degrades health.
-
-Stubs / not implemented: `server/resources.py`, `server/schemas.py`,
-`storage/migrations.py`, `memory/repository.py`,
-external embedding providers, `brain_ingest`. Cut (2026-07-23):
-server-side memory model — normalization is the calling agent's job
-(architecture plan, milestone 2). Cut (2026-07-25): npm launcher —
-Docker is the only install shape.
-
-## Runtime Shape
+## Approved final architecture
 
 ```text
-another-brain-server (python src/main.py serve)
-  -> MCP transport: stdio and/or Streamable HTTP
-  -> service layer: validation, identity binding, memory policy
-  -> embedding provider: local SentenceTransformers (Harrier)
-  -> repository: Redis 8.8 (FT.HYBRID search, TTL retention)
-  -> persistent volume: Redis data + local model cache
+installed `another-brain` executable
+  -> MCP stdio (default) / localhost HTTP (optional)
+  -> MemoryService
+  -> Harrier 270M q4 via raw ONNX Runtime CPU
+  -> SQLite regular tables
+       + FTS5(topic, summary, content)
+       + sqlite-vec scalar exact cosine
+       + NumPy exact fallback
+       + app-layer RRF
 ```
 
-Commands and the integration Redis contract: `.agents/TESTING_GUIDE.md`.
+The clean runtime has no Docker, Redis, Torch, SentenceTransformers, separate
+vector database, ANN sidecar, or storage backend selector.
+
+## Locked contracts
+
+### Identity
+
+- `brain_id`: process-bound isolation namespace.
+- `agent_id`: provenance detected from MCP `clientInfo`.
+- `scope`: `user | project | global`.
+- `scope_id`: required for user/project; global pins `global`.
+- Every storage/retrieval query carries brain and scope filters.
+
+### Diary and retention
+
+- Append-only timeline entries; update = remember new + forget old.
+- Fields include topic, catalog, summary, optional content, timeline timestamps,
+  importance, durable `expires_at`, optional `deleted_at`, metadata, and one
+  embedding.
+- Importance TTL remains 365/180/90/30/7 days for levels 5..1.
+- Reads are pure. Reinforce/restore re-arm TTL; forget applies grace without
+  extending a shorter remaining lifetime.
+
+### Embedding
+
+- One normalized FLOAT32[640] vector from
+  `topic.replace("-", " ") + "\n" + summary.strip()`.
+- Topic target 3–8 tokenizer tokens, hard max 12; use a stable reusable subject,
+  not catalog/workflow/keyword stuffing.
+- Document max 256 tokens including specials.
+- Prompted query max 128 including specials.
+- Lexical-only content max 1,024 without specials.
+- Over-limit input is rejected; no truncation/chunking.
+- q4 ONNX-community revision:
+  `d59c919d0159aea2c19ed7d04288fcdd048d0f9c`.
+
+### Retrieval
+
+- FTS5 BM25 weights topic:summary:content = 5:3:1.
+- Vector search is exact; cosine floor 0.30 applies only to vector candidates.
+- Lexical-only candidates remain valid, fixing the legacy content-match bug.
+- Equal-weight RRF uses `k=60` and deterministic ties.
+- Expired/deleted rows are filtered before each branch limit.
+
+### Storage and concurrency
+
+- One platform-user-data `brain.sqlite3` file.
+- WAL, foreign keys, NORMAL sync, 5-second busy timeout, 16-KiB initial page
+  size, short `BEGIN IMMEDIATE` writes, bounded busy retry.
+- Schema/model download is cross-process locked and crash-safe.
+- sqlite-vec failure selects NumPy fallback rather than source build/install
+  failure.
+
+## Target package
+
+```text
+src/another_brain/
+  cli.py app.py config.py
+  domain/
+  embedding/
+  storage/
+  retrieval/
+  mcp/
+```
+
+Console entry point:
+
+```text
+another-brain = another_brain.cli:main
+```
+
+Canonical install path:
+
+```bash
+uv tool install another-brain
+another-brain
+```
+
+Harnesses invoke the installed command, not Docker, source checkout, or
+unpinned `uvx`.
+
+## Execution order
+
+Because GOAL/TASK IDs are append-only, use the explicit phase order from Plan
+07:
+
+1. GOAL-008 — architecture and external-main fixtures.
+2. GOAL-009 — final package shell.
+3. GOAL-015 — early Redis/Docker/Torch deletion from `v0.11.0`.
+4. GOAL-001/002 — evidence gates.
+5. GOAL-005/010 — embedding.
+6. GOAL-011 — SQLite/lifecycle/audit.
+7. GOAL-012 — BM25/vector/RRF.
+8. GOAL-013 — service/MCP.
+9. GOAL-014 — neutral JSONL import/cutover.
+10. GOAL-016 — platform/release/docs gate.
+
+## Migration boundary
+
+If legacy data needs export, implement/release the exporter on a maintenance
+branch based on `main`. The clean branch receives only versioned JSONL and
+re-embeds topic+summary under input version 2. No Redis dependency or exporter
+source enters `v0.11.0`.
+
+## Required release matrix
+
+- Windows x86_64;
+- macOS 14+ ARM64;
+- Ubuntu 22.04/24.04 x86_64;
+- Python 3.12–3.14.
+
+Linux ARM64 and Windows ARM64 are best effort. macOS Intel and musl are not in
+the initial support contract.

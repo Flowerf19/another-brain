@@ -1,690 +1,287 @@
 ---
-status: draft
+status: approved
+approved: 2026-07-31
 owner: architecture
 created: 2026-07-09
+last_updated: 2026-07-31
+supersedes:
+  - .agents/plans/archive/01-architecture-foundation.md
+  - .agents/plans/archive/02-directory-and-class-architecture.md
+  - .agents/plans/archive/03-model-install-policy.md
+  - .agents/plans/archive/04-memory-record-and-redis-index-contract.md
+  - .agents/plans/archive/05-redis-hybrid-search.md
+implementation_plan: .agents/plans/07-multiplatform-embedded-runtime.md
 ---
 
 # Another Brain Architecture
 
-> Implementation note (2026-07-22): the runtime now implements Steps 01-05.
-> Where this document differs from the approved step contracts — record
-> fields, tool parameters, merge behavior — the step contracts (`.agents/plans/01`-`05`)
-> and the code win. Notable deltas: Step 04 cut the translation/language
-> fields, `subject_id`, `kind`, `tags`, `confidence`, and all merge machinery
-> (the store is append-only); the tool surface gained `brain_reinforce` and
-> `brain_audit`; the auth layer was removed (see "Identity Without Auth");
-> hybrid search runs as one `FT.HYBRID` call on Redis 8.8 (step 05), not two
-> `FT.SEARCH` calls.
+## Status
 
-`Another Brain` is a standalone memory service for agent systems. It should be
-usable by Claude, Codex, Discord bots, local chat bots, or any other MCP-capable
-host without knowing how those agents are implemented.
+This document is the approved architecture for the `v0.11.0` clean rebuild.
+Implementation is in progress. The current files under the old top-level
+`src/` still represent the Redis/Docker runtime until their scheduled early
+deletion; they are evidence, not the target design.
 
-The service owns memory storage, retrieval, identity boundaries, and policy. The
-client agent only sends observations or explicit memories and asks for recall.
+The complete legacy implementation remains available on `main` baseline
+`edc0e57`. Compare it from a separate worktree when necessary:
 
-## Goals
+```bash
+git worktree add ../another-brain-main main
+```
 
-- Provide one shared long-term memory store for many agents.
-- Support MCP as the primary integration surface.
-- Track which agent wrote or read a memory through `agent_id`.
-- Keep agent implementation details outside the service contract.
-- Store canonical memory text in the memory's natural language by default, with
-  explicit language metadata and optional translation policy.
-- Normalization (topic, summary, catalog, importance) is the **writer's** job:
-  the calling agent already runs a strong LLM with full context. The service
-  contains no LLM — only an embedding model.
-- Run locally first, with a Docker deployment that includes persistent storage.
-- Docker is the only install shape (the npm launcher was cut 2026-07-25);
-  MCP hosts connect over stdio or Streamable HTTP directly.
+Do not copy Redis code back into `v0.11.0`, add a backend selector, or preserve
+bug-compatible ranking. Plan 07 is the execution record and contains the gates,
+task IDs, schema details, and release budgets.
 
-## Non-Goals
+## Product boundary
 
-- Do not depend on March7, Evernight, Discord, or any project-specific runtime.
-- Do not require a chat framework, persona system, or agent loop.
-- Do not require a heavyweight chat LLM. **Do not embed any LLM in the
-  service at all**: local footprint must stay under ~1 GB (the Harrier
-  embedding model is ~0.5 GB). Any server-side LLM breaks the
-  harness-adoption constraint.
-- Do not partition shared memory by `agent_id` by default; that would prevent
-  agents from sharing the same brain.
+Another Brain is a standalone MCP-first timeline memory service. Many trusted
+agent clients share one `brain_id`; `agent_id` records provenance and is not a
+partition. The service owns:
 
-## Product Shape
+- diary memory validation and lifecycle;
+- local multilingual embedding;
+- durable storage, lexical/vector retrieval, and fusion;
+- identity binding and secret-free audit;
+- MCP stdio and optional loopback HTTP surfaces.
 
-Another Brain has two install shapes (a third, the npm launcher, was cut
-2026-07-25):
+It does not own an agent loop, persona, conversation framework, UI, truth
+verification, server-side summarization LLM, or client-specific integration.
+Calling agents normalize memories before `brain_remember`.
 
-1. **Docker service**
-   - Primary deployment.
-   - Runs the MCP server and connects to Redis Stack.
-   - Best for shared memory across multiple agents and long-lived data.
+## Final runtime shape
 
-2. **MCP stdio adapter**
-   - Local process launched by an MCP host.
-   - Can either run the service in-process for simple local use or proxy to a
-     Docker/HTTP service.
+```mermaid
+flowchart LR
+    Host["MCP host / agent"] --> Transport["stdio default\nHTTP loopback optional"]
+    Transport --> Tools["brain_* tools"]
+    Tools --> Service["MemoryService"]
+    Service --> Embed["Harrier q4\nONNX Runtime CPU"]
+    Service --> Retrieval["Hybrid retriever"]
+    Service --> Repository["SQLite repository"]
+    Retrieval --> Lexical["FTS5 BM25"]
+    Retrieval --> Vector["sqlite-vec scalar\nor NumPy exact"]
+    Lexical --> DB[("brain.sqlite3")]
+    Vector --> DB
+    Repository --> DB
+```
 
-3. ~~npm launcher~~ **Cut (2026-07-25)**: a stdio↔HTTP proxy still
-   required a running service, and a self-contained npm install would have
-   meant shipping Redis/Python binaries for every platform — re-implementing
-   Docker by hand. Docker compose is the single install path; hosts speak
-   stdio (from source) or HTTP to the service.
+No Docker daemon, Redis server, separate vector database, ANN sidecar, Torch,
+SentenceTransformers, or hidden embedding daemon belongs to the final runtime.
 
-## Identity Model
+## Package and process model
 
-Identity is the core contract. The server infers trusted identity from
-configuration, instead of requiring the LLM to provide it correctly in every
-tool call.
+Final code lives under `src/another_brain/` and is installed as a real wheel.
+The console script is:
+
+```toml
+[project.scripts]
+another-brain = "another_brain.cli:main"
+```
+
+Normal installation and invocation:
+
+```bash
+uv tool install another-brain
+another-brain
+```
+
+The bare command serves MCP stdio. Optional commands include localhost HTTP,
+model management, doctor, recent/admin operations, and neutral JSONL import.
+Harnesses invoke the installed executable, not an unpinned `uvx` command.
+
+Independent stdio processes share one SQLite file through WAL. Each process has
+a lazy process-local ONNX session in the MVP; the measured memory cost is a
+release metric, not a reason to introduce a background daemon.
+
+## Identity and trust
 
 | Field | Meaning | Source |
-| --- | --- | --- |
-| `brain_id` | Shared memory namespace, e.g. `flowerf-main` | server config |
-| `agent_id` | Calling agent/client, e.g. `claude-desktop`, `march7`, `codex` | env var or MCP adapter config |
-| `subject_id` | Person/project/entity the memory is about | tool input |
-| `scope` | Memory boundary: `user`, `channel`, `project`, `global`, `entity` | tool input |
-| `scope_id` | Stable id inside the scope | tool input |
-| `source` | Origin detail such as `discord`, `claude`, `manual`, `api` | tool input or adapter default |
+|---|---|---|
+| `brain_id` | storage isolation namespace | process config |
+| `agent_id` | writer/audit provenance | MCP client handshake |
+| `scope` | `user | project | global` | tool input |
+| `scope_id` | stable id inside scope; global pins `global` | tool input/policy |
 
-`brain_id` is the isolation boundary. `agent_id` is provenance. Agents that
-share a `brain_id` share memories.
+Every storage and retrieval query includes `brain_id`, `scope`, and `scope_id`.
+Tool inputs never carry `brain_id` or `agent_id`.
 
-## Core Data Model
+There is no auth layer. The service is for trusted local agents; HTTP remains
+loopback/private only. Memories are claims, not facts. Code/current evidence
+wins; readers reinforce only after successful use and forget wrong memories.
+`docs/memory-trust-model.md` remains the epistemic contract.
 
-The canonical storage model remains a **timeline**. Another Brain is not a
-generic key-value note store; it stores dated memory entries that can be recalled
-by semantic meaning, keyword match, subject, scope, and time.
+## Diary memory contract
 
-Each timeline memory record should be explicit, versioned, and filterable.
+One memory is one append-only timeline entry. Updates are a new remember plus a
+forget of the old record; there is no merge or arbitrary token chunking.
 
-```text
-memory_id: uuid
-brain_id: string
-agent_id: string
-scope: user | channel | project | global | entity
-scope_id: string
-subject_id: string | null
-kind: fact | preference | event | summary | profile | note
-topic: string
-topic_display: string | null
-content: string
-original_content: string | null
-original_language: string | null
-canonical_language: string
-summary: string | null
-period_start: timestamp | null
-period_end: timestamp | null
-timeline_day: yyyy-mm-dd
-source_event_ids: string[]
-chunk_strategy: topic_timeline | explicit | imported
-merge_count: integer
-tags: string[]
-importance: 1..5
-confidence: 0.0..1.0
-metadata: object
-source: string | null
-observed_at: timestamp
-created_at: timestamp
-updated_at: timestamp
-expires_at: timestamp | null
-deleted_at: timestamp | null
-memory_model: string | null
-embedding_model: string
-embedding_dim: integer
-embedding: bytes
-schema_version: integer
-```
-
-The MVP storage backend should be Redis Stack. Redis is the source of truth for
-timeline records and retrieval: each memory is stored as a Redis HASH, the
-embedding is stored as packed FLOAT32 bytes in that HASH, RediSearch indexes the
-HASH fields, per-memory TTL is applied to the HASH key, and both vector KNN and
-BM25 search execute through Redis `FT.SEARCH`.
-
-The RediSearch schema must include `brain_id`, `scope`, `scope_id`,
-`subject_id`, `agent_id`, `topic`, `kind`, `tags`, language fields, and time
-fields as indexed filters. It should index canonical multilingual
-`content`/`summary` as TEXT fields and the packed `embedding` as a VECTOR HNSW
-field with the configured dimension and cosine distance. For multilingual BM25,
-prefer `NOSTEM` or an explicit per-language analyzer strategy; do not assume
-English stemming is correct for every memory.
-
-Timeline fields are first-class:
-
-- `content` is the canonical memory text used for search and recall.
-- `topic` is the stable topic slug for a topic-timeline chunk.
-- `topic_display` is the optional human-readable topic label.
-- `canonical_language` records the language of `content`, using a stable code
-  such as `en`, `vi`, `ja`, or `mixed`.
-- `original_content` keeps the raw source text when normalization changes the
-  source wording or when preservation is useful.
-- `observed_at` is when the source event happened.
-- `period_start` and `period_end` bound the source conversation/event window
-  covered by a timeline chunk.
-- `created_at` is when Another Brain stored the memory.
-- `updated_at` changes when a memory is merged or corrected.
-- `timeline_day` is derived from `period_start` in the configured timezone, or
-  `observed_at` for point memories.
-- `source_event_ids` keeps provenance for the raw messages/events summarized by
-  the chunk.
-- `expires_at` supports retention by importance or policy.
-
-This keeps the useful behavior of the current T2 timeline: memories are not just
-facts; they are time-positioned summaries/events that can be widened by date
-range when a narrow search returns nothing.
-
-## Reference: Current T2 Chunking
-
-The starting reference is March7's current T2 diary implementation:
-
-- GitHub: `https://github.com/Flowerf19/March7/tree/main/twin/shared/memory/diary`
-- Local code: `twin/shared/memory/diary/`
-- Write entrypoint: `twin/shared/tools/modules/memory/consolidate_memory_tool.py`
-- Read entrypoint: `twin/shared/tools/modules/memory/search_memory_tool.py`
-
-Agents implementing this plan should inspect that directory before changing the
-chunking policy. The current architecture is:
-
-1. T1 messages are collected for one scope, either from local active memory or
-   from shipped entries.
-2. A summarizer reads that message window and returns up to five topic objects.
-3. Each topic object becomes one T2 timeline chunk. This is the important
-   boundary: chunks are semantic topic summaries over a time window, not raw
-   token-size slices.
-4. Each chunk is embedded with the passage embedding prefix, then stored as a
-   Redis HASH under the timeline index.
-5. The stored chunk carries `topic`, `topic_display`, `importance`,
-   `period_start`, `period_end`, `source_entry_ids`, `day`, and `embedding`.
-6. `day` is derived from the source period, not from the time the summarizer ran.
-   This makes a late consolidation still land on the day the conversation
-   happened.
-7. The write path attempts a same-scope same-day merge before appending a new
-   chunk. It finds the nearest existing chunk by vector search, requires cosine
-   similarity above the configured merge floor, refuses merges that would exceed
-   the configured max characters, concatenates old and new summaries, re-embeds,
-   unions source ids, expands the period bounds, keeps max importance, and
-   refreshes TTL from importance.
-8. Search is timeline-aware and Redis-native: semantic KNN and BM25 both run as
-   Redis `FT.SEARCH` queries, then results are fused, filtered by scope and
-   optional time range, and widened by policy when a narrow time window returns
-   no result.
-
-Current M7 diary field inventory:
-
-| Category | Count | Fields |
-| --- | ---: | --- |
-| Stored Redis HASH fields | 12 | `user_id`, `summary`, `topic`, `topic_display`, `importance`, `created_at`, `version`, `day`, `period_start`, `period_end`, `source_entry_ids`, `embedding` |
-| RediSearch indexed fields | 11 | `user_id`, `topic`, `topic_display`, `summary`, `importance`, `created_at`, `version`, `day`, `period_start`, `period_end`, `embedding` |
-| Parsed/returned fields | 4 | `summary_id` from the Redis key, `content` alias from `summary`, KNN `score`, BM25 `_score` |
-| Redis key policy | not a field | key format `timeline:summary:{summary_id}`; TTL is applied with Redis `EXPIRE` from `importance` |
-
-M7 stores the vector directly in Redis, not in a separate vector database:
-`embedding` is packed FLOAT32 bytes on the same Redis HASH as the text and
-metadata. RediSearch indexes that HASH with `embedding VECTOR HNSW ... COSINE`
-and `summary TEXT`, so KNN vector search and BM25 lexical search both run on
-Redis through `FT.SEARCH`.
-
-M7 TTL policy:
-
-| Importance | TTL |
-| ---: | --- |
-| 5 | 365 days |
-| 4 | 180 days |
-| 3 | 90 days |
-| 2 | 30 days |
-| 1 | 7 days |
-
-Another Brain should keep the same Redis-native shape: one HASH per memory,
-packed vector bytes inside the HASH, RediSearch indexing text/tag/numeric/vector
-fields together, and retention controlled by Redis TTL.
-
-Another Brain should preserve this shape, but rename the fields and boundaries
-for a standalone MCP service:
-
-- current `summary_id` -> `memory_id`
-- current `user_id` filter -> explicit `brain_id` + `scope` + `scope_id` +
-  optional `subject_id`
-- current `summary` -> canonical multilingual `content` and optional display
-  `summary`
-- current `topic` -> `topic`
-- current `topic_display` -> `topic_display`
-- current `source_entry_ids` -> `source_event_ids`
-- current `day` -> `timeline_day`
-- current `embedding` -> packed FLOAT32 `embedding` stored in Redis HASH
-- current topic chunk -> `chunk_strategy=topic_timeline`
-
-Fields Another Brain should add on top of the M7 diary shape:
-
-- `brain_id` for namespace isolation;
-- `agent_id` for provenance and authorization context;
-- explicit `scope` and `scope_id` instead of overloading `user_id`;
-- `subject_id` for the person/project/entity the memory is about;
-- `kind` for fact/preference/event/summary/profile/note classification;
-- `original_content`, `original_language`, and `canonical_language`;
-- `tags` for secondary labels beyond the primary topic;
-- `confidence`;
-- `metadata` for provider/client details;
-- `source` for origin such as `discord`, `claude`, `manual`, or `api`;
-- `observed_at`, `updated_at`, `expires_at`, and `deleted_at`;
-- `chunk_strategy` and `merge_count`;
-- `memory_model`, `embedding_model`, `embedding_dim`, and `schema_version`.
-
-Do not preserve project-specific shortcuts such as storing channel memory under
-`user_id=channel_id`. The new schema should represent scope explicitly.
-
-## Language Policy
-
-Another Brain is multilingual by default: store the memory in its natural
-language and embed that canonical text. The embedding model (Harrier) is
-multilingual, so no translation is required for cross-language retrieval.
-
-**Normalization is client-side.** The calling agent produces the structured
-record (topic, summary, catalog, importance, language-appropriate text)
-following the `another-brain` skill contract — it has the conversation
-context a server-side model would lack, and it costs the deployment
-nothing. The service validates and stores verbatim; it does not rewrite.
-Guidance for writers:
-
-1. Preserve names, ids, commands, paths, dates, numbers, and quoted user
-   preferences exactly.
-2. Write the summary in the memory's natural language (Harrier retrieves
-   cross-lingually).
-3. Normalize relative dates to absolute dates using the timeline timezone.
-
-Translation remains a deployment choice for the *writer*, not the service:
-agents may store English canonical content when their deployment prefers it.
-
-## Memory Write Policy
-
-Another Brain should support two write paths:
-
-1. **Explicit memory write**
-   - Tool: `brain_remember`.
-   - Client sends the final memory text.
-   - Server validates, normalizes according to language policy, embeds,
-     deduplicates, stores, and returns `memory_id`.
-   - This is the required MVP path.
-
-2. **Observation ingest**
-   - Tool: `brain_ingest`.
-   - Client sends raw messages/events with timestamps and actors.
-   - With no server-side LLM, raw-to-record normalization cannot happen in
-     the service; if built, ingest degenerates to a batch `brain_remember`
-     for client-normalized records. Raw auto-capture additionally multiplies
-     every contamination vector — it is gated on the memory trust model
-     (`docs/memory-trust-model.md`, open decisions).
-   - Not required for MVP; explicit memory writes are the write path.
-
-The server should never silently trim or delete source data unless the caller
-explicitly requests that behavior. Data loss policy belongs in the memory
-service, not in each agent.
-
-## Retrieval Policy
-
-Search should be hybrid by default:
-
-- vector similarity for semantic recall;
-- keyword/BM25 search for names, ids, and exact terms;
-- reciprocal-rank or similar fusion;
-- filters for `brain_id`, `scope`, `scope_id`, `subject_id`, `kind`, `agent_id`,
-  `tags`, and time range;
-- similarity floor to avoid injecting weak memories;
-- timeline widening: search within the requested date window first, then widen
-  by policy if no results are found, and label the wider result window.
-
-The tool output should expose enough evidence for the agent to judge relevance:
+Core fields:
 
 ```text
-memory_id
-content or summary (canonical multilingual)
-original_language
-canonical_language
-kind
-subject_id
-scope/scope_id
-source
-agent_id
-observed_at
-importance
-relevance score
+memory_id, brain_id, agent_id, scope, scope_id
+topic, catalog, summary, content
+timeline_day, period_start, period_end, created_at, updated_at
+importance, expires_at, deleted_at, metadata_json
+embedding_profile_id, embedding, record_version
 ```
 
-## MCP Surface
+- `topic` is a reusable stable retrieval subject, not a workflow label.
+- `catalog` is an open lowercase-kebab classification; starter values remain
+  bug, decision, preference, task, fact, and note.
+- `summary` is one or two self-contained sentences containing the claim.
+- `content` holds long detail, commands, hashes, and checklists.
+- `importance` maps to 365/180/90/30/7-day retention for levels 5..1.
+- Reads never renew retention. Only reinforce and restore re-arm it.
+- Forget sets `deleted_at` and shortens expiry to the grace window without
+  extending a shorter existing lifetime.
 
-MCP tools should be small and stable. Tool names use `brain_*` to stay short.
+## Embedding contract
 
-### `brain_remember`
+Default model: `microsoft/harrier-oss-v1-270m`, 640 dimensions, q4 ONNX
+artifact. Runtime is raw ONNX Runtime CPU plus `tokenizers`. The graph output is
+already `sentence_embedding FLOAT32[batch,640]`, last-token pooled and L2
+normalized; application code must not pool/normalize it again.
 
-Stores one explicit memory.
+Each memory stores exactly one little-endian FLOAT32 vector generated from:
 
-Required inputs:
+```python
+topic.replace("-", " ") + "\n" + summary.strip()
+```
 
-- `content`
-- `scope`
-- `scope_id`
+Documents are unprompted. Queries prepend the pinned Harrier
+`web_search_query` instruction. `content`, catalog, metadata, identity, time,
+and importance are not embedded.
 
-Optional inputs:
+All text budgets use the pinned tokenizer:
 
-- `subject_id`
-- `kind`
-- `tags`
-- `importance`
-- `confidence`
-- `observed_at`
-- `metadata`
+| Input | Hard limit | Special tokens counted |
+|---|---:|---:|
+| humanized topic | 12 (target 3–8) | no |
+| final topic+summary document | 256 | yes |
+| final prompt+query | 128 | yes |
+| lexical-only content | 1,024 | no |
 
-Server-filled fields:
+Over-limit inputs are rejected with actual/allowed counts. There is no silent
+truncation or automatic chunking. Model/tokenizer/prompt/payload changes bump
+`embedding_input_version` and require explicit re-embedding.
 
-- `brain_id`
-- `agent_id`
-- `memory_id`
-- normalized `content`
-- `canonical_language`
-- `original_language`
-- embeddings
-- timestamps
+Pinned ONNX-community artifact revision:
+`d59c919d0159aea2c19ed7d04288fcdd048d0f9c`.
 
-### `brain_search`
+Required q4 files:
 
-Searches memories.
+- `onnx/model_q4.onnx` — SHA-256
+  `228dca2603b907d673dd99cf89c309c0ca68baeed127416a5e027a48e62b0f49`
+- `onnx/model_q4.onnx_data` — SHA-256
+  `b5a15487360f5341659480ae4b5ad60028d5f865bd329196ec8d5708bbed3118`
 
-Inputs:
+## SQLite contract
 
-- `query`
-- `scope`
-- `scope_id`
-- `subject_id`
-- `k`
-- `since`
-- `until`
-- `kind`
-- `tags`
-- `include_agent_ids`
+One `brain.sqlite3` file in the platform-specific user data directory is the
+source of truth. It contains:
 
-`query` may be empty when the caller wants recent memories.
+- checksummed schema migrations;
+- an embedding profile record;
+- ordinary `memories` rows with `CHECK(length(embedding)=2560)`;
+- external-content FTS5 table and synchronization triggers;
+- secret-free audit events.
 
-### `brain_recent`
-
-Returns recent memories by scope/time without requiring embeddings.
-
-### `brain_get`
-
-Fetches one memory by `memory_id`.
-
-### `brain_forget`
-
-Soft-deletes one memory. Hard delete should be an admin-only operation.
-
-### `brain_health`
-
-Reports service status, storage status, index version, embedding model, and
-embedding dimension. It must not return secrets.
-
-## MCP Resources
-
-Resources should expose machine-readable context, not agent instructions:
-
-- `brain://schema` - current memory schema and version.
-- `brain://health` - same health data as `brain_health`.
-- `brain://memory/{memory_id}` - one memory record if authorized.
-
-Prompts are optional. If added, they should be generic usage hints such as
-`brain-recall-guidance`, not agent-specific behavior.
-
-## Identity Without Auth
-
-Another Brain has no authentication or permission layer. It is one shared
-knowledge store for a set of trusted agents: every connected agent may read,
-write, reinforce, and forget memories in the configured `brain_id`. Unifying
-knowledge across agents is the product goal — partitioning it behind
-permissions would work against it.
-
-Rationale: the service runs next to its agents (stdio subprocess, localhost,
-or a private network). Anyone who can reach the process can already reach the
-underlying Redis, so an auth layer would gate the MCP surface without
-protecting the data. Do not expose the HTTP transport on an untrusted
-network; if that ever becomes a requirement, gate it at the network/proxy
-level rather than building a permission system into the service.
-
-Identity still comes from server configuration, never from tool input:
-
-- `brain_id` selects the memory namespace the process serves;
-- `agent_id` is recorded as provenance on writes and audit events.
-
-The LLM is not trusted to declare its own `agent_id`: tool schemas carry no
-identity inputs and the service binds the configured values on every write.
-
-## Storage Architecture
-
-Recommended MVP:
+Default per-connection policy:
 
 ```text
-another-brain-server
-  -> MCP transport: stdio and/or Streamable HTTP
-  -> service layer: validation, identity binding, memory policy
-  -> embedding provider: local model (Harrier) or external API
-  -> repository: Redis Stack
-  -> persistent volume: Redis data
+foreign_keys = ON
+journal_mode = WAL
+synchronous = NORMAL
+busy_timeout = 5000 ms
+page_size = 16384 before first schema creation
 ```
 
-Redis keys should be prefixed:
+Writes use short `BEGIN IMMEDIATE` transactions and bounded busy retry. No
+model inference, tokenization, or network I/O occurs inside a transaction.
+Schema/model installation is cross-process locked and crash-safe.
+
+`expires_at` and `deleted_at` are durable. Every get/recent/lexical/vector path
+filters expired and deleted rows before branch limits. Cleanup is bounded and
+opportunistic; correctness never depends on a sweeper.
+
+## Retrieval contract
+
+Hybrid retrieval has independent branches:
+
+1. **Lexical** — FTS5 over `topic`, `summary`, `content` using
+   `unicode61 remove_diacritics 2` and initial BM25 weights `5:3:1`.
+2. **Vector** — exact cosine over regular FLOAT32 BLOBs through sqlite-vec
+   scalar functions; NumPy exact scan is the compatibility fallback.
+3. **Fusion** — equal-weight RRF, `k=60`, deterministic tie break.
+
+For `top_k`, each branch requests
+`min(max(4 * top_k, 40), 200)` candidates after mandatory live/scope filters.
+Vector candidates below cosine 0.30 are removed before fusion. Lexical-only
+candidates remain eligible without a cosine gate. This intentionally fixes the
+legacy bug where an exact identifier found only in `content` could be discarded
+because its topic+summary vector was dissimilar.
+
+A punctuation-only/no-safe-term query skips FTS5 and uses vector retrieval.
+Final results expose branch evidence but never embeddings.
+
+## Module boundaries
 
 ```text
-ab:{brain_id}:memory:{memory_id}
-ab:{brain_id}:audit:{date}
+src/another_brain/
+  cli.py, app.py, config.py
+  domain/       models and retention
+  embedding/    manifest, installer, provider, payload, budgets
+  storage/      connection, schema, memory repository, audit
+  retrieval/    safe query, lexical, vector, fusion, orchestration
+  mcp/          tools and transports
 ```
 
-Redis Stack is the memory database, vector store, lexical search store, and
-retention system. Do not introduce a separate vector database for MVP.
-
-Each memory HASH should include canonical multilingual text, language fields,
-topic fields, metadata, period fields, source ids, importance, timestamps, and
-packed FLOAT32 embedding bytes. The HASH key TTL should be derived from
-importance and refreshed when a merge updates the memory.
-
-RediSearch should index those HASH documents. A first implementation can use one
-global index with `brain_id` as a required filter, or one index per `brain_id`.
-Start with one global index for simpler migrations; never run a query without
-the `brain_id` filter. The index must support:
-
-- TEXT fields for canonical multilingual `content`/`summary`, searched with
-  BM25;
-- TAG fields for `brain_id`, `scope`, `scope_id`, `subject_id`, `agent_id`,
-  `topic`, `kind`, tags, and `timeline_day`;
-- NUMERIC/SORTABLE fields for `created_at`, `observed_at`, `period_start`,
-  `period_end`, `importance`, and schema/version fields;
-- VECTOR HNSW field for `embedding`, using FLOAT32 and cosine distance.
-
-KNN search, BM25 search, recent/timeline reads, and same-day merge candidate
-lookup should all be Redis `FT.SEARCH` queries against this index. This keeps
-storage, TTL, lexical recall, semantic recall, and merge behavior consistent.
-
-## Embedding Policy
-
-The service owns embedding configuration.
-
-Required config:
+Protocols isolate the service for tests; they are not a plugin/backend system:
 
 ```text
-EMBEDDING_PROVIDER=openai_compat | ollama | gemini | local
-EMBEDDING_MODEL=...
-EMBEDDING_DIM=...
-EMBEDDING_API_URL=...
-EMBEDDING_API_KEY=...
+MemoryRepository
+MemoryRetriever
+AuditRepository
+EmbeddingProvider
 ```
 
-Local model acquisition should follow the dedicated model install policy in
-`.agents/plans/03-model-install-policy.md`. Do not download large models during
-package installation. Local models should be pulled explicitly or through a
-configured startup/lazy policy, with cache metadata and embedding dimension
-checks.
+No `STORAGE_BACKEND` setting exists.
 
-Embedding precision policy is also defined in that plan. MVP should treat Q8/Q4
-as local model weight quantization only. Redis vector storage should remain
-`FLOAT32` until lower-precision vector storage has recall, migration, and index
-compatibility tests.
+## Migration and branch policy
 
-Recommended embedding candidates as of 2026-07:
+- `main` baseline `edc0e57` is the external Redis/Docker oracle.
+- `v0.11.0` establishes the final package shell, then removes Redis, Docker,
+  and Torch before implementing new persistence/retrieval.
+- If existing data needs migration, a maintenance branch based on `main`
+  produces versioned neutral JSONL.
+- The clean branch imports JSONL, preserves identity/timestamps/metadata/
+  remaining lifetime/deletion/audit state, and re-embeds topic+summary under
+  input version 2.
+- Import is resumable and idempotent. The clean release never imports Redis.
 
-| Role | Model | License | Params | Dim | Max tokens | MTEB Multilingual v2 | Operational notes |
-| --- | --- | --- | ---: | ---: | ---: | --- | --- |
-| Default | `microsoft/harrier-oss-v1-270m` | MIT | 268M | 640 | 32,768 | 66.55, rank 17 | Best current fit: open license, multilingual, moderate Redis vector cost, SentenceTransformers compatible. Use normalized 640-d output and Redis `FLOAT32`. |
-| Quality fallback | `Qwen/Qwen3-Embedding-0.6B` | Apache-2.0 | 596M | 1,024 | 32,768 | 64.34, rank 18 | Strong model, but larger than the preferred budget and doubles Redis vector bytes versus 512-dim class models. Use when memory/VRAM budget allows or via external provider. |
-| Benchmark only | `jinaai/jina-embeddings-v5-text-nano` | CC-BY-NC-4.0 | 212-239M | 768 | 8,192 | 65.52, rank 19 | Good score and small runtime footprint, but non-commercial license, `trust_remote_code`, and `peft` dependency make it unsuitable as the default for a reusable MCP tool. |
+## Supported target
 
-Redis vector bytes before index overhead:
+Required release matrix: Windows x86_64, macOS 14+ ARM64, and Ubuntu
+22.04/24.04 x86_64 on Python 3.12–3.14. Linux ARM64 and Windows ARM64 are
+best-effort/fallback targets. macOS Intel and musl are explicit non-goals for
+the initial clean release because the selected runtime wheel matrix does not
+support them consistently.
 
-```text
-Harrier 640 dim      -> 2,560 bytes per memory
-Qwen3 0.6B 1024 dim  -> 4,096 bytes per memory
-Jina v5 nano 768 dim -> 3,072 bytes per memory
-```
+## Non-goals
 
-Evidence links:
+- Redis/Docker compatibility inside the clean runtime;
+- permanent dual storage backends;
+- ANN/vector sidecar indexes;
+- server-side LLM normalization or automatic ingest;
+- silent text truncation/chunking;
+- auth/permissions for untrusted remote users;
+- automatic precision selection by hardware;
+- zero-downtime Redis migration.
 
-- Harrier model card: `https://huggingface.co/microsoft/harrier-oss-v1-270m`
-- Qwen3 Embedding 0.6B model card:
-  `https://huggingface.co/Qwen/Qwen3-Embedding-0.6B`
-- Jina v5 text nano model card and license:
-  `https://huggingface.co/jinaai/jina-embeddings-v5-text-nano`
-- MTEB Leaderboard: `https://huggingface.co/spaces/mteb/leaderboard`
+## Execution source
 
-Rules:
-
-- store the packed FLOAT32 embedding bytes in the Redis HASH memory record;
-- store `embedding_model` and `embedding_dim` on every memory;
-- refuse writes when vector dimension mismatches the active index;
-- expose the active embedding model through `brain_health`;
-- embed canonical `content`, not `original_content` or optional translation
-  helper fields;
-- require a migration/reindex command when changing dimensions.
-- for Harrier, prefer the SentenceTransformers path because it already defines
-  pooling and normalization; raw Transformers usage must reproduce last-token
-  pooling and explicit normalization.
-- treat Q8/Q4 as local model-weight quantization experiments, not as the Redis
-  vector storage format.
-
-## Packaging
-
-### Docker
-
-Primary install target:
-
-```text
-docker compose up -d
-```
-
-Compose should include:
-
-- `another-brain` service;
-- `redis-stack` service;
-- named volume for Redis data;
-- `.env` for embedding provider and identity;
-- healthcheck for MCP/HTTP and Redis.
-
-### npm
-
-**Cut (2026-07-25)**: no npm install target. The `npx` UX either proxied to
-an already-running service (no install value) or had to bootstrap Redis +
-Python natively per platform (a hand-rolled package manager, no Windows
-support). Docker compose covers the real install story.
-
-## Suggested Repository Layout
-
-```text
-another-brain/
-  README.md
-  docs/
-    architecture.md
-    mcp-tools.md
-    deployment.md
-  src/
-    main.py
-    app.py
-    config.py
-    errors.py
-    server/
-      stdio.py
-      http.py
-      tools.py
-      resources.py
-      schemas.py
-    memory/
-      models.py
-      service.py
-      repository.py
-      search.py
-      embeddings.py
-      retention.py
-    storage/
-      redis_keys.py
-      redis_index.py
-      redis_repository.py
-      migrations.py
-    models/
-      policy.py
-      registry.py
-      cache.py
-      installer.py
-      status.py
-      runtime.py
-    audit/
-      models.py
-      service.py
-  docker/
-    Dockerfile
-    docker-compose.yml
-  tests/
-```
-
-## MVP Milestones
-
-1. Core memory model and Redis Stack repository.
-2. ~~Lightweight memory model abstraction for multilingual normalization.~~
-   **Cut**: normalization is the calling agent's job (skill contract); the
-   service embeds and stores verbatim. A server-side LLM would exceed the
-   <1 GB local footprint target and normalize worse than the context-rich
-   writer. Revisit only as part of the gated `brain_ingest` decision.
-3. Model install/cache policy for local embedding and memory models.
-4. Embedding provider abstraction and `brain_health`.
-5. MCP stdio server with `brain_remember`, `brain_search`, `brain_recent`.
-6. Docker Compose deployment. **Done**: `docker/Dockerfile` + `server`
-   compose service (HTTP transport, model cache in a named volume,
-   first-boot `on_start` download).
-7. Server-filled `brain_id` and `agent_id` identity binding (no auth layer).
-8. `brain_get` and `brain_forget` with audit log.
-9. ~~npm launcher that proxies to the service.~~ **Cut (2026-07-25)**:
-   Docker is the only install shape; see "Product Shape".
-10. Optional richer observation ingest pipeline.
-
-## Migration From Existing T2
-
-Existing T2 data can be migrated later by mapping:
-
-```text
-old user_id      -> subject_id or scope_id
-old summary      -> content
-old original text -> original_content when available
-old topic        -> topic; optionally also tags/kind
-old topic_display -> topic_display
-old importance   -> importance
-old period_start -> period_start/observed_at/timeline_day
-old period_end   -> period_end
-old source_entry_ids -> source_event_ids
-old created_at   -> created_at
-old embedding    -> re-embed canonical content unless source text,
-                    embedding model, and embedding dimension are unchanged
-source           -> "march7-t2-migration"
-agent_id         -> migration agent id
-brain_id         -> configured destination brain
-```
-
-Do not preserve the old `user_id=channel_id` shortcut in the new schema. The
-new schema should represent channel and user scopes explicitly.
-
-## Open Decisions
-
-- Whether Redis Stack remains the only supported backend after MVP.
-- Whether server-side summarization belongs in core or in a plugin.
-- Whether remote MCP should be exposed directly or through a small gateway.
-- Whether memory export/import should use JSONL, SQLite, or both.
-- Whether `brain_id` should support multiple users on one server from day one.
+`.agents/plans/07-multiplatform-embedded-runtime.md` is the only active
+implementation plan. Historical plans 01–05 explain how the legacy runtime was
+built but are superseded for `v0.11.0`. Plan 06 and the trust model remain
+applicable where they do not conflict with this architecture.
