@@ -1,7 +1,7 @@
 ---
 status: draft
 created: 2026-07-29
-last_updated: 2026-07-29
+last_updated: 2026-07-31
 ---
 
 # Plan 07 — Multi-platform embedded runtime (no Docker, no Redis by default)
@@ -9,18 +9,62 @@ last_updated: 2026-07-29
 ## Summary
 
 Make another-brain installable and runnable on Windows/macOS/Linux with a
-single command — no Docker, no Redis server, no torch. Redis stays as an
-optional backend for shared-server deployments; the default becomes a fully
-embedded runtime:
+single command — no Docker, Redis server, or torch in the normal runtime.
+Redis is retained only as a temporary migration/legacy source. The default is
+a fully embedded runtime:
 
-- **Storage**: embedded (LanceDB *or* SQLite+sqlite-vec+FTS5 — decided by
-  GOAL-002 spike), data under the per-OS user dir.
-- **Embedding**: `onnxruntime` + `tokenizers` running
-  `onnx-community/harrier-oss-v1-270m-ONNX` (int8 quantized, 344 MB +
-  20 MB tokenizer). fp32/fp16/q4 selectable later.
+- **Storage**: ordinary SQLite tables as the source of truth, FTS5 for weighted
+  lexical retrieval, and `sqlite-vec` scalar `vec_distance_cosine` for exact
+  vector retrieval. There is no `vec0`, ANN, or sidecar vector index in the
+  default architecture; NumPy exact scan is the compatibility fallback.
+- **Embedding**: raw `onnxruntime` CPU + `tokenizers` running the pinned
+  `onnx-community/harrier-oss-v1-270m-ONNX` ordinary q4 artifact. No
+  Transformers, Optimum, SentenceTransformers, or Torch belongs to core.
 - **Install**: publish to PyPI, `uv tool install another-brain`, harnesses
-  connect over MCP **stdio** (spawned by the harness); HTTP localhost mode
-  kept for shared use.
+  connect over MCP **stdio** (spawned by the harness); HTTP localhost mode is
+  optional rather than part of the normal quick start.
+
+### Locked decisions
+
+These decisions are no longer implementation-spike choices:
+
+1. **One canonical store**: SQLite regular tables + FTS5 + `sqlite-vec`
+   scalar exact cosine. Every read/search filters durable `expires_at` and
+   `deleted_at`; WAL and bounded busy retries support independent stdio
+   processes.
+2. **One runtime**: `onnxruntime` CPUExecutionProvider + `tokenizers`. The
+   exported graph already returns normalized `sentence_embedding`
+   `FLOAT32[640]`; application code must not repeat last-token pooling or L2
+   normalization.
+3. **One default artifact**: q4, pinned by immutable Hugging Face revisions
+   and SHA-256 for both `onnx/model_q4.onnx` and its matching
+   `onnx/model_q4.onnx_data`. q4f16 is not auto-selected because its FP16-heavy
+   graph is less CPU-portable; int8/fp32 are evaluation references only.
+4. **One vector per memory**: build one document payload as
+   `topic.replace("-", " ") + "\n" + summary.strip()` and encode it without
+   the query prompt. `content` is FTS5-only; `catalog`, metadata, scope, time,
+   and importance remain filters/provenance. A payload change increments
+   `embedding_input_version` and requires re-embedding.
+5. **Topic authoring contract**: topic is a concise semantic anchor. After
+   replacing hyphens with spaces, target 3-8 Harrier tokens and enforce a hard
+   maximum of 12 Harrier tokens. It names the stable retrieval subject rather
+   than repeating catalog, recording workflow state, or stuffing keywords.
+   All text-size limits use the pinned Harrier tokenizer; there is no separate
+   character-count limit. The `brain_remember` tool description and server
+   instructions must teach this contract to calling models.
+6. **Retrieval text fields**: weighted FTS5 covers `topic`, `summary`, and
+   `content`; the initial benchmark weights are 5:3:1. Vector retrieval uses
+   only the single topic+summary embedding. App-layer RRF combines the two
+   ranked branches.
+7. **One tokenizer-based size contract**: every text budget is counted by the
+   pinned Harrier tokenizer, never by characters. Humanized topic targets 3-8
+   tokens and has a hard limit of 12 without special tokens; the final
+   topic+summary document payload has a hard limit of 256 including special
+   tokens; query prompt+query has a hard limit of 128 including special
+   tokens; lexical-only content has a hard limit of 1,024 without special
+   tokens. Over-limit input is rejected with an actionable error — never
+   silently truncated or automatically chunked. These are product constants,
+   not environment-specific knobs in the MVP.
 
 Verified facts this plan relies on:
 
@@ -34,48 +78,55 @@ Verified facts this plan relies on:
   document storage and hybrid search are Redis-coupled.
 - fastembed cannot be used (fixed model whitelist, no Harrier).
 
-Target install footprint: ~0.5–0.6 GB total (int8 model + native wheels),
-vs ~3–4 GB today (torch CPU + Redis image + model).
+Provisional target install footprint: ~0.35–0.45 GB total (q4 graph/data,
+tokenizer, runtime, and core wheels), vs ~3–4 GB today (torch CPU + Redis
+image + model). GOAL-001 records clean-environment disk and loaded RSS before
+this becomes a release budget.
 
 Success criteria:
 
 1. Fresh machine with only `uv` installed: one command installs, harness
    connects via stdio, `brain_remember` → `brain_search` round-trips on
    Windows, macOS, Linux.
-2. Same contract test suite passes on Redis backend and embedded backend.
-3. ONNX int8 embeddings reach cosine parity vs current ST+torch fp32
-   (threshold set in GOAL-001, expected ≥ 0.999 fp32 / ≥ 0.995 int8 on the
-   eval set) and search recall on a fixed Vietnamese+English probe set is
-   not worse than the current Redis+torch stack.
-4. Redis/Docker path still works unchanged for shared deployments.
+2. The permanent contract suite passes on the embedded backend; temporary
+   Redis fixtures remain only to verify migration parity until legacy removal.
+3. ONNX q4 embeddings pass the permanent quality gate against the current
+   ST+torch fp32 reference and preserve judged Vietnamese+English retrieval
+   quality. q4 is the product default; the gate detects regressions rather
+   than selecting a precision dynamically.
+4. Redis/Docker is not required by install, startup, health, or normal use;
+   the legacy code exists only long enough to support a tested migration.
 
 Ordering rule: add first, switch defaults mid-way, de-default Redis last.
 Every GOAL is a separate PR, independently revertible.
 
 ## Tasks
 
-### GOAL-001: Embedding parity spike (gate)
+### GOAL-001: Embedding q4 quality validation (gate)
 
-Decides whether ONNX runtime is viable at all and picks the default weight
+Validates the locked ONNX/q4 decision against the fp32 reference and records
+its quality, latency, and memory envelope. It does not dynamically select a
 precision. Pure spike — no changes to `src/`.
 
 | ID | Task | Done | Date |
 |----|------|------|------|
-| TASK-001 | Script `spikes/embedding_parity.py`: load current ST+torch Harrier fp32 and `onnxruntime`+`tokenizers` ONNX (fp32 and int8); hand-rolled last-token pooling over attention mask + L2 norm; prepend the `web_search_query` prompt string taken from the source repo's `config_sentence_transformers.json` for queries. | | |
-| TASK-002 | Eval set: ~30 strings, mixed Vietnamese (with/without diacritics) and English, short queries + longer passages, including the BM25-sanitizer edge cases. | | |
-| TASK-003 | Measure per-string cosine(ST, ONNX-fp32) and cosine(ST, ONNX-int8); record min/mean; measure encode latency and RSS for both runtimes. | | |
-| TASK-004 | Decision record: default precision = int8 if min cosine ≥ 0.995 vs ST fp32, else fp32; abort path documented if parity fails. | | |
+| TASK-001 | Script `spikes/embedding_parity.py`: load current ST+torch Harrier fp32 and raw `onnxruntime`+`tokenizers` q4; use the graph's `sentence_embedding` output directly; prepend the exact pinned `web_search_query` prompt only for queries. | | |
+| TASK-002 | Eval set: judged Vietnamese (with/without diacritics) and English query-memory pairs, short queries, topic+summary documents, longer lexical-only content, and BM25 sanitizer edge cases. | | |
+| TASK-003 | Measure cosine(q4, ST-fp32), retrieval Recall@5/MRR/nDCG@10, encode latency by token bucket, session load latency, steady/peak RSS, and two-process PSS. | | |
+| TASK-004 | Acceptance record: q4 remains fixed only if the judged retrieval thresholds pass; failure blocks release and requires an explicit architecture review rather than silent precision auto-selection. | | |
 
-### GOAL-002: Embedded storage spike (gate)
+### GOAL-002: Embedded SQLite validation (gate)
 
-Decides LanceDB vs SQLite+sqlite-vec+FTS5. Spike only, judged on evidence.
+Validates the locked regular-SQLite + FTS5 + `sqlite-vec` scalar architecture,
+including its NumPy fallback, on realistic scale and concurrent stdio access.
+It no longer compares or selects a database engine.
 
 | ID | Task | Done | Date |
 |----|------|------|------|
-| TASK-005 | Probe corpus: reuse GOAL-001 strings + ~200 synthetic memory records (Vietnamese/English topics) with realistic importance/TTL distribution. | | |
-| TASK-006 | LanceDB probe: hybrid search (FTS BM25 + vector, built-in RRF), Vietnamese tokenizer behavior with and without diacritics, wheel size/availability on win-amd64 + macos-arm64 + linux-x86_64, data-dir layout, concurrent readers. | | |
-| TASK-007 | SQLite probe: sqlite-vec for KNN + FTS5 (unicode61 tokenizer) for BM25, app-layer RRF fusion, same Vietnamese checks, `removed`/`deleted_at` filtering, TTL sweep strategy. | | |
-| TASK-008 | Compare against Redis FT.HYBRID as reference on the same corpus: top-5 overlap per query, ranking quality on diacritic-stripped queries; record decision + fallback in `.agents/decisions/`. | | |
+| TASK-005 | Build a judged Vietnamese/English probe corpus plus generated 1k/10k/100k stores with realistic topic, summary, content, scope, importance, durable TTL, and soft-delete distributions. | | |
+| TASK-006 | Measure regular-table `vec_distance_cosine` and NumPy fallback latency, ingest, DB size, exact-result parity, extension-load behavior, and weighted FTS5 (`topic:summary:content` initial 5:3:1) on the target platform matrix. | | |
+| TASK-007 | Verify app-layer RRF, diacritic handling, exact identifiers in content, query-time expiry exclusion, restart cleanup, restore/reinforce semantics, crash recovery, and simultaneous WAL readers/writers from independent processes. | | |
+| TASK-008 | Compare the locked embedded implementation against legacy Redis on the judged corpus for migration evidence only; record Recall@5/MRR/nDCG@10, ranking differences, fallback behavior, and the final acceptance result. | | |
 
 ### GOAL-003: `MemoryStore` interface + contract tests
 
@@ -101,9 +152,12 @@ The riskiest step: a wrong interface forces rework in both backends.
 
 | ID | Task | Done | Date |
 |----|------|------|------|
-| TASK-017 | Implement `EmbeddingProvider` Protocol: `onnxruntime` session + `tokenizers` tokenizer, last-token pooling, L2 norm, query prompt prepend; lazy load in worker thread like `LocalEmbeddingProvider`; `load_error`/health semantics identical. | | |
-| TASK-018 | Model installer: download only the needed files (chosen precision + tokenizer + config) from `onnx-community/harrier-oss-v1-270m-ONNX` with resume + progress; per-OS cache dir; extend `ModelRegistry`/policy for the onnx source. | | |
-| TASK-019 | Parity assertions from GOAL-001 become a permanent test (marked slow, downloads on first run); `EMBEDDING_PROVIDER=onnx|local` config with onnx as default; torch stays in the `local` extra only. | | |
+| TASK-017 | Implement `EmbeddingProvider` with raw `onnxruntime` CPU + `tokenizers`: consume graph output `sentence_embedding` directly, validate FLOAT32 `[batch, 640]`, finite values and unit norm, prepend the pinned query prompt only for queries, and lazy-load in a worker thread with explicit `load_error`/health semantics. | | |
+| TASK-018 | Model installer: download exactly the pinned q4 graph, matching external data file, tokenizer and configs with resume, progress, SHA-256 verification, per-OS cache layout, and a cross-process download lock. | | |
+| TASK-019 | q4 quality assertions from GOAL-001 become permanent slow tests; ONNX is the only core provider and torch/SentenceTransformers remain migration-time test references rather than an installed runtime. | | |
+| TASK-027 | Add a versioned document-payload builder that produces one embedding from humanized topic + newline + stripped summary; persist and validate the active model revision, q4 variant, dimension, output dtype, and `embedding_input_version`. Re-embed when this contract changes. | | |
+| TASK-028 | Update `brain_remember` tool description, MCP server instructions, schemas, and tests to teach calling models the topic contract: target 3-8 and hard-limit 12 Harrier tokens after humanizing the slug; use a stable semantic subject rather than a generic label, catalog duplicate, workflow state, or keyword list. State explicitly that topic+summary forms one vector and content is lexical-only. | | |
+| TASK-029 | Add one tokenizer-based input-budget validator and replace `CONTENT_MAX_CHARS`: topic hard max 12 without special tokens; final topic+summary payload max 256 with special tokens; final prompt+query max 128 with special tokens; content max 1,024 without special tokens. Reject over-limit input without truncation/chunking, report actual/allowed tokens, keep these as fixed MVP contract constants, and add exact boundary tests. | | |
 
 ### GOAL-006: Packaging, install, connect
 
@@ -132,16 +186,19 @@ The riskiest step: a wrong interface forces rework in both backends.
   reinforce TTL renewal, recent ordering, hybrid search ranking, deleted
   exclusion, cosine floor.
 - Parity test (TASK-019) guards embedding drift per release.
+- Token-budget tests cover exact-limit acceptance and limit+1 rejection for
+  topic, final document payload, final prompted query, and content; they also
+  assert that no truncation or chunking occurs.
 - End-to-end: fresh-profile smoke test per OS in CI (install → stdio
   connect → remember → search → forget) at TASK-020.
 - Existing suite must stay green at every GOAL boundary.
 
 ## Assumptions
 
-- Redis is never deleted from the codebase; it becomes opt-in. Compose
-  files stay for shared-server deployments.
-- Default embedding precision is int8 (344 MB) pending GOAL-001 evidence;
-  fp32 remains selectable.
+- Redis is not a normal runtime backend. It remains only as a temporary,
+  opt-in migration/legacy reader and is excluded from core dependencies.
+- The default embedding artifact is the pinned ordinary q4 pair; there is no
+  hardware-dependent precision auto-selection.
 - Publishing to PyPI is in scope; the exact package name is resolved at
   TASK-020.
 - Auth model unchanged: trusted local agents, no HTTP exposure on
