@@ -53,3 +53,7 @@ class StorageError(BrainError):
 
 class DatabaseOpenError(StorageError):
     """The database file cannot be opened in the requested mode."""
+
+
+class MigrationError(StorageError):
+    """Schema migration failure — checksum/version drift, rollback applied."""

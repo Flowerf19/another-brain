@@ -32,7 +32,7 @@ Module targets: `storage/connection.py`, `schema.py`, `repository.py`,
 > TASK-048 remains open for the migration-runner integration.
 
 | TASK-048 | Schema v1 exactly per master plan: `schema_migrations`, `embedding_profiles`, `memories` (all locked CHECKs incl. `UNIQUE(brain_id,memory_id)`, `CHECK(length(embedding)=2560)`), external-content `memory_fts(topic,summary,content)` with insert/update/delete triggers, `import_runs`, `audit_events` (no memory FK), and the required indexes/orderings. | | |
-| TASK-049 | Migration runner: checksum validation, `PRAGMA user_version`, exclusive schema transaction, concurrent-creator safety, crash rollback, fail-fast on unknown/newer versions. | | |
+| TASK-049 | Migration runner: checksum validation, `PRAGMA user_version`, exclusive schema transaction, concurrent-creator safety, crash rollback, fail-fast on unknown/newer versions. | ✅ | 2026-08-04 |
 | TASK-050 | Append-only store/get/recent: normalized scope tuple; by-ID get on `(bound brain_id, memory_id)`; recent ordering `created_at DESC,memory_id ASC`; strict JSON metadata; row+FTS commit atomically. | | |
 | TASK-051 | Durable TTL: persist `expires_at` from importance (5..1 → 365/180/90/30/7 days); every live read excludes expired/deleted before limits; bounded startup/opportunistic purge; never renew on read. | | |
 | TASK-052 | Reinforce/soft-delete/restore/hard-delete transactionally by `(bound brain_id,memory_id)`; forget sets `deleted_at` and `expires_at=min(current, now+30d)` (never extends); reinforce/restore re-arm from importance; cross-brain IDs return `not_found`. | | |

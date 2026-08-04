@@ -17,8 +17,10 @@ per contract). ``metadata`` and audit ``detail_json`` are stored as canonical
 JSON text and enforced as JSON objects at the schema level. The embedding
 BLOB is exactly 2560 bytes (640 × float32, little-endian).
 
-The DDL text is immutable: ``DDL_V1`` is the exact string executed by the
-migration runner, and :func:`checksum` fingerprints it for TASK-049.
+The DDL is immutable and split into single statements
+(``DDL_V1_STATEMENTS``) so the migration runner can execute each inside one
+exclusive transaction (``executescript`` would commit implicitly).
+``DDL_V1`` and :func:`checksum` fingerprint the exact text for TASK-049.
 """
 from __future__ import annotations
 
@@ -26,14 +28,13 @@ import hashlib
 
 SCHEMA_VERSION = 1
 
-DDL_V1 = """
-CREATE TABLE schema_migrations(
+DDL_V1_STATEMENTS: list[str] = [
+    """CREATE TABLE schema_migrations(
   version INTEGER PRIMARY KEY,
   checksum TEXT NOT NULL,
   applied_at INTEGER NOT NULL
-);
-
-CREATE TABLE embedding_profiles(
+);""",
+    """CREATE TABLE embedding_profiles(
   profile_id TEXT PRIMARY KEY,
   model_repo TEXT NOT NULL,
   model_revision TEXT NOT NULL,
@@ -47,9 +48,8 @@ CREATE TABLE embedding_profiles(
   query_prompt TEXT NOT NULL,
   input_version INTEGER NOT NULL CHECK(input_version > 0),
   created_at_ms INTEGER NOT NULL
-);
-
-CREATE TABLE memories(
+);""",
+    """CREATE TABLE memories(
   row_id INTEGER PRIMARY KEY,
   memory_id TEXT NOT NULL,
   brain_id TEXT NOT NULL,
@@ -78,32 +78,27 @@ CREATE TABLE memories(
     period_start_ms IS NULL OR period_end_ms IS NULL
     OR period_start_ms <= period_end_ms
   )
-);
-
-CREATE VIRTUAL TABLE memory_fts USING fts5(
+);""",
+    """CREATE VIRTUAL TABLE memory_fts USING fts5(
   topic, summary, content,
   content='memories', content_rowid='row_id',
   tokenize='unicode61 remove_diacritics 2'
-);
-
-CREATE TRIGGER memories_ai AFTER INSERT ON memories BEGIN
+);""",
+    """CREATE TRIGGER memories_ai AFTER INSERT ON memories BEGIN
   INSERT INTO memory_fts(rowid, topic, summary, content)
   VALUES (new.row_id, new.topic, new.summary, new.content);
-END;
-
-CREATE TRIGGER memories_ad AFTER DELETE ON memories BEGIN
+END;""",
+    """CREATE TRIGGER memories_ad AFTER DELETE ON memories BEGIN
   INSERT INTO memory_fts(memory_fts, rowid, topic, summary, content)
   VALUES ('delete', old.row_id, old.topic, old.summary, old.content);
-END;
-
-CREATE TRIGGER memories_au AFTER UPDATE ON memories BEGIN
+END;""",
+    """CREATE TRIGGER memories_au AFTER UPDATE ON memories BEGIN
   INSERT INTO memory_fts(memory_fts, rowid, topic, summary, content)
   VALUES ('delete', old.row_id, old.topic, old.summary, old.content);
   INSERT INTO memory_fts(rowid, topic, summary, content)
   VALUES (new.row_id, new.topic, new.summary, new.content);
-END;
-
-CREATE TABLE import_runs(
+END;""",
+    """CREATE TABLE import_runs(
   export_id TEXT PRIMARY KEY,
   artifact_sha256 TEXT NOT NULL UNIQUE,
   format_version INTEGER NOT NULL CHECK(format_version > 0),
@@ -114,9 +109,8 @@ CREATE TABLE import_runs(
   failed_count INTEGER NOT NULL CHECK(failed_count >= 0),
   started_at_ms INTEGER NOT NULL,
   completed_at_ms INTEGER
-);
-
-CREATE TABLE audit_events(
+);""",
+    """CREATE TABLE audit_events(
   event_id TEXT PRIMARY KEY,
   brain_id TEXT NOT NULL,
   memory_id TEXT NOT NULL,
@@ -126,26 +120,23 @@ CREATE TABLE audit_events(
   event_at_ms INTEGER NOT NULL,
   timeline_day TEXT NOT NULL,
   detail_json TEXT NOT NULL CHECK(json_valid(detail_json))
-);
-
--- scoped recent ordering with live-filter columns (deleted_at, expires_at)
-CREATE INDEX memories_recent
+);""",
+    """CREATE INDEX memories_recent
   ON memories(brain_id, scope, scope_id, deleted_at_ms, expires_at_ms,
-              created_at_ms DESC, memory_id ASC);
--- scoped topic/catalog navigation, same live-filter shape
-CREATE INDEX memories_topic
+              created_at_ms DESC, memory_id ASC);""",
+    """CREATE INDEX memories_topic
   ON memories(brain_id, scope, scope_id, topic, deleted_at_ms, expires_at_ms,
-              created_at_ms DESC, memory_id ASC);
-CREATE INDEX memories_catalog
+              created_at_ms DESC, memory_id ASC);""",
+    """CREATE INDEX memories_catalog
   ON memories(brain_id, scope, scope_id, catalog, deleted_at_ms, expires_at_ms,
-              created_at_ms DESC, memory_id ASC);
--- bounded opportunistic purge by expiry; soft-delete grace scanning
-CREATE INDEX memories_expiry ON memories(expires_at_ms);
-CREATE INDEX memories_deleted ON memories(deleted_at_ms);
--- audit day reads: deterministic newest-first
-CREATE INDEX audit_day
-  ON audit_events(brain_id, timeline_day, event_at_ms DESC, event_id ASC);
-"""
+              created_at_ms DESC, memory_id ASC);""",
+    """CREATE INDEX memories_expiry ON memories(expires_at_ms);""",
+    """CREATE INDEX memories_deleted ON memories(deleted_at_ms);""",
+    """CREATE INDEX audit_day
+  ON audit_events(brain_id, timeline_day, event_at_ms DESC, event_id ASC);""",
+]
+
+DDL_V1 = "\n".join(DDL_V1_STATEMENTS) + "\n"
 
 
 def checksum() -> str:
