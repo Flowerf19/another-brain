@@ -11,27 +11,14 @@ from another_brain.domain.models import EmbeddingVector, MemoryRecord, RecentFil
 from another_brain.errors import DuplicateMemoryError, ValidationError
 from another_brain.protocols import Scope, ScopeKey
 from another_brain.services.sql.connection import SQLiteConnectionFactory
-from another_brain.services.sql.migrations import migrate
 from another_brain.services.sql.repository import SQLiteMemoryRepository
 
 EMBED = EmbeddingVector(values=np.zeros(640, dtype=np.float32))
 
 
 @pytest.fixture
-def repo(tmp_path):
-    factory = SQLiteConnectionFactory(tmp_path / "brain.sqlite3")
-    factory.bootstrap()
-    migrate(factory.db_path)
-    with factory.connect() as con:
-        con.connection.execute(
-            "INSERT INTO embedding_profiles(profile_id, model_repo, model_revision,"
-            " variant, dimension, dtype, normalized, tokenizer_sha256, config_sha256,"
-            " prompt_utf8_sha256, query_prompt, input_version, created_at_ms)"
-            " VALUES ('q4', 'repo', 'rev', 'q4', 640, 'float32', 1, ?, ?, ?, 'q', 2, 1)",
-            ("a" * 64, "a" * 64, "a" * 64),
-        )
-        con.connection.commit()
-    return factory, SQLiteMemoryRepository(factory, brain_id="default")
+def repo(sql_factory):
+    return sql_factory, SQLiteMemoryRepository(sql_factory, brain_id="default")
 
 
 def _record(**overrides) -> MemoryRecord:
