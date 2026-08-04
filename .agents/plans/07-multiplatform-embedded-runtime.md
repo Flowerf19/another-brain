@@ -705,7 +705,7 @@ Execute after package foundation in GOAL-009.
 | TASK-038 | Implement Redis-free config with fixed retrieval/token contracts, `BRAIN_ID`, timezone/retention, data/model overrides, and HTTP precedence/defaults; accept numeric loopback only and reject wildcard/hostname/LAN/public/link-local binds or invalid ports. | ✅ | 2026-08-04 |
 | TASK-039 | Resolve default paths with `platformdirs`: `brain.sqlite3` in the per-user data directory and immutable model artifacts in the per-user cache directory; create directories with user-only permissions where supported. | ✅ | 2026-08-04 |
 | TASK-040 | Implement CLI: bare command = protocol-clean stdio; `serve --http [--host HOST] [--port PORT]`, `model pull/status`, `doctor`, `recent`, `admin restore|hard-delete`, and `import-jsonl`. Keep logs/progress on stderr and never import Redis/Torch/ST at startup. | ✅ | 2026-08-04 |
-| TASK-041 | Build sdist/wheel with `uv build --no-sources`, install the wheel into a clean environment, run `another-brain --help`, and fail if imports resolve from the checkout instead of the installed wheel. | | |
+| TASK-041 | Build sdist/wheel with `uv build --no-sources`, install the wheel into a clean environment, run `another-brain --help`, and fail if imports resolve from the checkout instead of the installed wheel. | ✅ | 2026-08-04 |
 
 ### GOAL-010: Complete model manifest, cache, and process-local runtime
 

@@ -1,5 +1,5 @@
 ---
-status: draft
+status: done
 created: 2026-08-04
 last_updated: 2026-08-04
 parent: .agents/plans/07-multiplatform-embedded-runtime.md
@@ -25,7 +25,7 @@ stays green with package/domain tests while feature-incomplete.
 | TASK-038 | Implement Redis-free config: fixed retrieval/token contracts, `BRAIN_ID`, timezone/retention, data/model overrides, HTTP precedence/defaults. Accept numeric loopback IP literals only (`127.0.0.0/8`, `::1`); reject hostnames (including `localhost`), wildcard, LAN/public/link-local binds, invalid ports, and port zero outside test harnesses. | ✅ | 2026-08-04 |
 | TASK-039 | Resolve default paths with `platformdirs`: `brain.sqlite3` in per-user data dir, immutable model artifacts in per-user cache dir; create dirs with user-only permissions where supported. | ✅ | 2026-08-04 |
 | TASK-040 | Implement CLI: bare command = protocol-clean stdio (stdout reserved for MCP frames); `serve --http [--host HOST] [--port PORT]`, `model pull/status`, `doctor`, `recent`, `admin restore|hard-delete`, `import-jsonl`. Logs/progress on stderr; never import Redis/Torch/SentenceTransformers at startup. Subcommands that need unimplemented subsystems may exit with a clear typed "not yet available" error during the shell phase. | ✅ | 2026-08-04 |
-| TASK-041 | Build sdist/wheel with `uv build --no-sources`, install the wheel into a clean environment, run `another-brain --help`, and fail if imports resolve from the checkout instead of the installed wheel. | | |
+| TASK-041 | Build sdist/wheel with `uv build --no-sources`, install the wheel into a clean environment, run `another-brain --help`, and fail if imports resolve from the checkout instead of the installed wheel. | ✅ | 2026-08-04 |
 
 ## Test Plan
 
