@@ -57,3 +57,11 @@ class DatabaseOpenError(StorageError):
 
 class MigrationError(StorageError):
     """Schema migration failure — checksum/version drift, rollback applied."""
+
+
+class BusyExhausted(StorageError):
+    """A write stayed busy past the bounded retry envelope."""
+
+
+class DuplicateMemoryError(StorageError):
+    """``(brain_id, memory_id)`` already exists; diary entries are append-only."""
