@@ -150,7 +150,8 @@ unpinned `uvx`.
 Because GOAL/TASK IDs are append-only, use the explicit phase order from Plan
 07:
 
-1. GOAL-008 — architecture and external-main fixtures.
+1. GOAL-008 — architecture and external-main fixtures (TASK-031 deferred to
+   the TASK-008 oracle environment; approved revision 2026-08-04).
 2. GOAL-009 — final package shell.
 3. GOAL-015 — early Redis/Docker/Torch deletion from `v0.11.0`.
 4. GOAL-001 and GOAL-002 TASK-005..007 — q4 evidence and reusable
