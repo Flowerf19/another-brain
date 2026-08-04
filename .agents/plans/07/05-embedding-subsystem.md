@@ -26,8 +26,8 @@ manifest module — nowhere else.
 | ID | Task | Done | Date |
 |----|------|------|------|
 | TASK-042 | Encode the locked repository `onnx-community/harrier-oss-v1-270m-ONNX` @ `d59c919d...f9c`, five files/hashes, prompt/hash, dims, normalization, input version in one immutable manifest consumed by installer/provider/schema. | ✅ | 2026-08-04 |
-| TASK-018 | Download exactly the five pinned files: temp files, resume/progress on stderr, SHA-256 before rename, atomic publish, per-OS cache (platformdirs), one cross-process lock per manifest. | | |
-| TASK-043 | Idempotent crash-safe install: stale temp cleanup, no partially installed profile visible to another process; concurrent installers converge. | | |
+| TASK-018 | Download exactly the five pinned files: temp files, resume/progress on stderr, SHA-256 before rename, atomic publish, per-OS cache (platformdirs), one cross-process lock per manifest. | ✅ | 2026-08-04 |
+| TASK-043 | Idempotent crash-safe install: stale temp cleanup, no partially installed profile visible to another process; concurrent installers converge. | ✅ | 2026-08-04 |
 | TASK-017 | Raw ONNX Runtime CPU provider: direct `sentence_embedding`, FLOAT32 `[batch,640]` finite/unit-norm validation, query-only prompt, lazy load, thread-safe single initialization, health/load-error state. | | |
 | TASK-044 | One lazy session per MCP process; serialize first load; close on shutdown; record measured per-process memory for the release metric (no hidden daemon). | | |
 | TASK-027 | Versioned payload builder: document = `topic.replace("-"," ") + "\n" + summary.strip()`; query = `QUERY_PROMPT + query.strip()`; reject empty stripped query. Profile/input-version validation blocks mixed search until re-embedding completes. | | |
@@ -35,7 +35,7 @@ manifest module — nowhere else.
 | TASK-028 | Update `brain_remember` description, MCP instructions, schema docs, tests for stable reusable topics (target 3–8, hard max 12 tokens; no catalog duplication/workflow labels/keyword stuffing). | | |
 | TASK-019 | Turn GOAL-001 q4 assertions into permanent slow tests; Torch/ST stay evaluation-only, absent from wheel and final lockfile. | | |
 | TASK-045 | Unit-test boundaries: token counts at every limit ±1, VI/EN input, query/document asymmetry, output norm, corrupt/missing external data, hash mismatch, interrupted download, concurrent installers. | | |
-| TASK-046 | Expose profile/load state via health and `model status` without loading the model to answer status. | | |
+| TASK-046 | Expose profile/load state via health and `model status` without loading the model to answer status. | ⏳ (status wired; load state pending provider) | 2026-08-04 |
 
 ## Test Plan
 

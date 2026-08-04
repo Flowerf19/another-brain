@@ -100,14 +100,14 @@ def _build() -> ModelManifest:
 MODEL_MANIFEST: ModelManifest = _build()
 
 
-def manifest_json() -> str:
+def manifest_json(manifest: ModelManifest = MODEL_MANIFEST) -> str:
     """Deterministic canonical JSON of the full manifest, derived from the
     dataclass so the two cannot drift. Includes the byte-exact query prompt;
     the digest therefore fingerprints every manifest field."""
-    payload = asdict(MODEL_MANIFEST)
+    payload = asdict(manifest)
     return json.dumps(payload, sort_keys=True, separators=(",", ":"))
 
 
-def manifest_digest() -> str:
+def manifest_digest(manifest: ModelManifest = MODEL_MANIFEST) -> str:
     """SHA-256 of the canonical JSON; stable across runs and consumers."""
-    return hashlib.sha256(manifest_json().encode("utf-8")).hexdigest()
+    return hashlib.sha256(manifest_json(manifest).encode("utf-8")).hexdigest()

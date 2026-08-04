@@ -670,7 +670,7 @@ Execute after package foundation in GOAL-009.
 | ID | Task | Done | Date |
 |----|------|------|------|
 | TASK-017 | Implement raw ONNX Runtime CPU provider: direct `sentence_embedding`, FLOAT32 `[batch,640]`/finite/unit-norm validation, query-only prompt, lazy load, thread-safe single initialization, and health/load-error state. | | |
-| TASK-018 | Download exactly the five pinned runtime files/hashes from the immutable ONNX-community revision using temp files, resume/progress, atomic publish, per-OS cache, and cross-process lock. | | |
+| TASK-018 | Download exactly the five pinned runtime files/hashes from the immutable ONNX-community revision using temp files, resume/progress, atomic publish, per-OS cache, and cross-process lock. | ✅ | 2026-08-04 |
 | TASK-019 | Turn GOAL-001 q4 assertions into permanent slow tests; Torch/SentenceTransformers remain evaluation-only and are absent from the built wheel and final lockfile. | | |
 | TASK-027 | Implement the versioned topic+summary payload builder and embedding profile validation; changing profile/input version blocks mixed search until re-embedding completes. | | |
 | TASK-028 | Update `brain_remember` description, MCP instructions, schema docs, and tests to teach stable reusable topics: target 3–8, hard max 12 Harrier tokens, no catalog duplication/workflow labels/keyword stuffing. | | |
@@ -727,10 +727,10 @@ Execute after package foundation in GOAL-009.
 | ID | Task | Done | Date |
 |----|------|------|------|
 | TASK-042 | Encode the locked repository/revision, five filenames/hashes, exact prompt/hash, dimensions, normalization, and input version in one immutable manifest consumed by installer/provider/schema. | ✅ | 2026-08-04 |
-| TASK-043 | Make model installation idempotent and crash-safe: one lock per manifest, stale temp cleanup, hash before rename, and no partially installed profile visible to another process. | | |
+| TASK-043 | Make model installation idempotent and crash-safe: one lock per manifest, stale temp cleanup, hash before rename, and no partially installed profile visible to another process. | ✅ | 2026-08-04 |
 | TASK-044 | Keep one lazy ONNX session per MCP process, serialize first load, and close references on shutdown; document measured per-process memory rather than introducing a hidden embedding daemon in the MVP. | | |
 | TASK-045 | Unit-test tokenizer counts and payload bytes at every boundary, Vietnamese/English input, query/document asymmetry, output norm, corrupt/missing external data, hash mismatch, interrupted download, and concurrent installers. | | |
-| TASK-046 | Expose model profile/load state through health and `model status` without loading the model merely to answer status. | | |
+| TASK-046 | Expose model profile/load state through health and `model status` without loading the model merely to answer status. | ⏳ (status wired; load state pending provider) | 2026-08-04 |
 
 ### GOAL-011: Implement SQLite schema, repository, lifecycle, and audit
 

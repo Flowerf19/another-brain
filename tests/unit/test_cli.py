@@ -21,8 +21,6 @@ class TestParsingAndExitCodes:
         [
             [],                                  # bare = stdio server
             ["serve"],
-            ["model", "pull"],
-            ["model", "status"],
             ["doctor"],
             ["recent"],
             ["admin", "restore", "mem-1"],
@@ -41,6 +39,34 @@ class TestParsingAndExitCodes:
             cli.main(["--version"])
         assert exc.value.code == 0
         assert cli.VERSION in capsys.readouterr().out
+
+    def test_model_status_reports_not_installed_without_loading(self, capsys):
+        """Empty cache: status answers from disk state, exit 0, no model load."""
+        assert cli.main(["model", "status"]) == cli.EXIT_OK
+        out = capsys.readouterr().out
+        assert "installed: no" in out
+        assert "profile: q4" in out
+        assert "revision:" in out
+
+    def test_model_pull_failure_is_typed_error(self, monkeypatch, capsys):
+        from another_brain import model_installer
+        from another_brain.errors import ModelDownloadError
+
+        def _failing_install(cache_dir, **kwargs):
+            raise ModelDownloadError("cannot reach https://…")
+
+        monkeypatch.setattr(model_installer, "install", _failing_install)
+        assert cli.main(["model", "pull"]) == cli.EXIT_ERROR
+        captured = capsys.readouterr()
+        assert captured.out == ""  # errors go to stderr only
+        assert "model pull failed" in captured.err
+
+    def test_model_status_does_not_import_heavy_deps(self, capsys):
+        assert cli.main(["model", "status"]) == cli.EXIT_OK
+        import sys
+
+        assert "onnxruntime" not in sys.modules
+        assert "tokenizers" not in sys.modules
 
     def test_help_lists_all_commands(self, capsys):
         with pytest.raises(SystemExit) as exc:

@@ -19,12 +19,13 @@ import sys
 from collections.abc import Sequence
 
 from another_brain.config import AppConfig, parse_loopback_host, parse_port
-from another_brain.errors import ConfigError
+from another_brain.errors import ConfigError, ModelInstallError
 
 PROG = "another-brain"
 VERSION = "0.11.0"
 
 EXIT_OK = 0
+EXIT_ERROR = 1
 EXIT_USAGE = 2
 EXIT_UNAVAILABLE = 3
 EXIT_CONFIG = 4
@@ -85,6 +86,14 @@ def _err(message: str) -> None:
     print(f"{PROG}: {message}", file=sys.stderr)
 
 
+def _progress(name: str, done: int, total: int | None) -> None:
+    """Throttled single-line progress on stderr (stdout is protocol-clean)."""
+    if total:
+        print(f"\r  {name}: {done / 1e6:.1f}/{total / 1e6:.1f} MiB", end="", file=sys.stderr)
+    else:
+        print(f"\r  {name}: {done / 1e6:.1f} MiB", end="", file=sys.stderr)
+
+
 def _resolve_http_bind(args: argparse.Namespace, config: AppConfig) -> tuple[str, int]:
     """CLI flag > environment > default, all numeric-loopback validated."""
     host = parse_loopback_host(args.host) if args.host is not None else config.http.host
@@ -102,9 +111,9 @@ def _dispatch(args: argparse.Namespace, config: AppConfig) -> int:
         raise _NotAvailable("serve", "GOAL-013")
     if args.command == "model":
         if args.model_command == "pull":
-            raise _NotAvailable("model pull", "GOAL-010")
+            return _cmd_model_pull(config)
         if args.model_command == "status":
-            raise _NotAvailable("model status", "GOAL-010")
+            return _cmd_model_status(config)
     if args.command == "doctor":
         raise _NotAvailable("doctor", "GOAL-016")
     if args.command == "recent":
@@ -130,6 +139,38 @@ def main(argv: Sequence[str] | None = None) -> int:
     except ConfigError as exc:
         _err(f"configuration error: {exc}")
         return EXIT_CONFIG
+
+
+def _cmd_model_pull(config: AppConfig) -> int:
+    """Download + verify the pinned q4 profile into the cache (TASK-018/043)."""
+    from another_brain.model_installer import install as install_model
+    from another_brain.model_manifest import MODEL_MANIFEST
+
+    print(f"pulling {MODEL_MANIFEST.profile} @ {MODEL_MANIFEST.revision[:12]}…", file=sys.stderr)
+    try:
+        path = install_model(config.model_cache_dir, progress=_progress)
+    except ModelInstallError as exc:
+        print(file=sys.stderr)
+        _err(f"model pull failed: {exc}")
+        return EXIT_ERROR
+    print(file=sys.stderr)  # close the progress line
+    print(f"model installed: {path}")
+    return EXIT_OK
+
+
+def _cmd_model_status(config: AppConfig) -> int:
+    """Install state from files on disk; never loads the model (TASK-046)."""
+    from another_brain.model_installer import profile_dir, verify
+    from another_brain.model_manifest import MODEL_MANIFEST
+
+    states = verify(config.model_cache_dir)
+    print(f"profile: {MODEL_MANIFEST.profile}")
+    print(f"revision: {MODEL_MANIFEST.revision}")
+    print(f"directory: {profile_dir(config.model_cache_dir)}")
+    print(f"installed: {'yes' if all(s == 'ok' for s in states.values()) else 'no'}")
+    for name, state in states.items():
+        print(f"  {name}: {state}")
+    return EXIT_OK
 
 
 if __name__ == "__main__":
