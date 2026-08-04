@@ -521,8 +521,11 @@ Initial release thresholds are:
 - q4 macro `Recall@5 >=0.90`, `MRR >=0.80`, `nDCG@10 >=0.85`;
 - q4 may trail fp32 by at most `0.02` on each aggregate metric and `0.03`
   within either language partition;
-- all 24 behavioral cases pass;
 - all resource budgets in Success criterion 9 pass.
+
+The 24-case behavior partition is enforced at the GOAL-012 retrieval gate
+(TASK-062), not in GOAL-001: those cases exercise FTS5/RRF behavior that does
+not exist yet at this phase (approved revision 2026-08-04).
 
 A failed threshold requires recorded evidence and an approved plan revision; it
 must not silently lower the gate or choose another precision. The fp32 oracle is
@@ -745,7 +748,7 @@ Execute after package foundation in GOAL-009.
 | TASK-059 | Implement forced/vectorized NumPy fallback with identical filtered IDs, FLOAT32 decoding, canonical key/floor/order, and expose fallback state through doctor/health without semantic drift. | | |
 | TASK-060 | Implement pure `rrf_fuse()` with equal branch weights, `k=60`, deduplication, branch evidence, fixed 50-candidate branch limits, final top-5, and the locked tie-break sequence. | | |
 | TASK-061 | Implement `HybridMemoryRetriever`: run lexical/vector candidates independently, allow lexical-only results, use vector-only for no safe FTS terms, and never apply a universal post-fusion cosine gate. | | |
-| TASK-062 | Add ranking tests for lexical-only identifiers, semantic-only matches, fused promotion, Vietnamese diacritics, duplicate/adversarial terms, live-filter starvation, source labels, canonical floor/ties, malformed vectors, and exact sqlite-vec/NumPy candidate/order/RRF parity within `1e-6` raw-score tolerance. | | |
+| TASK-062 | Add ranking tests for lexical-only identifiers, semantic-only matches, fused promotion, Vietnamese diacritics, duplicate/adversarial terms, live-filter starvation, source labels, canonical floor/ties, malformed vectors, and exact sqlite-vec/NumPy candidate/order/RRF parity within `1e-6` raw-score tolerance. **Gate includes the 24-case behavior partition of `embedding-quality-v1` (deferred from GOAL-001, approved revision 2026-08-04).** | | |
 | TASK-063 | Run the judged 1k/10k/50k/100k retrieval suite and emit quality/latency/size/parity evidence manifests before service cutover. | | |
 
 ### GOAL-013: Wire the final service, MCP tools, health, and transports
