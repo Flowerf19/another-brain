@@ -5,12 +5,14 @@
 Branch `v0.11.0` is an approved clean rebuild in progress. Landed so far:
 package shell (GOAL-009), early deletion (GOAL-015), evidence harnesses
 (GOAL-001/002), the embedding subsystem (GOAL-005/010: manifest, installer,
-provider, payloads, budgets), and the SQLite storage stack (GOAL-011
-TASK-047..054: connection factory, schema v1, migrations, repository, TTL,
-lifecycle, audit). `model pull` / `model status` are real commands; retrieval
+provider, payloads, budgets), and the complete SQLite storage stack
+(GOAL-011 TASK-047..055: connection factory, schema v1, migrations,
+repository, TTL, lifecycle, audit, and the accepted concurrency workload
+green on the real repository — 200/200 oracle checks, full locked
+parameters). `model pull` / `model status` are real commands; retrieval
 (GOAL-012), the MCP server (GOAL-013), JSONL import (GOAL-014), and the
-release gate (GOAL-016) are still pending — their CLI commands exit with typed
-not-yet-available errors pointing at their GOAL. The tree contains only the
+release gate (GOAL-016) are still pending — their CLI commands exit with
+typed not-yet-available errors pointing at their GOAL. The tree contains only the
 final `src/another_brain/` package — no Redis/Docker/Torch code, tests,
 config, or docs remain, and `scripts/check-clean-tree.sh` keeps it that way.
 
@@ -173,8 +175,7 @@ Because GOAL/TASK IDs are append-only, use the explicit phase order from Plan
 4. GOAL-001 and GOAL-002 TASK-005..007 — q4 evidence and reusable
    benchmark/concurrency harnesses. ✅
 5. GOAL-005/010 — embedding. ✅
-6. GOAL-011 — SQLite/lifecycle/audit; TASK-055 applies the concurrency harness
-   (only task left in this phase).
+6. GOAL-011 — SQLite/lifecycle/audit/concurrency workload. ✅
 7. GOAL-012 — BM25/vector/RRF.
 8. GOAL-002 TASK-008, then GOAL-013 — final oracle comparison and service/MCP.
 9. GOAL-014 — neutral JSONL import/cutover.

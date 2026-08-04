@@ -1,5 +1,5 @@
 ---
-status: draft
+status: done
 created: 2026-08-04
 last_updated: 2026-08-04
 parent: .agents/plans/07-multiplatform-embedded-runtime.md
@@ -38,7 +38,14 @@ Module targets: `storage/connection.py`, `schema.py`, `repository.py`,
 | TASK-052 | Reinforce/soft-delete/restore/hard-delete transactionally by `(bound brain_id,memory_id)`; forget sets `deleted_at` and `expires_at=min(current, now+30d)` (never extends); reinforce/restore re-arm from importance; cross-brain IDs return `not_found`. | ✅ | 2026-08-04 |
 | TASK-053 | SQLite audit: forbidden-text validation (never topic/summary/content/metadata), 90-day bounded best-effort cleanup isolated from committed memory mutations, day reads `event_at DESC,event_id ASC` keyed `(brain_id, day)`. | ✅ | 2026-08-04 |
 | TASK-054 | Repository contracts: bootstrap/reopen/read-only, wrong page size, extension fallback, temp files, restart, malformed rows, injected clock/boundaries/rollback, retry classification (`SQLITE_BUSY`/`SQLITE_LOCKED` only, validation/integrity never retried), close/file-release assertions. | ✅ | 2026-08-04 |
-| TASK-055 | Run the accepted concurrency workload (07.04 harness) against the real repository: timeouts, typed busy-exhausted error, allowed races, migration uniqueness, restart, `integrity_check`/`foreign_key_check`, FTS trigger parity on all rows + live filtering, resource closure. | | |
+| TASK-055 | Run the accepted concurrency workload (07.04 harness) against the real repository: timeouts, typed busy-exhausted error, allowed races, migration uniqueness, restart, `integrity_check`/`foreign_key_check`, FTS trigger parity on all rows + live filtering, resource closure. | ✅ | 2026-08-04 |
+> Evidence 2026-08-04: `benchmarks/concurrency/run_repository.py` full locked
+> parameters (5 storm seeds × 8 processes; 5 seeds × 2 vector modes mixed
+> 2w/2r × 500 ops; crash probe; busy probe) — 200/200 oracle checks ok, zero
+> unhandled errors/busy, typed `BusyExhausted` at ~26.5s in the probe,
+> restart read/write green. CI gate: `--quick` via
+> `tests/integration/test_concurrency_repository.py` (slow). Reader `search`
+> uses raw FTS5 SQL pending the GOAL-012 lexical module. |
 
 ## Test Plan
 

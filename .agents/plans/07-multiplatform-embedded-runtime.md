@@ -744,7 +744,7 @@ Execute after package foundation in GOAL-009.
 | TASK-052 | Implement reinforce, soft-delete, restore, and hard-delete transactionally by `(bound brain_id,memory_id)`; enforce live/deleted/expired/grace semantics, never leak cross-brain existence, never extend a shorter grace expiry, and re-arm restore/reinforce from importance. | ✅ | 2026-08-04 |
 | TASK-053 | Implement SQLite audit persistence with forbidden-text validation, fixed 90-day retention cleanup, newest-first deterministic day reads, and best-effort failure isolation from the already committed memory mutation. | ✅ | 2026-08-04 |
 | TASK-054 | Add repository contracts for bootstrap/reopen/read-only flows, wrong page size, extension fallback, temporary files, restart, malformed rows, injected clock/boundaries/rollback, retry classification, and close/file-release assertions. | ✅ | 2026-08-04 |
-| TASK-055 | Execute the accepted workload through the real repository and assert timeout, typed busy failure, allowed races, migration uniqueness, restart, integrity/foreign-key checks, all-row FTS trigger parity plus live filtering, and resource closure. | | |
+| TASK-055 | Execute the accepted workload through the real repository and assert timeout, typed busy failure, allowed races, migration uniqueness, restart, integrity/foreign-key checks, all-row FTS trigger parity plus live filtering, and resource closure. | ✅ | 2026-08-04 |
 
 ### GOAL-012: Rebuild BM25, vector retrieval, and RRF as separate modules
 
