@@ -31,6 +31,19 @@ scripts/check-wheel-install.sh  # clean wheel install gate
 uv build --no-sources
 ```
 
+Evidence harnesses (run from the repo root, not CI):
+
+```bash
+uv run python benchmarks/concurrency/run_harness.py --quick   # toy concurrency validation (TASK-007)
+uv run python benchmarks/run_benchmarks.py --help             # retrieval latency harness (full locked protocol runs at TASK-063)
+uv run python benchmarks/measure_embedding_memory.py --profile-dir DIR  # per-process RSS/PSS (TASK-044)
+```
+
+The permanent q4 gate (`tests/integration/test_q4_embedding_gate.py`, slow)
+skips when the pinned profile is not installed; install it with
+`another-brain model pull` (or point `BRAIN_MODEL_CACHE_DIR` at a cache that
+already holds the profile).
+
 For trustworthy legacy evidence, run the old suite from
 `../another-brain-main`, never from this branch. Do not treat a green legacy
 suite as approval of the new retrieval contract; the universal cosine gate

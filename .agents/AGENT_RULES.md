@@ -132,7 +132,8 @@ flag.
 
 - Implement the plan in phase order; do not broaden scope with speculative
   abstractions.
-- Keep module boundaries explicit: domain, embedding, storage, retrieval, MCP.
+- Keep module boundaries explicit: domain, services/embedding, services/sql,
+  retrieval, MCP.
 - Run focused tests after each task and the full clean suite at each gate.
 - Use `read` for source inspection, `rg` for references, and exact targeted
   edits for existing files.

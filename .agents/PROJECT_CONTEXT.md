@@ -2,17 +2,23 @@
 
 ## Branch state
 
-Branch `v0.11.0` is an approved clean rebuild in progress. The package shell
-(GOAL-009) and early deletion (GOAL-015) have landed: the tree contains only
-the final `src/another_brain/` package — no Redis/Docker/Torch code, tests,
+Branch `v0.11.0` is an approved clean rebuild in progress. Landed so far:
+package shell (GOAL-009), early deletion (GOAL-015), evidence harnesses
+(GOAL-001/002), the embedding subsystem (GOAL-005/010: manifest, installer,
+provider, payloads, budgets), and the SQLite storage stack (GOAL-011
+TASK-047..054: connection factory, schema v1, migrations, repository, TTL,
+lifecycle, audit). `model pull` / `model status` are real commands; retrieval
+(GOAL-012), the MCP server (GOAL-013), JSONL import (GOAL-014), and the
+release gate (GOAL-016) are still pending — their CLI commands exit with typed
+not-yet-available errors pointing at their GOAL. The tree contains only the
+final `src/another_brain/` package — no Redis/Docker/Torch code, tests,
 config, or docs remain, and `scripts/check-clean-tree.sh` keeps it that way.
-Storage, retrieval, embedding, and the MCP server are not implemented yet;
-CLI commands exit with typed not-yet-available errors pointing at their GOAL.
 
 - target: `.agents/plans/another-brain-architecture.md`;
 - execution: `.agents/plans/07-multiplatform-embedded-runtime.md` (master) plus
   per-phase sub-plans under `.agents/plans/07/`;
-- public README/deployment commands: legacy until the installed wheel exists.
+- public README/deployment docs describe the clean target runtime (rewritten
+  in TASK-077); the install contract is `uv tool install another-brain`.
 
 ## External legacy oracle (TASK-035)
 
@@ -119,14 +125,16 @@ vector database, ANN sidecar, or storage backend selector.
 
 ## Target package
 
+Landed layout (retrieval/ and mcp/ land with GOAL-012/013):
+
 ```text
 src/another_brain/
-  cli.py app.py config.py
-  domain/
-  embedding/
-  storage/
-  retrieval/
-  mcp/
+  cli.py config.py protocols.py errors.py
+  domain/models.py          record types + locked validation
+  services/sql/             connection, migrations, schema, repository,
+                            ttl, audit, retry
+  services/embedding/       model_manifest, model_installer, provider,
+                            payloads, budgets
 ```
 
 Console entry point:
@@ -160,12 +168,13 @@ Because GOAL/TASK IDs are append-only, use the explicit phase order from Plan
 
 1. GOAL-008 — architecture and external-main fixtures (TASK-031 deferred to
    the TASK-008 oracle environment; approved revision 2026-08-04).
-2. GOAL-009 — final package shell.
-3. GOAL-015 — early Redis/Docker/Torch deletion from `v0.11.0`.
+2. GOAL-009 — final package shell. ✅
+3. GOAL-015 — early Redis/Docker/Torch deletion from `v0.11.0`. ✅
 4. GOAL-001 and GOAL-002 TASK-005..007 — q4 evidence and reusable
-   benchmark/concurrency harnesses.
-5. GOAL-005/010 — embedding.
-6. GOAL-011 — SQLite/lifecycle/audit; TASK-055 applies the concurrency harness.
+   benchmark/concurrency harnesses. ✅
+5. GOAL-005/010 — embedding. ✅
+6. GOAL-011 — SQLite/lifecycle/audit; TASK-055 applies the concurrency harness
+   (only task left in this phase).
 7. GOAL-012 — BM25/vector/RRF.
 8. GOAL-002 TASK-008, then GOAL-013 — final oracle comparison and service/MCP.
 9. GOAL-014 — neutral JSONL import/cutover.

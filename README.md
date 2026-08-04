@@ -3,9 +3,11 @@
 Shared long-term memory for MCP agents — one brain, many agents. A standalone,
 fully embedded MCP tool: no server, container, or daemon required.
 
-> **Status:** branch `v0.11.0` is an approved clean rebuild in progress. The
-> checked-in package currently contains the final package shell (config, CLI,
-> protocols); storage, retrieval, and the MCP server land in later phases.
+> **Status:** branch `v0.11.0` is an approved clean rebuild in progress.
+> Landed: package shell, model manifest/installer, ONNX embedding provider,
+> and the SQLite storage stack (schema v1, migrations, repository, durable
+> TTL, lifecycle, audit). Pending: retrieval (GOAL-012), the MCP server
+> (GOAL-013), JSONL import (GOAL-014), release gate (GOAL-016).
 > Authoritative design: `.agents/plans/another-brain-architecture.md`;
 > execution record: `.agents/plans/07-multiplatform-embedded-runtime.md`.
 

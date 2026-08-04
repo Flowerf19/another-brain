@@ -12,9 +12,10 @@
 7. `skills/another-brain/SKILL.md` — agent-facing recall/write/close-loop
    guidance.
 
-The root README and public deployment/tool docs still describe the runnable
-legacy implementation until the clean wheel lands; each carries a transition
-notice. Do not use legacy Docker/Redis commands as target architecture.
+The root README and public deployment/tool docs describe the clean target
+runtime (rewritten in TASK-077, Docker/Redis-free); the README status block
+tracks which phases have landed. Do not use legacy Docker/Redis commands as
+target architecture.
 
 ## Plan lifecycle
 
