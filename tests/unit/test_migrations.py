@@ -111,7 +111,7 @@ class TestCrashRollback:
             raw.close()
         # once the bad migration is gone, the same file migrates cleanly
         monkeypatch.setattr(migrations, "SCHEMA_VERSION", 1)
-        monkeypatch.setitem(migrations, "MIGRATIONS", {1: DDL_V1_STATEMENTS})
+        monkeypatch.setitem(migrations.MIGRATIONS, 1, DDL_V1_STATEMENTS)
         assert migrations.migrate(db_path) == 1
 
 
