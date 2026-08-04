@@ -26,12 +26,16 @@ sys.path.insert(0, str(SPIKE))
 from payloads import QUERY_PROMPT, document_payload, query_payload  # noqa: E402,F401
 
 
-def embed(texts: list[str]) -> np.ndarray:
+def load() -> tuple[Tokenizer, ort.InferenceSession]:
     tokenizer = Tokenizer.from_file(str(Q4_DIR / "tokenizer.json"))
     session = ort.InferenceSession(
         str(Q4_DIR / "onnx" / "model_q4.onnx"),
         providers=["CPUExecutionProvider"],
     )
+    return tokenizer, session
+
+
+def embed_texts(tokenizer: Tokenizer, session: ort.InferenceSession, texts: list[str]) -> np.ndarray:
     input_names = {i.name for i in session.get_inputs()}
     encodings = tokenizer.encode_batch(texts)
     max_len = max(len(e.ids) for e in encodings)
@@ -51,6 +55,11 @@ def embed(texts: list[str]) -> np.ndarray:
     outputs = session.run(["sentence_embedding"], feed)[0]
     assert outputs.dtype == np.float32 and outputs.ndim == 2
     return outputs
+
+
+def embed(texts: list[str]) -> np.ndarray:
+    tokenizer, session = load()
+    return embed_texts(tokenizer, session, texts)
 
 
 def main() -> int:

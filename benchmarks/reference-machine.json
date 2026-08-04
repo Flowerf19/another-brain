@@ -1,0 +1,29 @@
+{
+  "architecture": "x86_64",
+  "cache_reset_procedure": "cold load = fresh process; no OS page-cache drop (requires root); warmups discard first-run effects",
+  "cpu": {
+    "logical_cores": 24,
+    "model": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M",
+    "physical_cores": 13
+  },
+  "kernel": "7.1.5-201.fc44.x86_64",
+  "notes": "First approved reference machine for Plan 07 performance evidence (TASK-005).",
+  "ort_thread_policy": "onnxruntime defaults (intra_op=num physical cores, inter_op=1); no affinity pinning",
+  "os": {
+    "release": "7.1.5-201.fc44.x86_64",
+    "system": "Linux",
+    "version": "#1 SMP PREEMPT_DYNAMIC Tue Jul 28 14:16:30 UTC 2026"
+  },
+  "power": {
+    "scaling_governor_cpu0": "powersave"
+  },
+  "python": {
+    "implementation": "CPython",
+    "version": "3.14.6"
+  },
+  "ram": {
+    "mem_total_kb": 31933104
+  },
+  "recorded_by": "spikes/fp32/record_reference_machine.py",
+  "schema_version": 1
+}

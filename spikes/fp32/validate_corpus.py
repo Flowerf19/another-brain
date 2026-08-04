@@ -81,8 +81,9 @@ def main() -> int:
         check(not (bucket == 2 and tokens > 107), f"{q['query_id']}: prompted total would exceed 128")
         buckets[bucket] += 1
         grades = sorted(j["grade"] for j in q["judgments"])
-        check(grades == [0, 0, 0, 0, 1, 2, 3], f"{q['query_id']}: judgment grades {grades}")
-        check(len({j["doc_id"] for j in q["judgments"]}) == 7, f"{q['query_id']}: duplicate judged docs")
+        check(grades == [0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3],
+              f"{q['query_id']}: judgment grades {grades}")
+        check(len({j["doc_id"] for j in q["judgments"]}) == 14, f"{q['query_id']}: duplicate judged docs")
         for j in q["judgments"]:
             check(j["doc_id"] in docs, f"{q['query_id']}: unknown judged doc {j['doc_id']}")
         check(

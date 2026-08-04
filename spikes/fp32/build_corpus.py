@@ -72,15 +72,15 @@ EN_CONTENT_T = [
     "Last run at {place}: {thing} was {attr}. Next step: {action} {detail}.",
 ]
 EN_Q_SHORT = [
-    "how to {action} {thing}",
-    "{thing} {attr} tips",
+    "how to {action} {thing} {aspect_kw}",
+    "{thing} {aspect_kw} tips",
 ]
 EN_Q_MEDIUM = [
-    "step by step guide to {action} {thing} {detail} at {place}, common mistakes to avoid, and how to keep consistent {attr} results over several weeks of practice",
-    "complete walkthrough: how to {action} {thing} {detail} at {place}, which tools to prepare, and the simple routine that keeps everything {attr} week after week",
+    "how to {action} {thing} {detail} at {place} with a focus on {aspect_kw}",
+    "complete guide to {action} {thing} {aspect_kw} at {place}, explained for beginners",
 ]
 EN_Q_LONG = [
-    "I am trying to {action} {thing} {detail} at {place} and I keep running into problems. Can you explain in detail the full routine I should follow every week, the warning signs that something is going wrong, the most common beginner mistakes and how to avoid them, plus a realistic schedule that keeps {thing} {attr} over several months without expensive tools or complicated techniques",
+    "I am trying to {action} {thing} {detail} at {place} and I keep running into problems. Can you explain in detail the full routine I should follow every week, the warning signs that something is going wrong, the most common beginner mistakes and how to avoid them, plus a realistic schedule that keeps {thing} {attr} over several months — I specifically care about {aspect_kw} and want practical advice on that",
 ]
 
 VI_SUMMARY_T = [
@@ -93,15 +93,15 @@ VI_CONTENT_T = [
     "Lần trước tại {place}: {thing} khá {attr}. Bước tiếp: {action} {detail}.",
 ]
 VI_Q_SHORT = [
-    "cách {action} {thing}",
-    "mẹo {thing} {attr}",
+    "cách {action} {thing} {aspect_kw}",
+    "mẹo {thing} {aspect_kw}",
 ]
 VI_Q_MEDIUM = [
-    "hướng dẫn từng bước để {action} {thing} {detail} tại {place}, các lỗi thường gặp cần tránh, và cách duy trì kết quả {attr} ổn định trong nhiều tuần liên tục",
-    "chia sẻ kinh nghiệm cách {action} {thing} {detail} tại {place}, cần chuẩn bị những gì, và thói quen đơn giản nào giúp giữ {thing} luôn {attr} tuần này sang tuần khác",
+    "cách {action} {thing} {detail} tại {place} với trọng tâm là {aspect_kw}",
+    "hướng dẫn đầy đủ cách {action} {thing} {aspect_kw} tại {place} cho ngườoi mới",
 ]
 VI_Q_LONG = [
-    "Tôi đang cố gắng {action} {thing} {detail} tại {place} nhưng liên tục gặp khó khăn. Bạn có thể giải thích chi tiết toàn bộ quy trình tôi nên làm theo mỗi tuần, những dấu hiệu cảnh báo khi có vấn đề, các lỗi phổ biến ngườoi mới hay mắc phải và cách tránh chúng, cùng một lịch trình thực tế để giữ {thing} luôn {attr} trong nhiều tháng mà không cần dụng cụ đắt tiền hay kỹ thuật phức tạp",
+    "Tôi đang cố gắng {action} {thing} {detail} tại {place} nhưng liên tục gặp khó khăn. Bạn có thể giải thích chi tiết quy trình tôi nên làm theo mỗi tuần, các lỗi phổ biến ngườoi mới hay mắc phải và cách tránh chúng, cùng lịch trình thực tế để giữ {thing} luôn {attr} trong nhiều tháng — tôi đặc biệt quan tâm đến {aspect_kw}",
 ]
 
 
@@ -241,6 +241,36 @@ CLUSTERS = [
 
 BEHAVIOR_ID_PREFIX = "RUNID-"
 
+# Per-language aspects give the 10 docs within one subject distinct,
+# identifiable angles; queries reference the aspect so the grade-3 target is
+# discoverable and same-subject docs form a tight relevant set.
+ASPECTS = {
+    "en": [
+        ("following a fixed weekly schedule", "weekly schedule"),
+        ("using only basic inexpensive tools", "basic tools"),
+        ("avoiding the most common beginner mistakes", "beginner mistakes"),
+        ("with notes on saving cost and time", "cost saving"),
+        ("with safety checks before you start", "safety checks"),
+        ("with seasonal timing in mind", "seasonal timing"),
+        ("plus troubleshooting when results disappoint", "troubleshooting"),
+        ("with quality checks at every step", "quality checks"),
+        ("adapted for small spaces", "small spaces"),
+        ("with a simple log to track progress", "progress log"),
+    ],
+    "vi": [
+        ("theo lịch cố định hàng tuần", "lịch hàng tuần"),
+        ("chỉ với dụng cụ đơn giản rẻ tiền", "dụng cụ đơn giản"),
+        ("tránh các lỗi ngườoi mới hay gặp", "lỗi ngườoi mới"),
+        ("kèm mẹo tiết kiệm chi phí và thờoi gian", "tiết kiệm chi phí"),
+        ("với các bước kiểm tra an toàn trước khi bắt đầu", "kiểm tra an toàn"),
+        ("theo đúng thờoi điểm mùa vụ", "mùa vụ"),
+        ("và cách xử lý khi kết quả không như ý", "xử lý sự cố"),
+        ("với kiểm tra chất lượng ở từng bước", "kiểm tra chất lượng"),
+        ("phù hợp với không gian nhỏ", "không gian nhỏ"),
+        ("kèm nhật ký theo dõi tiến độ", "nhật ký tiến độ"),
+    ],
+}
+
 
 def strip_diacritics(text: str) -> str:
     decomposed = unicodedata.normalize("NFD", text)
@@ -248,11 +278,12 @@ def strip_diacritics(text: str) -> str:
     return stripped.replace("đ", "d").replace("Đ", "D")
 
 
-def fill(template: str, vocab: dict, rng: random.Random, n: int) -> str:
+def fill(template: str, vocab: dict, rng: random.Random, n: int,
+         aspect_kw: str = "") -> str:
     text = template.format(
         thing=vocab["thing"], attr=vocab["attr"], action=vocab["action"],
         action_cap=vocab["action"].capitalize(), detail=vocab["detail"],
-        place=vocab["place"], n=n,
+        place=vocab["place"], n=n, aspect_kw=aspect_kw,
     )
     return text
 
@@ -270,6 +301,7 @@ def main() -> int:
     by_cluster: dict[str, list[dict]] = {}
     created = BASE_MS
     for cluster in CLUSTERS:
+        aspects = ASPECTS[cluster["lang"]]
         for subject in cluster["subjects"]:
             for i in range(10):
                 created += 43_200_000 // 10  # ~1.2h steps across the 30 days
@@ -277,18 +309,23 @@ def main() -> int:
                 expires = created + TTL_DAYS[importance] * 86_400_000
                 if expires <= NOW_MS:  # keep every semantic doc live at now_ms
                     expires = NOW_MS + TTL_DAYS[importance] * 86_400_000
-                summary = fill(rng.choice(
+                clause, _kw = aspects[i]
+                base_summary = fill(rng.choice(
                     EN_SUMMARY_T if cluster["lang"] == "en" else VI_SUMMARY_T
                 ), subject["vocab"], rng, 3 + i)
-                content = fill(rng.choice(
+                summary = f"{base_summary} — {clause}." if cluster["lang"] == "en" \
+                    else f"{base_summary} — {clause}."
+                base_content = fill(rng.choice(
                     EN_CONTENT_T if cluster["lang"] == "en" else VI_CONTENT_T
                 ), subject["vocab"], rng, 3 + i)
+                content = f"{base_content} ({clause})"
                 doc = {
                     "doc_id": f"{cluster['id']}:{subject['topic']}:{i:02d}",
                     "partition": "semantic",
                     "cluster_id": cluster["id"],
                     "lang": cluster["lang"],
                     "topic": subject["topic"],
+                    "aspect": clause,
                     "catalog": "note",
                     "summary": summary,
                     "content": content,
@@ -319,12 +356,17 @@ def main() -> int:
         for cluster, subject in subject_list:
             q_index += 1
             templs = templates_by_len[cluster["lang"]]
+            docs_same = by_subject[(cluster["id"], subject["topic"])]
+            target = docs_same[(q_index * 3) % len(docs_same)]
+            target_aspect_idx = int(target["doc_id"].rsplit(":", 1)[1])
+            aspect_kw = ASPECTS[cluster["lang"]][target_aspect_idx][1]
             # prefer the length whose bucket is least filled
             order = sorted(("short", "medium", "long"), key=lambda k: bucket_counts[bucket_of({
                 "short": 8, "medium": 32, "long": 85}[k])])
             text = None
             for length in order:
-                candidate = fill(templs[length][q_index % len(templs[length])], subject["vocab"], rng, 5)
+                candidate = fill(templs[length][q_index % len(templs[length])],
+                                 subject["vocab"], rng, 5, aspect_kw)
                 tokens = raw_tokens(candidate)
                 bucket = bucket_of(tokens)
                 if length == "long" and tokens > 107:
@@ -333,18 +375,22 @@ def main() -> int:
                     text, bucket_no = candidate, bucket
                     break
             if text is None:  # all buckets full for these lengths; force smallest
-                candidate = fill(templs["short"][q_index % len(templs["short"])], subject["vocab"], rng, 5)
+                candidate = fill(templs["short"][q_index % len(templs["short"])],
+                                 subject["vocab"], rng, 5, aspect_kw)
                 text = candidate
                 bucket_no = bucket_of(raw_tokens(candidate))
             bucket_counts[bucket_no] += 1
 
-            docs_same = by_subject[(cluster["id"], subject["topic"])]
-            target = docs_same[(q_index * 3) % len(docs_same)]
-            grade2 = docs_same[(q_index * 3 + 1) % len(docs_same)]
+            # judgments: grade 3 target + all 9 other same-subject docs graded
+            # 2 (x4) and 1 (x5) — the complete same-subject relevant set —
+            # plus 4 hard negatives (same cluster, different subjects, grade 0).
+            pool = [d for d in docs_same if d["doc_id"] != target["doc_id"]]
+            rng.shuffle(pool)
+            grade2 = pool[:4]
+            grade1 = pool[4:9]
             others = [d for d in by_cluster[cluster["id"]] if d["topic"] != subject["topic"]]
             rng.shuffle(others)
-            grade1 = others[0]
-            hard_negs = others[1:5]
+            hard_negs = others[:4]
 
             queries.append({
                 "query_id": f"q{q_index:03d}",
@@ -357,8 +403,8 @@ def main() -> int:
                 "no_diacritic": False,
                 "judgments": [
                     {"doc_id": target["doc_id"], "grade": 3},
-                    {"doc_id": grade2["doc_id"], "grade": 2},
-                    {"doc_id": grade1["doc_id"], "grade": 1},
+                    *[{"doc_id": d["doc_id"], "grade": 2} for d in grade2],
+                    *[{"doc_id": d["doc_id"], "grade": 1} for d in grade1],
                     *[{"doc_id": d["doc_id"], "grade": 0} for d in hard_negs],
                 ],
             })
@@ -499,7 +545,9 @@ def main() -> int:
         },
         "judgments": {
             "scale": "0..3",
-            "per_query": {"grade3": 1, "grade2": 1, "grade1": 1, "hard_negatives_grade0": 4},
+            "per_query": {"grade3": 1, "grade2": 4, "grade1": 5,
+                          "hard_negatives_grade0": 4,
+                          "note": "grades 1-3 cover ALL same-subject docs (complete relevant set); hard negatives are same-cluster different-subject; Recall@5 uses denominator min(5, |relevant|)"},
         },
         "models": {
             "q4": {"repo": Q4_REPO, "revision": Q4_REVISION, "files_sha256": Q4_FILES_SHA256},
