@@ -29,5 +29,5 @@ another-brain model pull # one-time pinned model download
 another-brain doctor     # verify install, model, and database
 ```
 
-Harnesses invoke the installed `another-brain` executable. Docker and Redis
-are not part of the install, runtime, or deployment model.
+Harnesses invoke the installed `another-brain` executable.
+Docker and Redis are not part of the install, runtime, or deployment model.

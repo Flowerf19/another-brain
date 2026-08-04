@@ -2,7 +2,7 @@ name: unit tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, v0.11.0]
   pull_request:
 
 jobs:
@@ -13,8 +13,6 @@ jobs:
       - uses: astral-sh/setup-uv@v9.0.0
         with:
           enable-cache: true
-      # No `--extra local`: unit tests never touch torch/sentence-transformers
-      # (those are lazy imports); keeps CI off the multi-GB torch download.
-      # Unit tests need no Redis — integration tests stay out of CI for now.
       - run: uv sync --locked
       - run: uv run pytest tests/unit
+      - run: scripts/check-clean-tree.sh

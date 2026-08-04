@@ -1,7 +1,7 @@
 # Deployment
 
 Another Brain deploys as a single installed executable — there is no server,
-container, compose stack, or external database to run.
+container, or external database to run.
 
 ```bash
 uv tool install another-brain

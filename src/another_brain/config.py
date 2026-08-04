@@ -1,4 +1,4 @@
-"""Redis-free runtime configuration (TASK-038/039).
+"""Embedded runtime configuration (TASK-038/039).
 
 Everything loads from environment via :meth:`AppConfig.from_env`; every
 inconsistency raises :class:`ConfigError` at startup, never later.

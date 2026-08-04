@@ -2,7 +2,7 @@
 
 These protocols are the locked contract between ``MemoryService`` and its
 dependencies. They exist for service isolation and unit tests — there is no
-backend selector, no Redis type, and no score encoding here.
+backend selector and no storage-vendor type or score encoding here.
 
 Locked semantics (master plan 07, "Runtime and identity flows"):
 
