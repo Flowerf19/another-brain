@@ -637,8 +637,8 @@ are fixed by the checksummed reference-machine manifest, not chosen per run.
 
 | ID | Task | Done | Date |
 |----|------|------|------|
-| TASK-005 | Build checksummed judged fixtures plus deterministic 1k/10k/50k/100k stores with realistic text/scope/importance/expiry/deletion distributions and recorded seeds; checksum `benchmarks/reference-machine.json` before performance evidence. | | |
-| TASK-006 | Benchmark regular-table `vec_distance_cosine`, forced NumPy fallback, and weighted FTS5 on the same stores; enforce the canonical candidate/order parity contract and emit ingest/DB-size/latency/extension evidence manifests. | | |
+| TASK-005 | Build checksummed judged fixtures plus deterministic 1k/10k/50k/100k stores with realistic text/scope/importance/expiry/deletion distributions and recorded seeds; checksum `benchmarks/reference-machine.json` before performance evidence. | ✅ | 2026-08-04 |
+| TASK-006 | Benchmark regular-table `vec_distance_cosine`, forced NumPy fallback, and weighted FTS5 on the same stores; enforce the canonical candidate/order parity contract and emit ingest/DB-size/latency/extension evidence manifests. **Partial 2026-08-04: diagnostic evidence done; full protocol + parity deferred to TASK-063.** | | |
 | TASK-007 | Implement the reusable spawned-process workload driver and allowed-outcome oracle using deterministic fake/precomputed embeddings; validate its barriers, seeds, crash and lock injection before applying it to the repository in TASK-055. | | |
 | TASK-008 | After GOAL-012, run the pinned `main` worktree oracle on the same judged fixtures, record Recall@5/MRR/nDCG@10 and intentional ranking differences, and enforce the locked embedded thresholds without adding Redis to `v0.11.0`. | | |
 
