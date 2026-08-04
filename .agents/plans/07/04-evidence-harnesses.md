@@ -1,5 +1,5 @@
 ---
-status: draft
+status: in-progress
 created: 2026-08-04
 last_updated: 2026-08-04
 parent: .agents/plans/07-multiplatform-embedded-runtime.md
@@ -20,7 +20,7 @@ acceptance criteria, not adjustable in test code.
 
 | ID | Task | Done | Date |
 |----|------|------|------|
-| TASK-001 | Create isolated `spikes/fp32/` project (own `pyproject.toml`, frozen `uv.lock`, Python 3.12 CPU) with locked fp32 revision `31de22b673913c7d658c0f03f792d77c2dcf8ebd` and `model.safetensors` SHA-256 `90933b68...cb51a`; compare against raw ONNX q4 using each profile's pinned tokenizer, direct `sentence_embedding`, query-only prompt. Not a workspace member, not in root lock/wheel. | | |
+| TASK-001 | Create isolated `spikes/fp32/` project (own `pyproject.toml`, frozen `uv.lock`, Python 3.12 CPU) with locked fp32 revision `31de22b673913c7d658c0f03f792d77c2dcf8ebd` and `model.safetensors` SHA-256 `90933b68...cb51a`; compare against raw ONNX q4 using each profile's pinned tokenizer, direct `sentence_embedding`, query-only prompt. Not a workspace member, not in root lock/wheel. | ✅ | 2026-08-04 |
 | TASK-002 | Build and checksum the `embedding-quality-v1` corpus: 600 documents, 120 judged queries (60 VI / 60 EN; 40 per token bucket 1–16/17–64/65–128; 20 VI no-diacritic), graded 0..3 with ≥1 relevant + 4 hard negatives per query, plus the 24-case behavior partition (12 content-only identifiers, 6 punctuation-only, 6 expired/deleted starvation). Manifest records all locked hashes/versions/seeds. | | |
 | TASK-003 | Emit reproducible evidence manifest + raw samples for cosine(q4,fp32), Recall@5, MRR, nDCG@10, cold/warm latency by token bucket, steady/peak RSS, one-/two-process PSS per the manifest schema (run ID, UTC, commit/dirty hash, command, environment, versions+hashes, PRAGMAs, thresholds, per-threshold result). | | |
 | TASK-004 | Enforce every Q4 threshold (median cosine ≥0.99, p5 ≥0.97; macro Recall@5 ≥0.90, MRR ≥0.80, nDCG@10 ≥0.85; q4≤fp32 deltas 0.02/0.03; 24/24 behavior; resource budgets). On failure: stop or record an approved plan revision. | | |

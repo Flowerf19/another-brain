@@ -613,7 +613,7 @@ are fixed by the checksummed reference-machine manifest, not chosen per run.
 
 | ID | Task | Done | Date |
 |----|------|------|------|
-| TASK-001 | Create isolated `spikes/fp32/` project with frozen dependencies and the locked fp32 revision/model hash; compare it to raw ONNX q4 using each profile's pinned tokenizer, direct `sentence_embedding`, and query-only prompt. | | |
+| TASK-001 | Create isolated `spikes/fp32/` project with frozen dependencies and the locked fp32 revision/model hash; compare it to raw ONNX q4 using each profile's pinned tokenizer, direct `sentence_embedding`, and query-only prompt. | ✅ | 2026-08-04 |
 | TASK-002 | Build and checksum `embedding-quality-v1` exactly as specified in the Q4 gate, including judged Vietnamese/English partitions and all 24 behavior cases. | | |
 | TASK-003 | Emit the reproducible evidence manifest and raw samples for cosine(q4, fp32), Recall@5, MRR, nDCG@10, cold/warm latency by token bucket, steady/peak RSS, and one-/two-process PSS. | | |
 | TASK-004 | Enforce every Q4 quality/resource threshold above; on failure stop or record an approved plan revision, never silently change precision or lower a gate. | | |
