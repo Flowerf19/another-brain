@@ -46,3 +46,8 @@ before tool dispatch, never wildcard fallback.
 - HTTP remains optional and unauthenticated; stdio is the supported default.
 - `brain_id` comes from process config, `agent_id` from the MCP handshake;
   neither is a tool argument.
+- Service open verifies the active embedding profile (from the manifest)
+  against the `embedding_profiles` row. This is the "and profile" half of the
+  locked normal-open contract (master plan, connection behavior 2) that
+  `verify_schema()` deliberately does not own — `verify_schema()` cannot know
+  the expected active profile; wire it in TASK-067.
