@@ -247,13 +247,13 @@ Final results expose branch evidence but never embeddings.
 
 ```text
 src/another_brain/
-  cli.py, app.py, config.py
-  domain/       models and retention
-  embedding/    manifest, installer, provider, payload, budgets
-  services/sql/       connection, schema, memory repository, audit (GOAL-011)
-  services/embedding/  payloads, budgets, ONNX provider (GOAL-005/010)
-  retrieval/    safe query, lexical, vector, fusion, orchestration
-  mcp/          tools and transports
+  cli.py, config.py, protocols.py, errors.py
+  domain/               models and retention
+  services/sql/         connection, schema, memory repository, audit (GOAL-011)
+  services/embedding/   payloads, budgets, ONNX provider (GOAL-005/010)
+  model_manifest.py     immutable model contract (installer + provider)
+  retrieval/            safe query, lexical, vector, fusion, orchestration
+  mcp/                  tools and transports
 ```
 
 Protocols isolate the service for tests; they are not a plugin/backend system:
