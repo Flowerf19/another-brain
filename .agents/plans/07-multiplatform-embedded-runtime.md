@@ -1,7 +1,7 @@
 ---
 status: in-progress
 created: 2026-07-29
-last_updated: 2026-07-31
+last_updated: 2026-08-04
 ---
 
 # Plan 07 — Clean embedded rebuild (remove Docker, Redis, and Torch)
@@ -20,6 +20,12 @@ or Redis dependency. The target stack is:
 - raw ONNX Runtime CPU + Hugging Face `tokenizers`;
 - pinned Harrier OSS v1 270M ordinary q4 weights;
 - MCP stdio as the default transport and a packaged `another-brain` executable.
+
+The plan uses ten small Mermaid diagrams rather than one dense graph: runtime,
+identity dispatch, guidance layering, SQLite connection modes, retrieval,
+execution dependencies, Q4 evidence, concurrency, HTTP security, and migration
+cutover. Each diagram is placed beside the contract it explains so the
+document can be read side by side without a separate call graph.
 
 ### Replacement strategy — use `main` as the external oracle, delete early
 
@@ -68,42 +74,138 @@ pure lexical candidates do not need to pass the vector cosine floor.
 3. **Vector retrieval** — one normalized FLOAT32[640] vector per memory,
    searched exactly with `vec_distance_cosine`; NumPy is the compatibility
    fallback.
-4. **Fusion** — equal-weight two-branch RRF with `k=60`; vector candidates must
-   meet cosine `>=0.30`, while lexical candidates remain eligible without a
-   cosine gate. Final ordering is deterministic.
+4. **Fusion** — equal-weight two-branch RRF with `k=60`; search `top_k=5`
+   and `candidate_limit=50` per branch are fixed product contracts for the MVP.
+   Vector candidates must meet cosine `>=0.30`, while lexical candidates remain
+   eligible without a cosine gate. Final ordering is deterministic. RRF `k=60`
+   remains an independent score-smoothing constant.
 5. **Embedding runtime** — raw `onnxruntime` CPUExecutionProvider plus
    `tokenizers`; the ONNX graph already returns normalized
    `sentence_embedding [batch, 640]`.
-6. **Model artifact** — q4 at immutable ONNX-community revision
-   `d59c919d0159aea2c19ed7d04288fcdd048d0f9c`. Required pair and SHA-256:
+6. **Model artifact** — repository
+   `onnx-community/harrier-oss-v1-270m-ONNX` at immutable revision
+   `d59c919d0159aea2c19ed7d04288fcdd048d0f9c`. Required files and SHA-256:
    - `onnx/model_q4.onnx` —
      `228dca2603b907d673dd99cf89c309c0ca68baeed127416a5e027a48e62b0f49`
    - `onnx/model_q4.onnx_data` —
      `b5a15487360f5341659480ae4b5ad60028d5f865bd329196ec8d5708bbed3118`
-7. **Document payload** — exactly one unprompted embedding from
-   `topic.replace("-", " ") + "\n" + summary.strip()`. `content` is
-   lexical-only; catalog, metadata, scope, time, and importance are
-   filters/provenance.
-8. **Topic contract** — a stable retrieval subject reusable by related diary
-   entries. Count the humanized slug without special tokens; target 3–8
-   Harrier tokens, hard maximum 12. Do not duplicate catalog, use transient
-   workflow labels, or stuff keywords.
+   - `config.json` —
+     `5366f9919a82aaeceb6707bf218c5769f414d60f5dbaf781fa07e5465487fd7c`
+   - `tokenizer.json` —
+     `ec95be298bea26f90370854faa650744c9fb0a04ca5e5ff95dd3913393ac5e45`
+   - `tokenizer_config.json` —
+     `135405f3479eaebc473e2e78593f2195c7598948a215ee748758def426b30f59`
+7. **Input payload v2** — documents use exactly
+   `topic.replace("-", " ") + "\n" + summary.strip()` with no prompt. Queries
+   use exactly `QUERY_PROMPT + query.strip()`, where `QUERY_PROMPT` is
+   `"Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery: "`
+   (UTF-8 SHA-256
+   `df4b2898bf22e00bacddddd489243a3f8793730e38b842ec10161cebd94d36d6`).
+   Empty stripped queries are rejected. `content` is lexical-only; catalog,
+   metadata, scope, time, and importance are filters/provenance.
+8. **Topic contract** — a lowercase-kebab stable retrieval subject reusable by
+   related diary entries. Count the humanized slug without special tokens;
+   target 3–8 Harrier tokens, hard maximum 12. Do not duplicate catalog, use
+   transient workflow labels, or stuff keywords.
 9. **Token budgets** — count with the pinned Harrier tokenizer only:
    - humanized topic: max 12, no special tokens;
    - final topic+summary document: max 256, including special tokens;
    - final query-prompt+query: max 128, including special tokens;
    - lexical-only content: max 1,024, no special tokens.
    Reject over-limit input with actual/allowed counts; never truncate or chunk.
-10. **Durable lifecycle** — persist `expires_at`; every read and both retrieval
-    branches exclude `expires_at <= now` and `deleted_at IS NOT NULL` before
-    branch limits. Reinforce and restore re-arm retention transactionally.
+10. **Durable lifecycle** — persist `expires_at`; importance 5..1 maps to
+    365/180/90/30/7 days. Every live read and both retrieval branches exclude
+    `expires_at <= now` and `deleted_at IS NOT NULL` before limits. Forget sets
+    `deleted_at` and `expires_at=min(current_expires_at, now+30 days)`; it never
+    extends life. Reinforce and restore re-arm from importance transactionally.
 11. **Concurrency** — independent stdio processes share one SQLite file through
     WAL, `busy_timeout`, bounded write retries, short transactions, and locked
     schema/model installation.
 12. **Install contract** — `[project.scripts] another-brain =
     "another_brain.cli:main"`; `uv tool install another-brain`, then invoke the
     installed `another-brain` executable. Harness configs do not use unpinned
-    `uvx`.
+    `uvx`. In stdio mode stdout is reserved exclusively for MCP frames; logs,
+    progress, and diagnostics go to stderr.
+13. **SDK/package line** — use Python MCP SDK `mcp>=2.0,<2.1` and its
+    `MCPServer`/Streamable HTTP APIs, not the pre-2.0 in-SDK `FastMCP` surface.
+    Use a Hatchling src-layout build; dependency ranges are locked in TASK-037
+    and exact versions in `uv.lock`.
+14. **Audit** — persist only mutation structure, never topic/summary/content or
+    metadata. Retain events for 90 days by `event_at`; cleanup is bounded and
+    best effort and cannot roll back an already committed memory mutation.
+
+### Runtime and identity flows
+
+```mermaid
+flowchart LR
+    Host["MCP host / agent"] --> Transport["stdio default<br/>loopback HTTP optional"]
+    Transport --> Tools["Eight brain_* tools"]
+    Tools --> Service["MemoryService"]
+    Service --> Embed["Harrier q4<br/>ONNX Runtime CPU"]
+    Service --> Repo["SQLite repository"]
+    Service --> Retrieve["FTS5 + exact vector + RRF"]
+    Repo --> DB[("brain.sqlite3")]
+    Retrieve --> DB
+```
+
+`brain_id` is always bound from process configuration and `agent_id` from the
+MCP handshake; neither is accepted as a tool argument. The stable tool names
+are `brain_remember`, `brain_search`, `brain_recent`, `brain_get`,
+`brain_reinforce`, `brain_forget`, `brain_health`, and `brain_audit`.
+Collection operations normalize one scope tuple `(brain_id, scope, scope_id)`:
+`scope_id` is non-empty
+for `user` and `project`, while `global` canonicalizes to the literal `global`
+and rejects conflicting values.
+
+Public IDs are unique per brain with `UNIQUE(brain_id, memory_id)`. The stable
+by-ID tools `brain_get`, `brain_reinforce`, and `brain_forget`, plus admin
+restore/hard-delete, intentionally keep a `memory_id`-only public signature.
+Their repository key is `(bound brain_id, memory_id)`; scope is read from the
+matched row and is never trusted from the caller. An ID that exists only in a
+different brain returns the same `not_found` shape as an unknown ID. Live by-ID
+reads exclude expired/deleted rows; restore may address a soft-deleted row still
+inside its grace window, and hard-delete may address a live or soft-deleted row.
+Audit day reads are keyed by `(brain_id, day)`, not scope.
+
+### Guidance without a mandatory skill
+
+Core correctness never depends on installing `skills/another-brain/SKILL.md`.
+The server owns validation and actionable errors; concise MCP server
+instructions teach the global search/get/reinforce/forget loop; each tool and
+input field has a self-contained description sufficient for a client that only
+exposes `initialize` and `tools/list`. Clients may ignore server instructions,
+so a correctness-relevant rule must live in validation and the relevant tool
+schema/description rather than instructions alone.
+
+The skill remains an optional 100–200-word behavior adapter. It contains only
+proactive activation guidance, mechanical project `scope_id` derivation, the
+claims-not-facts stance, and the close-the-loop policy. It does not duplicate
+token budgets, storage/retrieval internals, TTL tables, or tool schemas. A host
+with no installed skill must still complete remember → search → get → reinforce
+or forget correctly; the only lost behavior may be proactive search timing.
+
+```mermaid
+flowchart TD
+    Init["MCP initialize"] --> Instructions["Concise server instructions"]
+    Tools["tools/list"] --> Descriptions["Tool + field descriptions"]
+    Instructions --> Model["LLM chooses a tool"]
+    Descriptions --> Model
+    Skill["Optional thin skill<br/>activation + project convention"] -.-> Model
+    Model --> Validate["Server validation<br/>source of truth"]
+    Validate -->|valid| Execute["Execute memory operation"]
+    Validate -->|invalid| Error["Actionable actual/allowed error"]
+```
+
+```mermaid
+flowchart TD
+    Op{"Operation kind"}
+    Op -->|remember/search/recent| Scope["Normalize scope tuple"]
+    Scope --> Scoped["Query by brain + scope + scope_id"]
+    Op -->|get/reinforce/forget/admin| Id["Use bound brain + memory_id"]
+    Id --> Row{"Matching row?"}
+    Row -->|yes| Stored["Use scope stored on row"]
+    Row -->|no / other brain| Missing["Return not_found"]
+```
 
 ### Target module boundaries
 
@@ -134,7 +236,7 @@ src/another_brain/
     service.py                   hybrid orchestration
   mcp/
     tools.py                     stable brain_* tool surface
-    server.py                    stdio and optional localhost HTTP
+    server.py                    stdio and optional loopback HTTP
 ```
 
 Protocols exist for service isolation and unit tests, not backend selection:
@@ -159,7 +261,44 @@ One database file (`brain.sqlite3`) contains:
   record version;
 - external-content `memory_fts(topic, summary, content)` with insert/delete/
   update triggers;
+- `import_runs(export_id, artifact_sha256, format_version, status,
+  last_committed_seq, imported_count, skipped_count, failed_count, started_at,
+  completed_at)` for durable JSONL resume checkpoints;
 - `audit_events` containing structural mutation facts and no memory text.
+
+All timestamps are signed INTEGER Unix epoch milliseconds; `timeline_day` is
+`YYYY-MM-DD` in configured timezone. Schema v1 locks these columns and checks:
+
+- `schema_migrations`: integer `version` primary key, SHA-256 `checksum`,
+  `applied_at`;
+- `embedding_profiles`: text `profile_id` primary key, model/source/artifact
+  revisions, variant, dimension, dtype, normalized flag, tokenizer/config/prompt
+  hashes, query prompt, input version, and `created_at`; the active contract is
+  dimension 640, `float32-le`, normalized, input version 2;
+- `memories`: integer `row_id` primary key; text `memory_id`, `brain_id`,
+  `agent_id`, `scope`, `scope_id`, topic/catalog/summary/content; timeline and
+  period timestamps; importance, expiry/deletion, metadata JSON, profile FK,
+  embedding BLOB, and positive `record_version`. Enforce scope in
+  `user|project|global`, canonical global `scope_id`, importance 1..5,
+  non-empty identity/text fields, valid JSON object metadata, ordered period,
+  `updated_at>=created_at`, `UNIQUE(brain_id,memory_id)`, and 2,560-byte BLOB;
+- `audit_events`: text `event_id` primary key, `brain_id`, `memory_id`, acting
+  `agent_id`, allowed mutation `action`, INTEGER `event_at`, text
+  `timeline_day`, and valid object `detail_json`; intentionally no memory FK so
+  hard-delete and skipped expired imports preserve audit history;
+- `import_runs`: UUID `export_id` primary key, unique artifact SHA-256, format
+  version, status in `running|completed|failed`, last committed sequence,
+  non-negative counters, and start/completion timestamps.
+
+`memory_fts` is FTS5 external content over `memories(row_id)` with
+`unicode61 remove_diacritics 2`; insert/update/delete triggers mirror every
+persisted memory row. Live/scope filtering therefore occurs in the mandatory
+join, not by deleting soft-deleted/expired rows from FTS. Required indexes are
+the unique by-ID key; scoped recent/topic/catalog indexes carrying deletion and
+expiry; an expiry purge index; a deleted-grace index; and
+`audit_events(brain_id,timeline_day,event_at DESC,event_id ASC)`. Recent ordering
+is `created_at DESC,memory_id ASC`; audit day ordering is
+`event_at DESC,event_id ASC`.
 
 `memories.embedding` is little-endian FLOAT32 and has
 `CHECK(length(embedding)=2560)`. The active embedding profile is q4,
@@ -167,36 +306,83 @@ One database file (`brain.sqlite3`) contains:
 model, precision, dimension, tokenizer, prompt, or document payload is an
 explicit migration and re-embedding operation.
 
-Connection policy for every connection:
+Connection behavior is split by privilege and database state:
 
-```text
-foreign_keys = ON
-journal_mode = WAL
-synchronous = NORMAL
-busy_timeout = 5000 ms
-page_size = 16384 (set before first schema creation)
+1. **Bootstrap/schema writer** — hold the cross-process schema lock; open
+   read/write in autocommit mode; set `busy_timeout=5000` and
+   `foreign_keys=ON`; on a fresh database (`page_count=0`) set and verify
+   `page_size=16384` before creating the first object; then set and verify WAL
+   and `synchronous=NORMAL`. A non-empty database with the wrong page size
+   fails fast rather than running an implicit `VACUUM`. Load sqlite-vec only
+   through a narrow enable-load-disable window, then run checksummed migrations.
+2. **Normal read/write** — set connection-local `foreign_keys=ON`,
+   `busy_timeout=5000`, and `synchronous=NORMAL`; verify WAL, page size, schema,
+   and profile. Load sqlite-vec per connection or record NumPy fallback. Writes
+   use short `BEGIN IMMEDIATE` transactions. Retry the whole transaction only
+   for `SQLITE_BUSY`/`SQLITE_LOCKED`, rolling back before bounded exponential
+   backoff with jitter; validation and integrity failures are never retried.
+3. **Read-only** — open URI `mode=ro`, set `query_only=ON`,
+   `foreign_keys=ON`, and `busy_timeout=5000`; inspect but do not mutate journal
+   mode, page size, schema, or profile. Do not migrate, purge, or create. Try the
+   scalar extension only where the driver permits it; otherwise use NumPy.
+
+No flow performs model inference, tokenization, or network I/O inside a
+transaction. Every connection is process-local, context-managed, and closed in
+a `finally` path.
+
+```mermaid
+flowchart TD
+    Open{"Open mode"}
+    Open -->|fresh writer| Boot["Lock schema<br/>page size first"]
+    Boot --> Wal["Enable WAL<br/>run migrations"]
+    Open -->|normal read/write| RW["Set local PRAGMAs<br/>verify DB invariants"]
+    RW --> Tx["Short BEGIN IMMEDIATE<br/>bounded busy retry"]
+    Open -->|read-only| RO["mode=ro + query_only<br/>inspect, never migrate"]
+    Wal --> Ready["sqlite-vec or NumPy capability"]
+    Tx --> Ready
+    RO --> Ready
 ```
-
-Writes use `BEGIN IMMEDIATE`, bounded exponential backoff with jitter for
-`SQLITE_BUSY`, and no model inference or network I/O inside a transaction.
 
 ### Retrieval contract
 
-For configured `top_k`, each branch requests
-`candidate_limit = min(max(4 * top_k, 40), 200)` after mandatory scope,
-brain, expiry, and deletion filters.
+For fixed `top_k=5`, each branch requests fixed `candidate_limit=50` after
+mandatory scope, brain, expiry, and deletion filters.
 
 - Lexical: safe OR query over tokenizer-compatible terms, FTS5 BM25 ascending,
-  field weights topic=5, summary=3, content=1.
+  field weights topic=5, summary=3, content=1, ties by `memory_id ASC`.
 - Vector: exact cosine distance ascending; discard candidates below cosine
-  0.30 before fusion.
-- Fusion: `1 / (60 + rank)` from each branch, equal branch weights; a document
-  present in both receives both contributions.
+  0.30 before one-based candidate rank.
+- Fusion: `1 / (60 + rank)` for one-based rank from each branch, equal branch
+  weights; a document present in both receives both contributions.
 - Lexical-only candidates remain valid. This is the deliberate fix for the
   current content-match/cosine-gate bug.
 - Stable tie break: fused score descending, branch count descending, best
   branch rank ascending, then `memory_id` ascending.
 - A query with no safe lexical terms uses vector retrieval only.
+
+For cross-platform parity, both vector adapters return finite FLOAT32 cosine.
+Diagnostics allow `abs(sqlite_vec_score - numpy_score) <= 1e-6` with zero
+relative tolerance. Both adapters are canonicalized in the app layer as integer
+micro-cosine `cosine_key = round(float(score) * 1_000_000)` using Python's
+half-even `round`; candidates pass when `cosine_key >= 300000`, and each vector
+branch sorts by `cosine_key DESC, memory_id ASC`. The parity gate requires exact
+candidate IDs, order, branch ranks, and final RRF output; it does not require
+bit-identical raw floats. Fixtures cover `0.299998`, `0.300000`, `0.300002`,
+equal-score ties, malformed/non-finite embeddings, and rounding-boundary gaps.
+
+```mermaid
+flowchart LR
+    Query["Bounded query"] --> Terms{"Safe FTS terms?"}
+    Terms -->|yes| Lex["FTS5 BM25<br/>live scoped candidates"]
+    Terms -->|no| Skip["Skip lexical branch"]
+    Query --> Vec["Exact cosine<br/>sqlite-vec or NumPy"]
+    Vec --> Floor{"cosine_key >= 300000"}
+    Lex --> Fuse["Equal RRF k=60"]
+    Floor -->|yes| Fuse
+    Floor -->|no| Drop["Discard vector candidate"]
+    Skip --> Fuse
+    Fuse --> Stable["Deterministic top-k"]
+```
 
 ## Success criteria
 
@@ -206,22 +392,27 @@ brain, expiry, and deletion filters.
 2. Bare `another-brain` starts MCP stdio; a fresh profile performs remember →
    search → get → reinforce → forget without Docker, Redis, Torch, or network
    access after model installation.
-3. Core dependencies are limited to MCP, ONNX Runtime, Tokenizers, NumPy,
-   `platformdirs`, `sqlite-vec`, and a small cross-platform file-lock package.
+3. Direct runtime dependencies are limited to MCP, ONNX Runtime, Tokenizers,
+   NumPy, `platformdirs`, `sqlite-vec`, and `filelock`; forbidden families are
+   absent from the complete transitive graph.
 4. Core source/config/tests/scripts/product docs have no Redis or Docker
    runtime path. Historical architecture plans may retain clearly marked
    superseded context.
 5. Exact identifiers found only in `content` are retrievable through FTS5 even
    when topic+summary cosine is below 0.30; irrelevant vector-only hits below
-   0.30 remain excluded.
+   0.30 remain excluded. sqlite-vec and NumPy satisfy the canonical score/order
+   parity contract below.
 6. Expired and soft-deleted rows never surface from get/recent/lexical/vector
    retrieval, including immediately after restart and under concurrent access.
-7. Two independent processes can remember/search/reinforce/forget against the
-   same database without corruption, lost writes, duplicate migrations, or
-   unhandled `SQLITE_BUSY` in the accepted workload.
+7. Independent processes satisfy the accepted concurrency workload below with
+   no corruption, lost acknowledged writes, duplicate migrations, or unhandled
+   `SQLITE_BUSY`; the deliberate busy-exhaustion probe returns a typed bounded
+   error instead of hanging.
 8. Redis JSONL migration preserves IDs, identity, timestamps, metadata,
-   remaining TTL, soft-delete state, and audit facts; imports are resumable and
-   idempotent. Embeddings are recomputed under input version 2.
+   absolute expiry, soft-delete state, and audit facts for every unexpired
+   record; already expired memories are deterministically skipped while their
+   audit facts remain importable. Imports are resumable/idempotent and
+   embeddings are recomputed under input version 2.
 9. Provisional resource gates on the reference x86_64 machine:
    - clean installed environment plus q4 model/tokenizer: <=450 MiB disk;
    - one loaded short-input embedding process: <=500 MiB steady RSS;
@@ -231,23 +422,170 @@ brain, expiry, and deletion filters.
    - 100k vector retrieval p95: <=150 ms.
 10. Architecture source-of-truth, README, tool descriptions, testing guide,
     examples, and harness connectors describe only the final embedded runtime.
+11. A clean MCP client with no Another Brain skill installed receives concise
+    server instructions and self-contained tool schemas, then completes the
+    remember → search → get → reinforce/forget flow; installing the optional
+    thin skill changes proactive behavior only, never correctness.
 
 ### Execution order
 
 GOAL numbers and task IDs are append-only, so execution order is explicit:
 
 ```text
-GOAL-008  contracts + external main oracle
-GOAL-009  final package shell
-GOAL-015  early destructive cleanup on v0.11.0
-GOAL-001/002  quality and storage evidence (may run in parallel)
-GOAL-005/010  embedding subsystem
-GOAL-011  SQLite/lifecycle/audit
-GOAL-012  lexical/vector/RRF retrieval
-GOAL-013  service/MCP vertical slice
-GOAL-014  JSONL import and cutover
-GOAL-016  platform/release gate
+GOAL-008             contracts + external main oracle
+GOAL-009             final package shell
+GOAL-015             early destructive cleanup on v0.11.0
+GOAL-001             q4 quality/resource evidence
+GOAL-002 TASK-005..007  reusable data/benchmark/concurrency harnesses
+GOAL-005/010         embedding subsystem
+GOAL-011             SQLite/lifecycle/audit
+GOAL-012             lexical/vector/RRF retrieval gate
+GOAL-002 TASK-008    final external-oracle comparison
+GOAL-013             service/MCP vertical slice
+GOAL-014             JSONL import and cutover
+GOAL-016             platform/release gate
 ```
+
+TASK-007 builds and validates the reusable process harness with deterministic
+fake/precomputed embeddings; TASK-055 applies it to the real repository after
+GOAL-011. TASK-008 runs only after GOAL-012 can produce final retrieval output.
+The JSONL v1 contract is approved in TASK-033 before either side is coded.
+GOAL-015 removes Redis from the clean branch without waiting for exporter code:
+the exporter is later built and run only in the pinned external `main`
+worktree/maintenance release. A validated final export artifact must exist
+before GOAL-014 cutover.
+
+```mermaid
+flowchart TD
+    G8["GOAL-008<br/>contracts + fixtures"] --> G9["GOAL-009<br/>package shell"]
+    G9 --> G15["GOAL-015<br/>clean branch deletion"]
+    G15 --> Evidence["GOAL-001 + GOAL-002 harnesses<br/>quality/storage evidence"]
+    Evidence --> Embed["GOAL-005 + GOAL-010<br/>embedding"]
+    Embed --> Store["GOAL-011<br/>SQLite"]
+    Store --> Retrieval["GOAL-012<br/>retrieval gate"]
+    Retrieval --> Oracle["TASK-008<br/>external oracle comparison"]
+    Oracle --> Service["GOAL-013<br/>service + MCP"]
+    Service --> Import["GOAL-014<br/>import + cutover"]
+    Import --> Release["GOAL-016<br/>platform release"]
+    G8 -. shared JSONL v1 .-> Export["external main<br/>exporter"]
+    Export -. validated artifact .-> Import
+```
+
+### Verification contracts
+
+These contracts are mandatory acceptance criteria for their referenced tasks;
+they do not introduce additional subsystems or change the append-only IDs.
+
+#### Q4 quality corpus and gate — TASK-001..004
+
+The versioned `embedding-quality-v1` corpus contains 600 memory documents and
+120 judged semantic queries: 60 Vietnamese and 60 English. Prompted query token
+buckets contain 40 queries each at 1–16, 17–64, and 65–128 Harrier tokens;
+20 Vietnamese queries are no-diacritic variants. Relevance is graded 0..3,
+each query has at least one relevant document and four judged hard negatives.
+A separate 24-case behavior partition has 12 content-only identifiers, six
+punctuation-only queries, and six expired/deleted starvation cases.
+
+The corpus manifest records schema/corpus version and SHA-256, source/license,
+row counts and partitions, judgments, deterministic seed/generator commit,
+q4 and fp32 model revisions/hashes, tokenizer/config/prompt hashes, and payload
+input version. A missing field or hash mismatch invalidates the run.
+
+Initial release thresholds are:
+
+- paired cosine(q4, fp32): median `>=0.99`, fifth percentile `>=0.97`;
+- q4 macro `Recall@5 >=0.90`, `MRR >=0.80`, `nDCG@10 >=0.85`;
+- q4 may trail fp32 by at most `0.02` on each aggregate metric and `0.03`
+  within either language partition;
+- all 24 behavioral cases pass;
+- all resource budgets in Success criterion 9 pass.
+
+A failed threshold requires recorded evidence and an approved plan revision; it
+must not silently lower the gate or choose another precision. The fp32 oracle is
+`microsoft/harrier-oss-v1-270m` revision
+`31de22b673913c7d658c0f03f792d77c2dcf8ebd`; required
+`model.safetensors` SHA-256 is
+`90933b6826b61afd9331e0ebe3c0598b421a32eda5fb301a114fe36f306cb51a`.
+It runs only from a standalone Python 3.12 CPU project under `spikes/fp32/`
+with its own `pyproject.toml` and frozen `uv.lock`. Each profile uses its own
+pinned tokenizer, so measured parity includes tokenizer-conversion differences.
+The spike is not a root workspace member, dependency, wheel input, or root-lock
+entry.
+
+```mermaid
+flowchart LR
+    Manifest["embedding-quality-v1<br/>manifest + hashes"] --> FP32["Isolated fp32 oracle"]
+    Manifest --> Q4["Pinned q4 target"]
+    FP32 --> Compare["Cosine + quality delta"]
+    Q4 --> Compare
+    Q4 --> Resource["Latency + RSS + disk"]
+    Compare --> Gate{"All thresholds pass?"}
+    Resource --> Gate
+    Gate -->|yes| Accept["Record valid evidence"]
+    Gate -->|no| Revise["Stop or approve plan revision"]
+```
+
+#### Accepted concurrency workload — TASK-007/055/063/075
+
+- **Fresh-open storm:** eight spawned processes synchronize at a barrier and
+  open one absent database; run five deterministic seeds. Exactly one schema
+  version/checksum results and every process exits within 30 seconds.
+- **Mixed WAL workload:** preseed 500 rows, then run four spawned processes for
+  500 operations each. Two writers use 40% remember, 25% reinforce, 20%
+  forget, 15% restore; two readers use 60% search, 25% recent, 15% get. Fifty
+  shared hot IDs create contention. Run five seeds with sqlite-vec and forced
+  NumPy modes.
+- **Crash probe:** kill one writer at an injected post-`BEGIN` barrier, reopen,
+  and complete another mixed workload.
+- **Busy-exhaustion probe:** hold an external write lock longer than the retry
+  envelope; the operation returns the typed busy-exhausted error within its
+  bounded deadline. This expected error is separate from the zero-unhandled-
+  busy requirement in the accepted mixed workload.
+
+After every run: `PRAGMA integrity_check` is `ok`, `foreign_key_check` is empty,
+FTS rowids/content match all persisted memory rows and filtered searches exclude
+non-live rows, acknowledged remembers are unique, migrations are not duplicated,
+restart can read/write, and race outcomes belong to the fixture's allowed
+serializable outcomes.
+
+```mermaid
+flowchart LR
+    Barrier["Spawn barrier"] --> Open["8-process fresh open"]
+    Barrier --> Mixed["2 writers + 2 readers"]
+    Mixed --> Crash["Injected writer crash"]
+    Mixed --> Busy["Busy exhaustion probe"]
+    Open --> Check["Schema + integrity checks"]
+    Crash --> Check
+    Busy --> Check
+```
+
+#### Reproducible evidence manifest — TASK-003/006/063/087/090
+
+Every quality/resource/retrieval run emits a machine-readable manifest with a
+run ID, UTC time, git commit/dirty diff hash, exact command, warmup/sample counts,
+timeouts and concurrency; OS/kernel/architecture, CPU/core/RAM/power mode;
+Python/SQLite/sqlite-vec/NumPy/ONNX Runtime/Tokenizers/MCP versions and binary
+hashes; model/tokenizer/profile hashes; corpus/generator seed and row counts;
+DB PRAGMAs, extension/fallback mode, cold/warm cache procedure, raw-sample
+artifact, thresholds, and per-threshold result. Missing required fields,
+unrecorded dirty state, or mismatched corpus/model hashes invalidate evidence.
+Correctness runs on every required platform. Before the first performance run,
+TASK-005 writes and checksums `benchmarks/reference-machine.json`; the first
+approved manifest hash designates the x86_64 reference machine (CPU, RAM, OS,
+power/thread settings and cache-reset procedure). Later performance evidence
+must match that hash or be an explicitly approved replacement. Reference-machine
+performance is accepted only with this manifest.
+
+Minimum protocol: embedding latency uses batch size 1 with 50 warmups and 500
+measured calls per token bucket; cold load uses 10 fresh processes. Retrieval
+uses `top_k=5`, 100 warmups and 1,000 measured invocations drawn
+reproducibly from the judged queries (repetition allowed) at each store
+size/mode. Run five deterministic repetitions, retain every raw sample, and
+report pooled plus per-run p50/p95/p99. RSS is sampled through the 500-call run
+and reported after warmup plus peak; Linux two-process PSS is additionally
+reported. Disk is measured from a clean installed environment and verified
+model cache. ORT thread counts, CPU affinity, power mode, and cache-reset steps
+are fixed by the checksummed reference-machine manifest, not chosen per run.
 
 ## Tasks
 
@@ -255,19 +593,19 @@ GOAL-016  platform/release gate
 
 | ID | Task | Done | Date |
 |----|------|------|------|
-| TASK-001 | Add `spikes/embedding_parity.py` using current ST+torch fp32 only as an evaluation reference and raw ONNX Runtime q4 as the target; consume graph `sentence_embedding` directly and use the pinned query prompt only for queries. | | |
-| TASK-002 | Build judged Vietnamese/English query-memory pairs using version-2 topic+summary documents, no-diacritic queries, short/long inputs, exact identifiers in lexical-only content, and punctuation-only queries. | | |
-| TASK-003 | Record cosine(q4, fp32), Recall@5, MRR, nDCG@10, cold/warm latency by token bucket, steady/peak RSS, and one-/two-process PSS. | | |
-| TASK-004 | Fail the release gate if q4 retrieval quality or resource criteria above fail; do not silently switch precision by hardware. Record evidence in this plan. | | |
+| TASK-001 | Create isolated `spikes/fp32/` project with frozen dependencies and the locked fp32 revision/model hash; compare it to raw ONNX q4 using each profile's pinned tokenizer, direct `sentence_embedding`, and query-only prompt. | | |
+| TASK-002 | Build and checksum `embedding-quality-v1` exactly as specified in the Q4 gate, including judged Vietnamese/English partitions and all 24 behavior cases. | | |
+| TASK-003 | Emit the reproducible evidence manifest and raw samples for cosine(q4, fp32), Recall@5, MRR, nDCG@10, cold/warm latency by token bucket, steady/peak RSS, and one-/two-process PSS. | | |
+| TASK-004 | Enforce every Q4 quality/resource threshold above; on failure stop or record an approved plan revision, never silently change precision or lower a gate. | | |
 
 ### GOAL-002: Validate locked SQLite/FTS5/scalar architecture
 
 | ID | Task | Done | Date |
 |----|------|------|------|
-| TASK-005 | Build judged fixtures plus generated 1k/10k/100k stores with realistic topic, summary, content, scope, importance, expiry, and deletion distributions. | | |
-| TASK-006 | Benchmark regular-table `vec_distance_cosine` and NumPy fallback for exact parity, ingest, DB size, latency, and extension loading; benchmark weighted FTS5 on the same stores. | | |
-| TASK-007 | Exercise query-time expiry, restart cleanup, restore/reinforce, crash recovery, migration lock, WAL readers/writers, and bounded busy retries from independent processes. | | |
-| TASK-008 | Run the recorded `main` worktree oracle only to explain intentional ranking/migration differences; record Recall@5/MRR/nDCG@10 and approve the embedded gate without adding Redis to `v0.11.0`. | | |
+| TASK-005 | Build checksummed judged fixtures plus deterministic 1k/10k/50k/100k stores with realistic text/scope/importance/expiry/deletion distributions and recorded seeds; checksum `benchmarks/reference-machine.json` before performance evidence. | | |
+| TASK-006 | Benchmark regular-table `vec_distance_cosine`, forced NumPy fallback, and weighted FTS5 on the same stores; enforce the canonical candidate/order parity contract and emit ingest/DB-size/latency/extension evidence manifests. | | |
+| TASK-007 | Implement the reusable spawned-process workload driver and allowed-outcome oracle using deterministic fake/precomputed embeddings; validate its barriers, seeds, crash and lock injection before applying it to the repository in TASK-055. | | |
+| TASK-008 | After GOAL-012, run the pinned `main` worktree oracle on the same judged fixtures, record Recall@5/MRR/nDCG@10 and intentional ranking differences, and enforce the locked embedded thresholds without adding Redis to `v0.11.0`. | | |
 
 ### GOAL-003: Superseded dual-backend extraction
 
@@ -297,7 +635,7 @@ Execute after package foundation in GOAL-009.
 | ID | Task | Done | Date |
 |----|------|------|------|
 | TASK-017 | Implement raw ONNX Runtime CPU provider: direct `sentence_embedding`, FLOAT32 `[batch,640]`/finite/unit-norm validation, query-only prompt, lazy load, thread-safe single initialization, and health/load-error state. | | |
-| TASK-018 | Download exactly the pinned q4 pair, tokenizer, and configs using temp files, resume, progress, immutable revisions, SHA-256, atomic publish, per-OS cache, and cross-process lock. | | |
+| TASK-018 | Download exactly the five pinned runtime files/hashes from the immutable ONNX-community revision using temp files, resume/progress, atomic publish, per-OS cache, and cross-process lock. | | |
 | TASK-019 | Turn GOAL-001 q4 assertions into permanent slow tests; Torch/SentenceTransformers remain evaluation-only and are absent from the built wheel and final lockfile. | | |
 | TASK-027 | Implement the versioned topic+summary payload builder and embedding profile validation; changing profile/input version blocks mixed search until re-embedding completes. | | |
 | TASK-028 | Update `brain_remember` description, MCP instructions, schema docs, and tests to teach stable reusable topics: target 3–8, hard max 12 Harrier tokens, no catalog duplication/workflow labels/keyword stuffing. | | |
@@ -327,26 +665,26 @@ Execute after package foundation in GOAL-009.
 | TASK-030 | Update `.agents/plans/another-brain-architecture.md` first: approve SQLite-only storage, separate lexical/vector/fusion modules, q4 topic+summary embeddings, durable TTL, package/CLI contract, and the external-main-oracle/early-deletion cutover. Mark Redis-era plans 01–05 superseded. | ✅ | 2026-07-31 |
 | TASK-031 | In a separate worktree pinned to `main` baseline `edc0e57`, run and record the legacy unit/integration baseline; export deterministic fake-vector fixtures for identity, append-only writes, TTL, reinforce, soft-delete/restore, recent ordering, audit privacy, MCP previews, and health into backend-neutral JSON. | | |
 | TASK-032 | Add desired retrieval fixtures that explicitly fix the bug: a lexical-only content identifier survives with cosine below 0.30; vector-only candidates below 0.30 do not; deleted/expired rows are absent before branch limits. | | |
-| TASK-033 | Define and fixture a versioned JSONL migration envelope containing memory/audit records, IDs, identity, timestamps, metadata, remaining expiry, deletion state, and source schema version; embedding bytes are deliberately omitted. | | |
-| TASK-034 | Define final Protocols in `src/another_brain/` for repository, retriever, audit, and embedding with no Redis types, score encodings, or backend selector. | | |
+| TASK-033 | Define and fixture the canonical JSONL v1 envelope specified under GOAL-014, including absolute expiry, checksums, IDs, identity, timestamps, metadata, deletion and audit state; omit embedding bytes. | | |
+| TASK-034 | Define final repository/retriever/audit/embedding Protocols with the locked scoped-collection and `(bound brain_id, memory_id)` by-ID semantics; include no Redis types, score encodings, or backend selector. | | |
 | TASK-035 | Record `main` baseline `edc0e57` (or the exact later maintenance-export commit) plus worktree commands as the external Redis oracle. Do not create, modify, or checkpoint Redis runtime code in `v0.11.0`. | | |
 
 ### GOAL-009: Establish the installable final package and Redis-free config
 
 | ID | Task | Done | Date |
 |----|------|------|------|
-| TASK-036 | Move runtime code under `src/another_brain/` with explicit package imports; add a build backend and `[project.scripts] another-brain = "another_brain.cli:main"`. | | |
-| TASK-037 | Replace project metadata/dependencies with the final core set: `mcp`, `onnxruntime>=1.28,<1.29`, `tokenizers>=0.23,<0.24`, NumPy, `platformdirs`, pinned-compatible `sqlite-vec`, and a cross-platform file lock. Remove Redis and local Torch extras from the target lock. | | |
-| TASK-038 | Implement Redis-free config with fixed retrieval/token contracts, `BRAIN_ID`, timezone/retention, optional localhost HTTP settings, and `ANOTHER_BRAIN_DATA_DIR`/`ANOTHER_BRAIN_MODEL_DIR` overrides only where operationally necessary. | | |
+| TASK-036 | Move runtime under `src/another_brain/` with explicit package imports; configure `hatchling>=1.31,<2` src-layout build and `[project.scripts] another-brain = "another_brain.cli:main"`. | | |
+| TASK-037 | Lock core ranges to `mcp>=2.0,<2.1`, `onnxruntime>=1.28,<1.29`, `tokenizers>=0.23,<0.24`, `numpy>=2.1,<3`, `platformdirs>=4.3,<5`, `sqlite-vec>=0.1.9,<0.2`, and `filelock>=3.16,<4`; resolve exact versions in root `uv.lock` and remove Redis/root Torch extras. | | |
+| TASK-038 | Implement Redis-free config with fixed retrieval/token contracts, `BRAIN_ID`, timezone/retention, data/model overrides, and HTTP precedence/defaults; accept numeric loopback only and reject wildcard/hostname/LAN/public/link-local binds or invalid ports. | | |
 | TASK-039 | Resolve default paths with `platformdirs`: `brain.sqlite3` in the per-user data directory and immutable model artifacts in the per-user cache directory; create directories with user-only permissions where supported. | | |
-| TASK-040 | Implement CLI shape: bare command = stdio server; `serve --http`, `model pull/status`, `doctor`, `recent`, `admin restore|hard-delete`, and `import-jsonl`. CLI startup must not import Redis, Torch, or SentenceTransformers. | | |
+| TASK-040 | Implement CLI: bare command = protocol-clean stdio; `serve --http [--host HOST] [--port PORT]`, `model pull/status`, `doctor`, `recent`, `admin restore|hard-delete`, and `import-jsonl`. Keep logs/progress on stderr and never import Redis/Torch/ST at startup. | | |
 | TASK-041 | Build sdist/wheel with `uv build --no-sources`, install the wheel into a clean environment, run `another-brain --help`, and fail if imports resolve from the checkout instead of the installed wheel. | | |
 
 ### GOAL-010: Complete model manifest, cache, and process-local runtime
 
 | ID | Task | Done | Date |
 |----|------|------|------|
-| TASK-042 | Encode source model revision, ONNX artifact revision, q4 filenames/hashes, tokenizer/config files, prompt, dimensions, normalization, and input version in one immutable manifest consumed by installer/provider/schema. | | |
+| TASK-042 | Encode the locked repository/revision, five filenames/hashes, exact prompt/hash, dimensions, normalization, and input version in one immutable manifest consumed by installer/provider/schema. | | |
 | TASK-043 | Make model installation idempotent and crash-safe: one lock per manifest, stale temp cleanup, hash before rename, and no partially installed profile visible to another process. | | |
 | TASK-044 | Keep one lazy ONNX session per MCP process, serialize first load, and close references on shutdown; document measured per-process memory rather than introducing a hidden embedding daemon in the MVP. | | |
 | TASK-045 | Unit-test tokenizer counts and payload bytes at every boundary, Vietnamese/English input, query/document asymmetry, output norm, corrupt/missing external data, hash mismatch, interrupted download, and concurrent installers. | | |
@@ -356,50 +694,137 @@ Execute after package foundation in GOAL-009.
 
 | ID | Task | Done | Date |
 |----|------|------|------|
-| TASK-047 | Implement `SQLiteConnectionFactory` with the locked PRAGMAs, extension loading per connection, context-managed close, readonly support, and NumPy fallback capability detection. | | |
-| TASK-048 | Implement schema v1 exactly as specified above: migration/profile/memory/FTS/audit tables, FTS triggers, constraints, and indexes for scope, topic, catalog, recent, expiry, and deletion. | | |
+| TASK-047 | Implement `SQLiteConnectionFactory` with the separate bootstrap, normal read/write, and read-only flows above, narrow extension loading, guaranteed close, and per-connection NumPy fallback capability. | | |
+| TASK-048 | Implement schema v1 exactly as specified above: migration/profile/memory/FTS/audit/import-run tables, `UNIQUE(brain_id,memory_id)`, FTS triggers, constraints, and scope/topic/catalog/recent/expiry/deletion indexes. | | |
 | TASK-049 | Implement migration runner with checksum validation, `PRAGMA user_version`, exclusive schema transaction, concurrent-creator safety, crash rollback, and fail-fast behavior for unknown/newer versions. | | |
-| TASK-050 | Implement append-only store/get/recent with brain/scope filters on every query, deterministic recent ordering, JSON metadata validation, and one atomic row+FTS commit. | | |
-| TASK-051 | Implement durable TTL: compute/persist `expires_at` from importance, exclude expired rows on every read, provide bounded startup/opportunistic purge, and never renew on read. | | |
-| TASK-052 | Implement reinforce, soft-delete, restore, and hard-delete transactionally: grace expiry never extends a shorter remaining TTL; restore/reinforce re-arm from importance; missing/expired/deleted semantics match the domain contract. | | |
-| TASK-053 | Implement SQLite audit persistence with secret-free validation, retention cleanup, newest-first day reads, and best-effort failure isolation from the already committed memory mutation. | | |
-| TASK-054 | Add focused repository contracts using temporary files, process restart, malformed rows, clock injection, boundary timestamps, rollback injection, and resource-close assertions. | | |
-| TASK-055 | Add multi-process tests for simultaneous schema open, writers, readers, reinforce/forget races, busy retry exhaustion, crash recovery, and database integrity/FTS consistency checks. | | |
+| TASK-050 | Implement append-only store/get/recent: collection operations use the normalized scope tuple, by-ID get uses `(bound brain_id,memory_id)`, recent ordering is deterministic, metadata is strict JSON, and row+FTS commit atomically. | | |
+| TASK-051 | Implement durable TTL: compute/persist `expires_at` from importance, exclude expired rows on every live memory read, provide bounded startup/opportunistic purge, and never renew on read. | | |
+| TASK-052 | Implement reinforce, soft-delete, restore, and hard-delete transactionally by `(bound brain_id,memory_id)`; enforce live/deleted/expired/grace semantics, never leak cross-brain existence, never extend a shorter grace expiry, and re-arm restore/reinforce from importance. | | |
+| TASK-053 | Implement SQLite audit persistence with forbidden-text validation, fixed 90-day retention cleanup, newest-first deterministic day reads, and best-effort failure isolation from the already committed memory mutation. | | |
+| TASK-054 | Add repository contracts for bootstrap/reopen/read-only flows, wrong page size, extension fallback, temporary files, restart, malformed rows, injected clock/boundaries/rollback, retry classification, and close/file-release assertions. | | |
+| TASK-055 | Execute the accepted workload through the real repository and assert timeout, typed busy failure, allowed races, migration uniqueness, restart, integrity/foreign-key checks, all-row FTS trigger parity plus live filtering, and resource closure. | | |
 
 ### GOAL-012: Rebuild BM25, vector retrieval, and RRF as separate modules
 
 | ID | Task | Done | Date |
 |----|------|------|------|
 | TASK-056 | Implement safe FTS5 query construction from Unicode terms without exposing MATCH syntax; punctuation-only input yields no lexical branch, while names/IDs/paths are tokenized predictably. | | |
-| TASK-057 | Implement `SQLiteLexicalRetriever` with weighted BM25 5:3:1, mandatory brain/scope/live filters before limit, deterministic rank output, and no embedding/cosine dependency. | | |
-| TASK-058 | Implement `SQLiteVectorRetriever` using scalar exact cosine over regular BLOBs after mandatory filters; convert distance to cosine consistently and apply the 0.30 vector floor before candidate rank. | | |
-| TASK-059 | Implement vectorized NumPy fallback with identical filtered IDs, FLOAT32 decoding, cosine ordering, floor, and deterministic ties; expose fallback state through doctor/health without changing result semantics. | | |
-| TASK-060 | Implement pure `rrf_fuse()` with equal branch weights, `k=60`, deduplication, branch evidence, candidate limits, final top-k, and the locked tie-break sequence. | | |
+| TASK-057 | Implement `SQLiteLexicalRetriever` with BM25 weights 5:3:1, mandatory brain/scope/live filters before limit, order `bm25 ASC,memory_id ASC`, one-based ranks, and no embedding dependency. | | |
+| TASK-058 | Implement scalar exact cosine over filtered regular BLOBs, reject malformed/non-finite results, compute integer micro-cosine with Python half-even rounding, apply floor 300000, and rank by key then `memory_id`. | | |
+| TASK-059 | Implement forced/vectorized NumPy fallback with identical filtered IDs, FLOAT32 decoding, canonical key/floor/order, and expose fallback state through doctor/health without semantic drift. | | |
+| TASK-060 | Implement pure `rrf_fuse()` with equal branch weights, `k=60`, deduplication, branch evidence, fixed 50-candidate branch limits, final top-5, and the locked tie-break sequence. | | |
 | TASK-061 | Implement `HybridMemoryRetriever`: run lexical/vector candidates independently, allow lexical-only results, use vector-only for no safe FTS terms, and never apply a universal post-fusion cosine gate. | | |
-| TASK-062 | Add ranking tests for lexical-only identifiers, semantic-only matches, fused promotion, diacritic-insensitive Vietnamese, duplicate terms, adversarial FTS syntax, expired/deleted starvation, score-source labels, and exact sqlite-vec/NumPy parity. | | |
-| TASK-063 | Run the judged 1k/10k/100k retrieval suite and record quality/latency/size gates before service cutover. | | |
+| TASK-062 | Add ranking tests for lexical-only identifiers, semantic-only matches, fused promotion, Vietnamese diacritics, duplicate/adversarial terms, live-filter starvation, source labels, canonical floor/ties, malformed vectors, and exact sqlite-vec/NumPy candidate/order/RRF parity within `1e-6` raw-score tolerance. | | |
+| TASK-063 | Run the judged 1k/10k/50k/100k retrieval suite and emit quality/latency/size/parity evidence manifests before service cutover. | | |
 
 ### GOAL-013: Wire the final service, MCP tools, health, and transports
+
+HTTP is opt-in through `another-brain serve --http`; bare `another-brain`
+always uses stdio even if HTTP environment variables exist. Bind precedence is
+CLI `--host/--port`, then `MCP_HTTP_HOST`/`MCP_HTTP_PORT`, then
+`127.0.0.1:1905`; the endpoint path is `/mcp`. Public configuration accepts only
+numeric IP literals in `127.0.0.0/8` or `::1`; it rejects hostnames (including
+`localhost`), wildcard, LAN/public/link-local addresses, invalid ports, and
+port zero before startup. Port zero is test-harness-only. After bind, every
+socket address is checked with `is_loopback`; bind failure never falls back to a
+wildcard. For the pinned MCP SDK, Streamable HTTP enables
+`TransportSecuritySettings(enable_dns_rebinding_protection=True)` with exact
+bound host/port and origin allowlists—no wildcard. Host/Origin rejection occurs
+before tool dispatch; stdio is unaffected.
+
+```mermaid
+flowchart LR
+    Config["HTTP config"] --> Parse{"Numeric IP + valid port?"}
+    Parse -->|no| Reject["Exit non-zero"]
+    Parse -->|yes| Loop{"Loopback only?"}
+    Loop -->|no| Reject
+    Loop -->|yes| Bind["Bind requested address"]
+    Bind --> Verify{"Bound socket + Host/Origin valid?"}
+    Verify -->|yes| Serve["Serve MCP HTTP"]
+    Verify -->|no| Reject
+```
 
 | ID | Task | Done | Date |
 |----|------|------|------|
 | TASK-064 | Refactor `MemoryService` onto final repository/retriever/audit/embedding Protocols; remember builds topic+summary once, search embeds a bounded prompted query once, and no service import references storage implementation details. | | |
-| TASK-065 | Preserve append-only diary, identity binding, previews/get separation, retention actions, and audit privacy while replacing Redis-specific health/index behavior with SQLite schema/profile/integrity state. | | |
-| TASK-066 | Re-register the eight stable `brain_*` tools with final descriptions, especially reusable topic guidance, token budgets, lexical-only content behavior, and reinforce/forget trust loop. | | |
-| TASK-067 | Wire composition/resource lifecycle for stdio default and optional loopback HTTP: open/close SQLite resources, lazy model lifecycle, signal handling, and health that never forces model load. | | |
-| TASK-068 | Add service/tool contracts with deterministic fake embedding plus real temporary SQLite, covering every tool response and the fixed content-only retrieval behavior. | | |
+| TASK-065 | Preserve append-only diary, identity binding, previews/get separation, retention actions, by-ID brain isolation, and audit privacy while replacing Redis health/index behavior with SQLite schema/profile/integrity state. | | |
+| TASK-066 | Register the eight stable `brain_*` tools on MCP SDK v2 `MCPServer`, preserving names, public argument contracts, by-ID signatures, and response shapes. | | |
+| TASK-067 | Wire stdio default and opt-in HTTP under the locked loopback/transport-security policy, including SQLite/model lifecycle, signals, exact host/origin allowlists, and health that never forces model load. | | |
+| TASK-068 | Add service/tool contracts with fake embedding plus temporary SQLite covering every response, scoped collections, by-ID cross-brain/deleted/expired/grace cases, global normalization, content-only retrieval, and HTTP negative binds/headers. | | |
 | TASK-069 | Add an end-to-end subprocess test using the installed console script and an isolated data/model home: initialize, remember, search, get, reinforce, forget, restart, and verify persistence/expiry. | | |
+| TASK-091 | Make the skill optional: add concise server instructions plus self-contained descriptions for all eight tools and every public field; keep hard rules in server validation with actionable actual/allowed errors; test initialize/tools-list metadata and the full no-skill flow; then reduce `skills/another-brain/SKILL.md` to a 100–200-word activation/project-scope/trust-loop adapter with no duplicated contracts. | | |
 
 ### GOAL-014: Import neutral migration data and perform final cutover
 
+JSONL v1 is UTF-8 with LF line endings and has exactly one `manifest`, ordered
+`memory`/`audit` data lines, then one `trailer`:
+
+- Manifest fields are exactly `kind="manifest"`,
+  `format="another-brain-jsonl"`, `format_version=1`, UUID `export_id`,
+  `source_app_version`, `source_schema_version`, `source_commit`,
+  `source_embedding_profile`, one `exported_at_ms`,
+  `expiry_mode="absolute_epoch_ms"`, `memory_count`, and `audit_count`.
+- Each data line: contiguous monotonic `seq` starting at 1, `kind`, deterministic
+  `idempotency_key`, `payload`, and `payload_sha256`. Memory lines sort by
+  `(brain_id,memory_id)` and use `memory:<brain_id>:<memory_id>`; audit lines
+  follow, sort by `(brain_id,event_at_ms,event_id)`, and use
+  `audit:<brain_id>:<event_id>`. Canonical payload JSON uses sorted keys,
+  compact separators, UTF-8, `ensure_ascii=false`, and rejects NaN/Infinity.
+- Memory payload fields are exactly `memory_id`, `brain_id`, `agent_id`,
+  `scope`, `scope_id`, `topic`, `catalog`, `summary`, `content`, `timeline_day`,
+  nullable `period_start_ms`/`period_end_ms`, `created_at_ms`, `updated_at_ms`,
+  `importance`, absolute `expires_at_ms`, nullable `deleted_at_ms`, object
+  `metadata`, and `record_version`, plus verifier
+  `remaining_ttl_ms=max(0, expires_at_ms-exported_at_ms)`. Embedding bytes and
+  source profile IDs are absent; import assigns the active input-version-2
+  profile after recomputation. Absolute expiry is authoritative.
+- Audit payload fields are exactly `event_id`, `brain_id`, `memory_id`,
+  `agent_id`, `action`, `event_at_ms`, and object `detail`; forbidden memory-text
+  keys are rejected. Audit may refer to an expired memory skipped by import and
+  therefore has no cascading memory FK.
+- Trailer fields are exactly `kind="trailer"`, final memory/audit counts,
+  `last_seq`, and rolling SHA-256 over canonical manifest/data lines. Cutover
+  evidence also records SHA-256 of the complete artifact.
+
+The importer captures `import_started_at_ms` once and skips records with
+`expires_at_ms <= import_started_at_ms`; it never rebases TTL from import time.
+The relative verifier may differ by at most 1,000 ms for legacy source
+resolution. Embedding/tokenization happens outside transactions. Each batch
+atomically inserts records and advances `import_runs.last_committed_seq`.
+Same key and same preserved fields is `skipped`; same key with differing fields
+is a conflict that rolls back and aborts the batch. A completed `export_id` with
+the same artifact hash is a whole-import no-op; the same ID with another hash is
+rejected. Resume after any committed batch produces the same final state and
+counters without duplicates.
+
+Final cutover requires a maintenance window: stop legacy writers, capture
+`exported_at_ms`, stream to a temporary file, self-validate counts/checksums,
+atomically rename, and record its hash. Import first into an isolated fresh
+SQLite profile; run doctor, integrity, field/count/lifecycle and retrieval
+comparisons; only then switch harnesses. Keep legacy data read-only as rollback
+backup. After the first new SQLite write, returning to legacy requires an
+explicit reverse-migration decision and is not assumed lossless.
+
+```mermaid
+flowchart LR
+    Stop["Quiesce legacy writers"] --> Export["External main<br/>export temp JSONL"]
+    Export --> Validate{"Counts + hashes valid?"}
+    Validate -->|no| Abort["Abort cutover"]
+    Validate -->|yes| Publish["Atomic publish artifact"]
+    Publish --> Import["Import isolated SQLite profile"]
+    Import --> Verify{"Doctor + parity pass?"}
+    Verify -->|no| Abort
+    Verify -->|yes| Switch["Switch harnesses<br/>keep legacy read-only"]
+```
+
 | ID | Task | Done | Date |
 |----|------|------|------|
-| TASK-070 | On a maintenance branch based on `main` (not `v0.11.0`), add/release a read-only streaming `export-jsonl` command and record its commit, version, schema, and invocation. Consume only its JSONL artifact in this branch. | | |
-| TASK-071 | Implement clean-release `import-jsonl`: validate envelope/checksum/profile, preserve IDs/identity/timestamps/metadata/remaining TTL/deletion/audit state, recompute topic+summary q4 embeddings, and skip already expired records. | | |
-| TASK-072 | Make import resumable/idempotent with transaction batches, conflict comparison, progress checkpoints, interruption recovery, and a final imported/skipped/failed report. | | |
+| TASK-070 | In a pinned `main` maintenance worktree only, implement/release the JSONL v1 streaming exporter; quiesce writers, temp-write, self-validate, atomically publish, and record commit/version/invocation/artifact hash. Clean `v0.11.0` consumes only the artifact. | | |
+| TASK-071 | Implement clean `import-jsonl` with canonical envelope/hash/profile validation, absolute-expiry semantics, audit preservation, q4 topic+summary re-embedding outside transactions, and skip-already-expired behavior. | | |
+| TASK-072 | Implement `import_runs` batch checkpoints and the locked no-op/conflict/resume rules; interruption at every batch boundary must converge to identical state/counters and produce an imported/skipped/failed report. | | |
 | TASK-073 | Import migration fixtures produced by the external `main` worktree/export release and compare every non-embedding field, lifecycle result, lexical result, and expected re-embedded vector profile. | | |
 | TASK-074 | Complete CLI, app composition, MCP server, health, and permanent tests on SQLite only; verify no backend selection or legacy runtime path has re-entered the already-clean branch. | | |
-| TASK-075 | Cutover gate: clean wheel install, full permanent suite, migration import suite, judged retrieval, two-process SQLite test, restart E2E, and doctor all green on a machine/environment with no Redis or Docker installed. | | |
+| TASK-075 | Cutover gate: validated external artifact, clean wheel, full permanent/import/judged-retrieval suites, accepted concurrency workload, restart E2E, doctor, and isolated-profile comparison all green without Redis or Docker installed. | | |
 
 ### GOAL-015: Early clean-slate deletion on `v0.11.0`
 
@@ -410,9 +835,9 @@ comparison remains available from the external `main` worktree.
 |----|------|------|------|
 | TASK-076 | Delete Redis repositories/index/keys, Redis audit implementation, Redis config/env parsing, backend flags, Redis-only fixtures/tests, and all imports immediately after the package shell is green; retain no Redis package extra. | | |
 | TASK-077 | Delete `docker/`, `.dockerignore`, Compose/Docker install and health paths, Docker-specific model/cache assumptions, and Docker instructions from scripts/product docs. | | |
-| TASK-078 | Delete SentenceTransformers/Torch provider/runtime precision code, PyTorch index/source config, local extras, tests, and lockfile packages; keep fp32 reference scripts outside distributable core only if required by release evaluation. | | |
+| TASK-078 | Delete runtime SentenceTransformers/Torch providers, precision code, PyTorch source config, root extras/tests/lock packages; retain fp32 only in the non-workspace `spikes/fp32/` frozen evaluation project excluded from distribution. | | |
 | TASK-079 | Move the backend-neutral domain/tool response code needed by the package shell, then delete superseded top-level `src/` modules/stubs and `pythonpath=["src"]` assumptions before new persistence/retrieval implementation begins. | | |
-| TASK-080 | Regenerate `uv.lock` and inspect the dependency graph; fail if Redis, Torch, SentenceTransformers, CUDA, LanceDB, DuckDB, or Docker tooling remains in core/transitive runtime dependencies. | | |
+| TASK-080 | Regenerate root `uv.lock` and inspect wheel plus dependency graph; fail if Redis, Torch, SentenceTransformers, CUDA, LanceDB, DuckDB, or Docker tooling appears in root/core/transitive runtime, while checking the isolated fp32 lock separately. | | |
 | TASK-081 | Run an early zero-reference check over `src/`, permanent `tests/`, scripts, product docs, README, pyproject, and workflows for Redis/Docker/Torch runtime paths; external-oracle instructions in this plan and superseded historical plans are the only allowed references. | | |
 | TASK-082 | Mark plans 03/04/05 and conflicting rules as superseded, then update AGENT_RULES/PROJECT_CONTEXT so future agents cannot reintroduce Redis/Docker or summary-only embedding behavior. | | |
 
@@ -420,14 +845,14 @@ comparison remains available from the external `main` worktree.
 
 | ID | Task | Done | Date |
 |----|------|------|------|
-| TASK-083 | Add CI wheel/build/install/E2E matrix for Windows x86_64, macOS 14+ ARM64, and Ubuntu 22.04/24.04 x86_64 on Python 3.12–3.14; test extension-disabled NumPy fallback in every required OS family. | | |
+| TASK-083 | Add CI wheel/build/install/E2E matrix for Windows x86_64, macOS 14+ ARM64, and Ubuntu 22.04/24.04 x86_64 on Python 3.12–3.14; test forced NumPy fallback and reject wildcard/hostname/LAN HTTP binds on every OS family, with IPv6 `::1` positive where supported. | | |
 | TASK-084 | Verify Linux ARM64 and Windows ARM64 as best-effort wheel-resolution/fallback targets; report unsupported macOS Intel and musl explicitly instead of source-building silently. | | |
-| TASK-085 | Implement `another-brain doctor`: package/model hashes, tokenizer/profile, SQLite open/schema/integrity/FTS/extension or fallback, isolated write/search/delete probe, paths, and actionable per-item results. | | |
+| TASK-085 | Implement `another-brain doctor`: package/model hashes, tokenizer/profile, SQLite bootstrap/readonly invariants, schema/integrity/FTS/extension or fallback, isolated write/search/delete probe, paths, and actionable per-item results. | | |
 | TASK-086 | Update harness connectors to invoke installed `another-brain`; add Windows-capable examples and remove Docker/Redis/uvx assumptions. | | |
-| TASK-087 | Measure clean install disk, model disk, cold/warm latency, one-/two-process memory, SQLite size/retrieval at 10k/50k/100k, and startup time; enforce the success budgets or record an approved plan revision. | | |
+| TASK-087 | Measure clean/model disk, cold/warm latency, one-/two-process memory, SQLite size/retrieval at 10k/50k/100k, and startup; emit the reproducible evidence manifest/raw samples and enforce budgets or record an approved revision. | | |
 | TASK-088 | Update root README, `docs/architecture.md`, deployment/MCP/trust docs, skill guidance, `.agents/TESTING_GUIDE.md`, and `.agents/PROJECT_CONTEXT.md` from real final commands and paths. | | |
 | TASK-089 | Final release rehearsal from an empty user profile with only `uv`: install tool, configure one harness, first model install, remember/search/get/reinforce/forget, restart, doctor, uninstall, and verify no daemon/container/server prerequisite. | | |
-| TASK-090 | Set plan status `done` only after the clean tree, full CI, migration evidence, artifact hashes, resource report, and documentation gate are complete. | | |
+| TASK-090 | Set status `done` only after clean tree/full CI, validated migration artifact, Q4/retrieval/concurrency evidence manifests, artifact hashes, resource report, and documentation gate are complete. | | |
 
 ## Test Plan
 
@@ -438,7 +863,9 @@ comparison remains available from the external `main` worktree.
 - SQLite row mapping, migration checksums, TTL math, retries, and audit privacy;
 - safe FTS query construction, lexical ranks, vector floor, NumPy parity, and
   pure deterministic RRF;
-- service and MCP response contracts with fakes.
+- service and MCP response contracts with fakes;
+- initialize instructions and `tools/list` names/descriptions/field schemas remain
+  sufficient without loading the optional skill.
 
 ### Integration
 
@@ -447,25 +874,29 @@ comparison remains available from the external `main` worktree.
 - process restart, expiry, deletion/restore, audit retention, FTS triggers,
   rollback/crash injection, migration concurrency, and integrity checks;
 - two or more independent writer/reader processes;
-- q4 slow tests with pinned artifacts;
-- legacy JSONL export/import before Redis code deletion.
+- q4 slow tests with pinned artifacts and the checksummed quality corpus;
+- deterministic external JSONL v1 fixtures exported from pinned `main`; importer
+  resume/conflict/expiry tests run later in GOAL-014 after clean-branch deletion.
 
 ### End-to-end
 
 - installed wheel and console script, never editable checkout imports;
-- stdio MCP round trip from an isolated profile;
-- optional loopback HTTP smoke test;
+- stdio MCP round trip from an isolated profile with no Another Brain skill
+  installed; repeat with the thin skill only to verify behavior, not correctness;
+- optional loopback HTTP positive smoke plus wildcard/hostname/LAN and hostile
+  Host/Origin rejection;
 - fresh model cache and interrupted/concurrent download recovery;
 - Windows/macOS/Linux required matrix;
 - Redis/Docker absent and network disabled after model install.
 
 ### Mandatory gates
 
-1. Architecture approval and recorded external `main` oracle.
+1. Architecture, by-ID/scope/JSONL contracts, and recorded external `main` oracle.
 2. Final package shell/domain tests green, then early Redis/Docker/Torch deletion.
-3. q4 quality/resource gate before release cutover.
-4. SQLite/retrieval/concurrency gate before service cutover.
-5. Clean-wheel/migration-import/E2E and zero-reference/platform/docs gate before release.
+3. Valid Q4 corpus/resource evidence manifest before release cutover.
+4. SQLite/retrieval/parity/accepted-concurrency evidence before service cutover.
+5. Validated external JSONL artifact plus clean-wheel/import/E2E and
+   zero-reference/platform/docs evidence before release.
 
 ## Assumptions
 
@@ -474,13 +905,20 @@ comparison remains available from the external `main` worktree.
   JSONL export/import, not an in-package Redis backend.
 - The Redis-enabled exporter is produced, if needed, from a maintenance branch
   based on `main`; its source/dependencies never enter `v0.11.0`. The clean
-  branch consumes only versioned JSONL fixtures/artifacts.
+  branch consumes only versioned JSONL fixtures/artifacts. Final export requires
+  a maintenance window with all legacy writers stopped.
 - No zero-downtime migration is required; this is a local trusted-user tool.
+- Collection operations are scope-bound. By-ID tools intentionally accept only
+  `memory_id` and isolate by the process-bound `brain_id`; changing that public
+  signature requires an approved contract revision.
 - The database is shared by independent local stdio processes, but the ONNX
   session remains process-local in the MVP. The measured memory cost is an
   explicit release metric; no hidden local embedding daemon is introduced.
-- HTTP remains optional and loopback-only; it is not required for install or
-  normal stdio use.
+- HTTP remains optional, numeric-loopback-only, and unauthenticated; it is not
+  required for install or normal stdio use. The pinned MCP SDK's transport
+  security API must be verified during TASK-067 without weakening this policy.
+- Q4/parity/resource thresholds can change only through an approved plan
+  revision backed by the invalid/failed run manifest, never inside test code.
 - `sqlite-vec` is pinned behind a small adapter because its API is pre-1.0;
   inability to load it selects the exact NumPy fallback, not installation
   failure or a source build.

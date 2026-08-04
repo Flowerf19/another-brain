@@ -29,7 +29,7 @@ Memories are claims, not facts. Code/current state wins; see
 
 ```text
 installed `another-brain` executable
-  -> MCP stdio (default) / localhost HTTP (optional)
+  -> MCP stdio (default) / loopback HTTP (optional)
   -> MemoryService
   -> Harrier 270M q4 via raw ONNX Runtime CPU
   -> SQLite regular tables
@@ -50,7 +50,9 @@ vector database, ANN sidecar, or storage backend selector.
 - `agent_id`: provenance detected from MCP `clientInfo`.
 - `scope`: `user | project | global`.
 - `scope_id`: required for user/project; global pins `global`.
-- Every storage/retrieval query carries brain and scope filters.
+- Collection operations carry brain and normalized scope filters. Stable by-ID
+  operations use `(process-bound brain_id, memory_id)` and read scope from the
+  stored row; they never trust caller-provided scope.
 
 ### Diary and retention
 
@@ -59,8 +61,8 @@ vector database, ANN sidecar, or storage backend selector.
   importance, durable `expires_at`, optional `deleted_at`, metadata, and one
   embedding.
 - Importance TTL remains 365/180/90/30/7 days for levels 5..1.
-- Reads are pure. Reinforce/restore re-arm TTL; forget applies grace without
-  extending a shorter remaining lifetime.
+- Reads are pure. Reinforce/restore re-arm TTL; forget sets
+  `min(current_expires_at, now + 30 days)` and never extends life.
 
 ### Embedding
 
@@ -80,7 +82,9 @@ vector database, ANN sidecar, or storage backend selector.
 - FTS5 BM25 weights topic:summary:content = 5:3:1.
 - Vector search is exact; cosine floor 0.30 applies only to vector candidates.
 - Lexical-only candidates remain valid, fixing the legacy content-match bug.
-- Equal-weight RRF uses `k=60` and deterministic ties.
+- Equal-weight RRF uses `k=60`, fixed `candidate_limit=50` per branch, fixed
+  final `top_k=5`, and deterministic ties. RRF `k` remains independent from the
+  retrieval candidate count.
 - Expired/deleted rows are filtered before each branch limit.
 
 ### Storage and concurrency
@@ -110,6 +114,14 @@ Console entry point:
 another-brain = another_brain.cli:main
 ```
 
+The server surface uses Python MCP SDK `mcp>=2.0,<2.1` `MCPServer`; the legacy
+pre-2.0 in-SDK `FastMCP` API is not part of the target package. A clean client
+needs no Another Brain skill for correctness: initialize instructions,
+self-contained tool/field descriptions, validation, and actionable errors carry
+the contract. The target skill is only a thin optional activation/project/trust
+adapter; the checked-in longer legacy skill remains until TASK-091 lands
+atomically with those descriptions.
+
 Canonical install path:
 
 ```bash
@@ -128,11 +140,12 @@ Because GOAL/TASK IDs are append-only, use the explicit phase order from Plan
 1. GOAL-008 — architecture and external-main fixtures.
 2. GOAL-009 — final package shell.
 3. GOAL-015 — early Redis/Docker/Torch deletion from `v0.11.0`.
-4. GOAL-001/002 — evidence gates.
+4. GOAL-001 and GOAL-002 TASK-005..007 — q4 evidence and reusable
+   benchmark/concurrency harnesses.
 5. GOAL-005/010 — embedding.
-6. GOAL-011 — SQLite/lifecycle/audit.
+6. GOAL-011 — SQLite/lifecycle/audit; TASK-055 applies the concurrency harness.
 7. GOAL-012 — BM25/vector/RRF.
-8. GOAL-013 — service/MCP.
+8. GOAL-002 TASK-008, then GOAL-013 — final oracle comparison and service/MCP.
 9. GOAL-014 — neutral JSONL import/cutover.
 10. GOAL-016 — platform/release/docs gate.
 

@@ -72,8 +72,10 @@ flag.
 - Use `sqlite-vec` scalar exact cosine on regular FLOAT32 BLOBs; use NumPy exact
   scan only as the compatibility fallback.
 - Use FTS5 over topic, summary, and content with initial weights 5:3:1.
-- Every query includes `brain_id`, scope, scope_id, `expires_at > now`, and
-  `deleted_at IS NULL` before applying limits.
+- Collection queries include `brain_id`, scope, scope_id, `expires_at > now`,
+  and `deleted_at IS NULL` before limits. By-ID operations use the bound
+  `(brain_id, memory_id)` key; live reads still exclude expired/deleted rows,
+  while restore may address a soft-deleted row inside grace.
 - Configure WAL, `foreign_keys=ON`, `synchronous=NORMAL`, 5-second busy timeout,
   short transactions, and bounded retries.
 - Persist `expires_at`; correctness cannot depend on a cleanup sweep.
@@ -87,7 +89,9 @@ flag.
 - Vector candidates use the cosine floor `0.30`.
 - Lexical-only candidates do **not** need to pass cosine; this fixes the legacy
   content-only match bug.
-- Fuse equal branch ranks with RRF `k=60`; use deterministic tie-breaking.
+- Fuse equal one-based branch ranks with RRF `k=60`; fetch fixed
+  `candidate_limit=50` per branch and return fixed `top_k=5`; use deterministic
+  tie-breaking. Do not conflate RRF `k` with candidate count.
 - A no-safe-term query uses vector retrieval only.
 - FTS5 query construction must not expose MATCH syntax injection.
 - Preserve exact names, ids, commands, paths, dates, and numbers in summaries.
@@ -105,7 +109,17 @@ flag.
 
 ## MCP rules
 
-- Keep stable `brain_*` tool names.
+- Keep stable `brain_*` tool names on MCP SDK v2 `MCPServer`.
+- Correctness must not depend on an installed skill: keep initialize
+  instructions concise, make every tool and public field description
+  self-contained, and enforce hard contracts server-side with actionable errors.
+  Reduce the legacy skill only atomically with TASK-091 so guidance is not lost
+  during transition.
+- In stdio mode reserve stdout for MCP protocol frames; send logs, progress, and
+  diagnostics to stderr.
+- HTTP is opt-in, unauthenticated, and numeric-loopback-only; reject wildcard,
+  hostname, LAN/public/link-local binds and enable exact Host/Origin DNS-
+  rebinding protection. Never weaken this by falling back to a wildcard.
 - Bind `brain_id` from config and `agent_id` from the MCP handshake; never add
   either as a tool argument.
 - Keep `brain_remember` guidance explicit about the topic+summary vector and

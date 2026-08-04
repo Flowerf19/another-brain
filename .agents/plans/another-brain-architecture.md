@@ -3,7 +3,7 @@ status: approved
 approved: 2026-07-31
 owner: architecture
 created: 2026-07-09
-last_updated: 2026-07-31
+last_updated: 2026-08-04
 supersedes:
   - .agents/plans/archive/01-architecture-foundation.md
   - .agents/plans/archive/02-directory-and-class-architecture.md
@@ -86,9 +86,16 @@ uv tool install another-brain
 another-brain
 ```
 
-The bare command serves MCP stdio. Optional commands include localhost HTTP,
-model management, doctor, recent/admin operations, and neutral JSONL import.
-Harnesses invoke the installed executable, not an unpinned `uvx` command.
+The bare command serves MCP stdio through Python MCP SDK `mcp>=2.0,<2.1`
+`MCPServer`. Optional commands include numeric-loopback HTTP, model management,
+doctor, recent/admin operations, and neutral JSONL import. Harnesses invoke the
+installed executable, not an unpinned `uvx` command.
+
+Correct use does not require an installed skill: server validation is the source
+of truth, initialize instructions carry the short global workflow, and every
+tool/field description is self-contained. `skills/another-brain/SKILL.md`
+remains an optional thin behavior adapter for proactive recall, project-scope
+derivation, and the trust loop; it must not duplicate the full contract.
 
 Independent stdio processes share one SQLite file through WAL. Each process has
 a lazy process-local ONNX session in the MVP; the measured memory cost is a
@@ -103,8 +110,11 @@ release metric, not a reason to introduce a background daemon.
 | `scope` | `user | project | global` | tool input |
 | `scope_id` | stable id inside scope; global pins `global` | tool input/policy |
 
-Every storage and retrieval query includes `brain_id`, `scope`, and `scope_id`.
-Tool inputs never carry `brain_id` or `agent_id`.
+Collection operations (`remember`, `search`, `recent`) include normalized
+`brain_id`, `scope`, and `scope_id`. Stable by-ID operations (`get`,
+`reinforce`, `forget`, admin restore/hard-delete) intentionally take only
+`memory_id` publicly and query by `(process-bound brain_id, memory_id)`; scope
+comes from the stored row. Tool inputs never carry `brain_id` or `agent_id`.
 
 There is no auth layer. The service is for trusted local agents; HTTP remains
 loopback/private only. Memories are claims, not facts. Code/current evidence
@@ -133,8 +143,9 @@ embedding_profile_id, embedding, record_version
 - `content` holds long detail, commands, hashes, and checklists.
 - `importance` maps to 365/180/90/30/7-day retention for levels 5..1.
 - Reads never renew retention. Only reinforce and restore re-arm it.
-- Forget sets `deleted_at` and shortens expiry to the grace window without
-  extending a shorter existing lifetime.
+- Forget sets `deleted_at` and shortens expiry to
+  `min(current_expires_at, now + 30 days)` without extending a shorter existing
+  lifetime.
 
 ## Embedding contract
 
@@ -185,9 +196,10 @@ source of truth. It contains:
 - an embedding profile record;
 - ordinary `memories` rows with `CHECK(length(embedding)=2560)`;
 - external-content FTS5 table and synchronization triggers;
-- secret-free audit events.
+- durable JSONL import-run checkpoints;
+- secret-free audit events retained for 90 days.
 
-Default per-connection policy:
+Default connection invariants:
 
 ```text
 foreign_keys = ON
@@ -197,13 +209,19 @@ busy_timeout = 5000 ms
 page_size = 16384 before first schema creation
 ```
 
+A locked bootstrap writer sets page size before the first object and then WAL;
+normal read/write connections set local PRAGMAs and verify the database state;
+`mode=ro` connections use `query_only` and inspect without setting write
+PRAGMAs or migrating. The exact flows and tests are locked in Plan 07.
+
 Writes use short `BEGIN IMMEDIATE` transactions and bounded busy retry. No
 model inference, tokenization, or network I/O occurs inside a transaction.
 Schema/model installation is cross-process locked and crash-safe.
 
-`expires_at` and `deleted_at` are durable. Every get/recent/lexical/vector path
-filters expired and deleted rows before branch limits. Cleanup is bounded and
-opportunistic; correctness never depends on a sweeper.
+`expires_at` and `deleted_at` are durable INTEGER epoch milliseconds. Every
+get/recent/lexical/vector path filters expired and deleted rows before branch
+limits. Cleanup is bounded and opportunistic; correctness never depends on a
+sweeper.
 
 ## Retrieval contract
 
@@ -215,9 +233,9 @@ Hybrid retrieval has independent branches:
    scalar functions; NumPy exact scan is the compatibility fallback.
 3. **Fusion** — equal-weight RRF, `k=60`, deterministic tie break.
 
-For `top_k`, each branch requests
-`min(max(4 * top_k, 40), 200)` candidates after mandatory live/scope filters.
-Vector candidates below cosine 0.30 are removed before fusion. Lexical-only
+Search returns fixed `top_k=5`; each branch requests fixed
+`candidate_limit=50` after mandatory live/scope filters. RRF `k=60` is a
+separate fusion constant, not the candidate count. Vector candidates below cosine 0.30 are removed before fusion. Lexical-only
 candidates remain eligible without a cosine gate. This intentionally fixes the
 legacy bug where an exact identifier found only in `content` could be discarded
 because its topic+summary vector was dissimilar.
@@ -256,8 +274,8 @@ No `STORAGE_BACKEND` setting exists.
 - If existing data needs migration, a maintenance branch based on `main`
   produces versioned neutral JSONL.
 - The clean branch imports JSONL, preserves identity/timestamps/metadata/
-  remaining lifetime/deletion/audit state, and re-embeds topic+summary under
-  input version 2.
+  absolute expiry/deletion/audit state for unexpired records, and re-embeds
+  topic+summary under input version 2.
 - Import is resumable and idempotent. The clean release never imports Redis.
 
 ## Supported target

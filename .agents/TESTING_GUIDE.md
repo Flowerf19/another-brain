@@ -57,27 +57,33 @@ console script from the wheel, not editable checkout imports.
 
 ### Unit
 
-- domain identity/scope/topic/catalog validation;
+- domain identity/scope/topic/catalog validation, including normalized scoped
+  collections and `(bound brain_id,memory_id)` by-ID isolation;
 - Harrier-token budgets at exact limit and limit+1;
 - topic+summary payload and query prompt bytes;
 - q4 manifest/hash/install failure paths and provider output validation;
 - durable TTL/soft-delete/reinforce/restore math;
-- SQLite row mapping, migration checksum, busy retry, audit privacy;
+- SQLite bootstrap, normal read/write, and `mode=ro` mapping; migration
+  checksum, busy retry, audit privacy;
 - safe FTS5 query construction;
 - lexical ranks, vector cosine floor, NumPy parity, deterministic RRF;
-- service and MCP response contracts with fakes.
+- service and MCP response contracts with fakes;
+- initialize instructions and `tools/list` names, descriptions, and field
+  schemas are sufficient without loading `skills/another-brain/SKILL.md`.
 
 ### SQLite integration
 
 Use real temporary files, not mocks:
 
-- schema create/reopen/concurrent create and unknown-version refusal;
+- schema bootstrap/reopen/concurrent create, readonly no-write behavior, wrong
+  page-size failure, and unknown-version refusal;
 - FTS5 triggers and weighted topic/summary/content retrieval;
 - sqlite-vec scalar path and forced NumPy fallback on identical fixtures;
 - expired/deleted filtering before limits;
 - append/get/recent/reinforce/forget/restore/hard-delete;
 - process restart, rollback/crash injection, integrity checks;
-- two or more independent writer/reader processes and busy exhaustion;
+- the accepted spawned-process workload from Plan 07, including fresh-open,
+  mixed readers/writers, injected crash, and bounded busy exhaustion;
 - secret-free audit retention;
 - resource close/file release.
 
@@ -92,7 +98,9 @@ Permanent fixtures must prove:
 4. Vietnamese with/without diacritics remains searchable;
 5. punctuation-only/no-safe-term queries use vector-only retrieval;
 6. expired/deleted rows cannot starve live candidates;
-7. sqlite-vec and NumPy fallback return the same ordered IDs.
+7. sqlite-vec and NumPy fallback return identical candidate IDs/order/RRF;
+   raw cosine diagnostics differ by at most `1e-6` and canonical integer
+   micro-cosine controls floor/ties.
 
 ### Embedding slow tests
 
@@ -100,8 +108,8 @@ With the pinned q4 artifacts:
 
 - direct graph output is FLOAT32 `[batch,640]`, finite and unit normalized;
 - documents are unprompted; queries use the exact pinned prompt;
-- quality evidence includes cosine against fp32 reference plus Recall@5, MRR,
-  and nDCG@10;
+- quality evidence uses checksummed `embedding-quality-v1` and enforces the
+  Plan 07 cosine/Recall@5/MRR/nDCG@10 thresholds;
 - measure cold/warm token buckets, steady/peak RSS, and two-process PSS;
 - interrupted/concurrent model installation never exposes partial artifacts.
 
@@ -110,15 +118,19 @@ wheel or final lockfile.
 
 ### End-to-end
 
-From an isolated user data/model directory and installed wheel:
+From an isolated user data/model directory and installed wheel, first with no
+Another Brain skill installed:
 
 ```text
 install -> bare stdio start -> remember -> search -> get -> reinforce ->
 forget -> restart -> verify persistence/expiry -> doctor
 ```
 
-After model installation, run an offline variant. Redis and Docker must be
-absent, not merely stopped.
+After model installation, run an offline variant. Repeat once with the optional
+thin skill and require identical tool correctness; only proactive recall timing
+may differ. Redis and Docker must be absent, not merely stopped. Optional HTTP
+tests must accept only numeric loopback binds and reject wildcard/hostname/LAN
+addresses plus hostile Host/Origin headers before tool dispatch.
 
 ## Migration testing
 
@@ -126,10 +138,12 @@ The Redis exporter runs only from a maintenance branch/worktree based on
 `main`. It emits versioned neutral JSONL. Clean-branch tests consume checked
 fixtures or subprocess output and verify:
 
-- IDs, identity, timestamps, metadata, remaining TTL, deletion, and audit;
+- IDs, identity, timestamps, metadata, absolute `expires_at_ms`, deletion, and
+  secret-free audit;
 - expired records are skipped;
 - embeddings are omitted from export and recomputed as q4 input version 2;
-- import is resumable and idempotent;
+- import validates canonical line/artifact hashes, is resumable/idempotent via
+  durable batch checkpoints, and rejects same-key conflicts;
 - interruption/retry reports imported/skipped/failed deterministically.
 
 ## Platform and release gates
