@@ -685,8 +685,8 @@ Execute after package foundation in GOAL-009.
 | TASK-030 | Update `.agents/plans/another-brain-architecture.md` first: approve SQLite-only storage, separate lexical/vector/fusion modules, q4 topic+summary embeddings, durable TTL, package/CLI contract, and the external-main-oracle/early-deletion cutover. Mark Redis-era plans 01–05 superseded. | ✅ | 2026-07-31 |
 | TASK-031 | In a separate worktree pinned to `main` baseline `edc0e57`, run and record the legacy unit/integration baseline; export deterministic fake-vector fixtures for identity, append-only writes, TTL, reinforce, soft-delete/restore, recent ordering, audit privacy, MCP previews, and health into backend-neutral JSON. | | |
 | TASK-032 | Add desired retrieval fixtures that explicitly fix the bug: a lexical-only content identifier survives with cosine below 0.30; vector-only candidates below 0.30 do not; deleted/expired rows are absent before branch limits. | | |
-| TASK-033 | Define and fixture the canonical JSONL v1 envelope specified under GOAL-014, including absolute expiry, checksums, IDs, identity, timestamps, metadata, deletion and audit state; omit embedding bytes. | | |
-| TASK-034 | Define final repository/retriever/audit/embedding Protocols with the locked scoped-collection and `(bound brain_id, memory_id)` by-ID semantics; include no Redis types, score encodings, or backend selector. | | |
+| TASK-033 | Define and fixture the canonical JSONL v1 envelope specified under GOAL-014, including absolute expiry, checksums, IDs, identity, timestamps, metadata, deletion and audit state; omit embedding bytes. | ✅ | 2026-08-04 |
+| TASK-034 | Define final repository/retriever/audit/embedding Protocols with the locked scoped-collection and `(bound brain_id, memory_id)` by-ID semantics; include no Redis types, score encodings, or backend selector. | ✅ | 2026-08-04 |
 | TASK-035 | Record `main` baseline `edc0e57` (or the exact later maintenance-export commit) plus worktree commands as the external Redis oracle. Do not create, modify, or checkpoint Redis runtime code in `v0.11.0`. | ✅ | 2026-08-04 |
 
 ### GOAL-009: Establish the installable final package and Redis-free config
