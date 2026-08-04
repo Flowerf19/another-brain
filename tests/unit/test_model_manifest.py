@@ -66,14 +66,15 @@ def test_manifest_is_immutable():
 
 
 def test_canonical_json_is_deterministic_and_complete():
+    import dataclasses
+
     first = manifest_json()
     assert manifest_json() == first  # deterministic
     payload = json.loads(first)
-    assert set(payload) == {
-        "profile", "repo", "revision", "files", "query_prompt_utf8_sha256",
-        "document_template", "input_version", "dimensions", "dtype", "normalization",
-    }
+    # the digest covers every dataclass field — no silent omissions
+    assert set(payload) == {f.name for f in dataclasses.fields(MODEL_MANIFEST)}
     assert len(payload["files"]) == 5
+    assert payload["query_prompt"] == QUERY_PROMPT
     digest = manifest_digest()
     assert isinstance(digest, str) and len(digest) == 64
     assert manifest_digest() == digest

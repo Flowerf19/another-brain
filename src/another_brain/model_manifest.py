@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass
 
 # --- locked upstream identity -------------------------------------------------
 REPO = "onnx-community/harrier-oss-v1-270m-ONNX"
@@ -85,10 +85,15 @@ def _build() -> ModelManifest:
         normalization=NORMALIZATION,
     )
     # Self-consistency: the manifest must not drift from its own locked values.
-    assert len(manifest.files) == 5, "exactly five pinned runtime files"
-    assert manifest.query_prompt_utf8_sha256 == hashlib.sha256(
-        manifest.query_prompt.encode("utf-8")
-    ).hexdigest(), "query prompt hash drift"
+    # Explicit checks (not assert) so they survive `python -O`.
+    if len(manifest.files) != 5:
+        raise RuntimeError(f"manifest must pin exactly five runtime files, got {len(manifest.files)}")
+    expected_prompt_hash = hashlib.sha256(manifest.query_prompt.encode("utf-8")).hexdigest()
+    if manifest.query_prompt_utf8_sha256 != expected_prompt_hash:
+        raise RuntimeError(
+            "query prompt hash drift: "
+            f"{manifest.query_prompt_utf8_sha256} != {expected_prompt_hash}"
+        )
     return manifest
 
 
@@ -96,19 +101,10 @@ MODEL_MANIFEST: ModelManifest = _build()
 
 
 def manifest_json() -> str:
-    """Deterministic canonical JSON of the manifest (for evidence manifests)."""
-    payload = {
-        "profile": MODEL_MANIFEST.profile,
-        "repo": MODEL_MANIFEST.repo,
-        "revision": MODEL_MANIFEST.revision,
-        "files": dict(MODEL_MANIFEST.files),
-        "query_prompt_utf8_sha256": MODEL_MANIFEST.query_prompt_utf8_sha256,
-        "document_template": MODEL_MANIFEST.document_template,
-        "input_version": MODEL_MANIFEST.input_version,
-        "dimensions": MODEL_MANIFEST.dimensions,
-        "dtype": MODEL_MANIFEST.dtype,
-        "normalization": MODEL_MANIFEST.normalization,
-    }
+    """Deterministic canonical JSON of the full manifest, derived from the
+    dataclass so the two cannot drift. Includes the byte-exact query prompt;
+    the digest therefore fingerprints every manifest field."""
+    payload = asdict(MODEL_MANIFEST)
     return json.dumps(payload, sort_keys=True, separators=(",", ":"))
 
 
