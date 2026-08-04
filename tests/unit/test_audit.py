@@ -6,8 +6,9 @@ import pytest
 
 from another_brain.config import AUDIT_RETENTION_DAYS
 from another_brain.domain.models import AuditAction, AuditEvent
-from another_brain.errors import ValidationError
+from another_brain.errors import MigrationError, ValidationError
 from another_brain.services.sql.audit import SQLiteAuditRepository
+from another_brain.services.sql.connection import SQLiteConnectionFactory
 
 DAY = 86_400_000
 
@@ -41,6 +42,13 @@ def _event(**overrides) -> AuditEvent:
 @pytest.fixture
 def audit(sql_factory):
     return SQLiteAuditRepository(sql_factory, brain_id="default")
+
+
+def test_init_requires_migrated_schema(tmp_path):
+    factory = SQLiteConnectionFactory(tmp_path / "brain.sqlite3")
+    factory.bootstrap()
+    with pytest.raises(MigrationError, match="migrate"):
+        SQLiteAuditRepository(factory, brain_id="default")
 
 
 class TestRecordAndList:
