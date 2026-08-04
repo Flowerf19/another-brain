@@ -30,14 +30,13 @@ from another_brain.errors import (
     EmbeddingLoadError,
     EmbeddingOutputError,
     ModelNotInstalledError,
-    ValidationError,
 )
 from another_brain.model_manifest import (
     MODEL_MANIFEST,
     ModelManifest,
-    QUERY_PROMPT,
     manifest_digest,
 )
+from another_brain.payloads import document_payload, query_payload
 from another_brain.protocols import EmbeddingHealth
 
 MARKER_NAME = ".installed.json"
@@ -77,15 +76,11 @@ class ONNXEmbeddingProvider:
 
     def embed_document(self, *, topic: str, summary: str) -> EmbeddingVector:
         """Embed one document payload (no prompt)."""
-        text = topic.replace("-", " ") + "\n" + summary.strip()
-        return self._embed([text])[0]
+        return self._embed([document_payload(topic, summary)])[0]
 
     def embed_query(self, query: str) -> EmbeddingVector:
         """Embed one prompted query; empty stripped queries are rejected."""
-        stripped = query.strip()
-        if not stripped:
-            raise ValidationError("query must not be empty")
-        return self._embed([QUERY_PROMPT + stripped])[0]
+        return self._embed([query_payload(query)])[0]
 
     # -- internals ----------------------------------------------------------
 

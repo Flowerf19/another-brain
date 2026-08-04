@@ -672,7 +672,7 @@ Execute after package foundation in GOAL-009.
 | TASK-017 | Implement raw ONNX Runtime CPU provider: direct `sentence_embedding`, FLOAT32 `[batch,640]`/finite/unit-norm validation, query-only prompt, lazy load, thread-safe single initialization, and health/load-error state. | ✅ | 2026-08-04 |
 | TASK-018 | Download exactly the five pinned runtime files/hashes from the immutable ONNX-community revision using temp files, resume/progress, atomic publish, per-OS cache, and cross-process lock. | ✅ | 2026-08-04 |
 | TASK-019 | Turn GOAL-001 q4 assertions into permanent slow tests; Torch/SentenceTransformers remain evaluation-only and are absent from the built wheel and final lockfile. | | |
-| TASK-027 | Implement the versioned topic+summary payload builder and embedding profile validation; changing profile/input version blocks mixed search until re-embedding completes. | | |
+| TASK-027 | Implement the versioned topic+summary payload builder and embedding profile validation; changing profile/input version blocks mixed search until re-embedding completes. | ✅ | 2026-08-04 |
 | TASK-028 | Update `brain_remember` description, MCP instructions, schema docs, and tests to teach stable reusable topics: target 3–8, hard max 12 Harrier tokens, no catalog duplication/workflow labels/keyword stuffing. | | |
 | TASK-029 | Implement one tokenizer budget validator: topic 12 without specials, final document 256 with specials, final prompted query 128 with specials, content 1,024 without specials. Reject limit+1 with actual/allowed counts; remove `CONTENT_MAX_CHARS`; no truncation/chunking. | ✅ | 2026-08-04 |
 

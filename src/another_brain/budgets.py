@@ -26,15 +26,7 @@ from another_brain.config import (
     BUDGET_TOPIC_TOKENS,
 )
 from another_brain.errors import ValidationError
-from another_brain.model_manifest import QUERY_PROMPT
-
-# Payload templates — shared with the provider; centralized in TASK-027.
-def _document_payload(topic: str, summary: str) -> str:
-    return topic.replace("-", " ") + "\n" + summary.strip()
-
-
-def _query_payload(query: str) -> str:
-    return QUERY_PROMPT + query.strip()
+from another_brain.payloads import document_payload, query_payload
 
 
 class TokenBudgetValidator:
@@ -47,15 +39,17 @@ class TokenBudgetValidator:
 
     def topic_tokens(self, topic: str) -> int:
         """Humanized topic, no special tokens."""
-        return len(self._tokenizer.encode(topic.replace("-", " "), add_special_tokens=False).ids)
+        return len(
+            self._tokenizer.encode(topic.replace("-", " "), add_special_tokens=False).ids
+        )
 
     def document_tokens(self, topic: str, summary: str) -> int:
         """Final document payload, with special tokens."""
-        return len(self._tokenizer.encode(_document_payload(topic, summary)).ids)
+        return len(self._tokenizer.encode(document_payload(topic, summary)).ids)
 
     def query_tokens(self, query: str) -> int:
         """Final prompted query, with special tokens."""
-        return len(self._tokenizer.encode(_query_payload(query)).ids)
+        return len(self._tokenizer.encode(query_payload(query)).ids)
 
     def content_tokens(self, content: str) -> int:
         """Lexical-only content, no special tokens."""
