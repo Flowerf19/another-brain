@@ -12,9 +12,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import another_brain.embedding as embedding_mod
+import another_brain.services.embedding.provider as embedding_mod
 from another_brain.domain.models import EmbeddingVector
-from another_brain.embedding import ONNXEmbeddingProvider
+from another_brain.services.embedding.provider import ONNXEmbeddingProvider
 from another_brain.errors import (
     EmbeddingLoadError,
     EmbeddingOutputError,

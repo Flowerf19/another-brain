@@ -8,7 +8,7 @@ from __future__ import annotations
 import pytest
 from tokenizers import Tokenizer, models, pre_tokenizers, processors
 
-from another_brain.budgets import TokenBudgetValidator
+from another_brain.services.embedding.budgets import TokenBudgetValidator
 from another_brain.config import (
     BUDGET_CONTENT_TOKENS,
     BUDGET_DOCUMENT_TOKENS,

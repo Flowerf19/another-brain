@@ -26,7 +26,7 @@ from another_brain.config import (
     BUDGET_TOPIC_TOKENS,
 )
 from another_brain.errors import ValidationError
-from another_brain.payloads import document_payload, query_payload
+from another_brain.services.embedding.payloads import document_payload, query_payload
 
 
 class TokenBudgetValidator:

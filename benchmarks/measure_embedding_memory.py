@@ -23,7 +23,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from another_brain.embedding import ONNXEmbeddingProvider  # noqa: E402
+from another_brain.services.embedding.provider import ONNXEmbeddingProvider  # noqa: E402
 from another_brain.protocols import EmbeddingHealth  # noqa: E402
 
 

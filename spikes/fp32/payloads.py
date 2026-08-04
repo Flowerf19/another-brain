@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
-from another_brain.payloads import (  # noqa: E402,F401
+from another_brain.services.embedding.payloads import (  # noqa: E402,F401
     QUERY_PROMPT,  # noqa: F401 - re-exported for spike callers
     document_payload,
     query_payload,

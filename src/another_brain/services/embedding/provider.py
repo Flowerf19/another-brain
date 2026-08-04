@@ -36,7 +36,7 @@ from another_brain.model_manifest import (
     ModelManifest,
     manifest_digest,
 )
-from another_brain.payloads import document_payload, query_payload
+from another_brain.services.embedding.payloads import document_payload, query_payload
 from another_brain.protocols import EmbeddingHealth
 
 MARKER_NAME = ".installed.json"

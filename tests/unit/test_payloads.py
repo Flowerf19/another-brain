@@ -3,7 +3,7 @@ import pytest
 
 from another_brain.errors import ValidationError
 from another_brain.model_manifest import MODEL_MANIFEST, QUERY_PROMPT
-from another_brain.payloads import (
+from another_brain.services.embedding.payloads import (
     document_payload,
     query_payload,
     validate_profile,
