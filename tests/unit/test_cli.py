@@ -50,7 +50,7 @@ class TestParsingAndExitCodes:
 
     def test_model_status_installed_yes_lists_all_files(self, monkeypatch, capsys):
         """TASK-046: status answers from files on disk — never loads the model."""
-        from another_brain import model_installer
+        from another_brain.services.embedding import model_installer
 
         ok = {name: "ok" for name, _ in model_installer.MODEL_MANIFEST.files}
         monkeypatch.setattr(model_installer, "verify", lambda cache_dir, manifest=None: ok)
@@ -64,7 +64,7 @@ class TestParsingAndExitCodes:
         assert "tokenizer_config.json: ok" in out
 
     def test_model_pull_failure_is_typed_error(self, monkeypatch, capsys):
-        from another_brain import model_installer
+        from another_brain.services.embedding import model_installer
         from another_brain.errors import ModelDownloadError
 
         def _failing_install(cache_dir, **kwargs):

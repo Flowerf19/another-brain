@@ -5,7 +5,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from another_brain.model_manifest import (
+from another_brain.services.embedding.model_manifest import (
     DIMENSIONS,
     DOCUMENT_TEMPLATE,
     DTYPE,

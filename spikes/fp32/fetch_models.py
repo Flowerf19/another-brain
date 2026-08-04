@@ -20,7 +20,7 @@ from huggingface_hub import hf_hub_download, snapshot_download
 # imports it so evidence and installer can never drift. The fp32 oracle
 # profile is evaluation-only and stays local.
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
-from another_brain.model_manifest import (  # noqa: E402
+from another_brain.services.embedding.model_manifest import (  # noqa: E402
     FILES_SHA256 as Q4_FILES_SHA256,
     REPO as Q4_REPO,
     REVISION as Q4_REVISION,

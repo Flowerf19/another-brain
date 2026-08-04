@@ -143,8 +143,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 def _cmd_model_pull(config: AppConfig) -> int:
     """Download + verify the pinned q4 profile into the cache (TASK-018/043)."""
-    from another_brain.model_installer import install as install_model
-    from another_brain.model_manifest import MODEL_MANIFEST
+    from another_brain.services.embedding.model_installer import install as install_model
+    from another_brain.services.embedding.model_manifest import MODEL_MANIFEST
 
     print(f"pulling {MODEL_MANIFEST.profile} @ {MODEL_MANIFEST.revision[:12]}…", file=sys.stderr)
     try:
@@ -160,8 +160,8 @@ def _cmd_model_pull(config: AppConfig) -> int:
 
 def _cmd_model_status(config: AppConfig) -> int:
     """Install state from files on disk; never loads the model (TASK-046)."""
-    from another_brain.model_installer import profile_dir, verify
-    from another_brain.model_manifest import MODEL_MANIFEST
+    from another_brain.services.embedding.model_installer import profile_dir, verify
+    from another_brain.services.embedding.model_manifest import MODEL_MANIFEST
 
     states = verify(config.model_cache_dir)
     print(f"profile: {MODEL_MANIFEST.profile}")

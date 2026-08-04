@@ -250,8 +250,7 @@ src/another_brain/
   cli.py, config.py, protocols.py, errors.py
   domain/               models and retention
   services/sql/         connection, schema, memory repository, audit (GOAL-011)
-  services/embedding/   payloads, budgets, ONNX provider (GOAL-005/010)
-  model_manifest.py     immutable model contract (installer + provider)
+  services/embedding/   manifest, installer, payloads, budgets, ONNX provider (GOAL-005/010)
   retrieval/            safe query, lexical, vector, fusion, orchestration
   mcp/                  tools and transports
 ```

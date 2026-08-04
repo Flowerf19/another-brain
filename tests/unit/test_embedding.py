@@ -21,7 +21,7 @@ from another_brain.errors import (
     ModelNotInstalledError,
     ValidationError,
 )
-from another_brain.model_manifest import QUERY_PROMPT, manifest_digest
+from another_brain.services.embedding.model_manifest import QUERY_PROMPT, manifest_digest
 from another_brain.protocols import EmbeddingHealth
 from tests.unit.test_model_installer import _make_manifest
 

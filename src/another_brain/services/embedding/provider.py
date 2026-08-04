@@ -31,7 +31,7 @@ from another_brain.errors import (
     EmbeddingOutputError,
     ModelNotInstalledError,
 )
-from another_brain.model_manifest import (
+from another_brain.services.embedding.model_manifest import (
     MODEL_MANIFEST,
     ModelManifest,
     manifest_digest,

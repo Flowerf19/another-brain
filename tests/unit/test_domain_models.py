@@ -17,7 +17,7 @@ from another_brain.domain.models import (
     SearchPreview,
 )
 from another_brain.errors import ValidationError
-from another_brain.model_manifest import MODEL_MANIFEST
+from another_brain.services.embedding.model_manifest import MODEL_MANIFEST
 from another_brain.protocols import GLOBAL_SCOPE_ID, Scope
 
 UNIT = np.full(640, 1.0 / np.sqrt(640), dtype=np.float32)

@@ -17,7 +17,7 @@ persists ``(profile, input_version)`` per memory and consults this gate.
 from __future__ import annotations
 
 from another_brain.errors import ValidationError
-from another_brain.model_manifest import MODEL_MANIFEST, QUERY_PROMPT
+from another_brain.services.embedding.model_manifest import MODEL_MANIFEST, QUERY_PROMPT
 
 
 def document_payload(topic: str, summary: str) -> str:

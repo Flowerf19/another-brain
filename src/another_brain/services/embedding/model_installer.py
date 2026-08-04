@@ -34,7 +34,7 @@ from pathlib import Path
 from filelock import FileLock
 
 from another_brain.errors import ModelDownloadError, ModelHashMismatchError
-from another_brain.model_manifest import MODEL_MANIFEST, ModelManifest, manifest_digest
+from another_brain.services.embedding.model_manifest import MODEL_MANIFEST, ModelManifest, manifest_digest
 
 CHUNK_BYTES = 1 << 20
 DEFAULT_LOCK_TIMEOUT_S = 900.0

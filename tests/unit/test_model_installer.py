@@ -16,13 +16,13 @@ from pathlib import Path
 import pytest
 
 from another_brain.errors import ModelDownloadError, ModelHashMismatchError
-from another_brain.model_installer import (
+from another_brain.services.embedding.model_installer import (
     is_installed,
     install,
     profile_dir,
     verify,
 )
-from another_brain.model_manifest import ModelManifest, manifest_digest
+from another_brain.services.embedding.model_manifest import ModelManifest, manifest_digest
 
 REVISION = "0123456789abcdef0123456789abcdef01234567"
 
@@ -280,7 +280,7 @@ def test_marker_digest_drift_makes_profile_invisible(served, tmp_path):
 
 def _spawn_worker(cache_dir: str, url: str, manifest: ModelManifest, outq) -> None:
     """Module-level worker so multiprocessing spawn can pickle it."""
-    import another_brain.model_installer as mi
+    import another_brain.services.embedding.model_installer as mi
 
     try:
         path = mi.install(cache_dir, manifest=manifest, base_url=url)

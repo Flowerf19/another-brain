@@ -21,7 +21,7 @@ import pytest
 
 from another_brain.config import AppConfig
 from another_brain.services.embedding.provider import ONNXEmbeddingProvider
-from another_brain.model_installer import is_installed, profile_dir
+from another_brain.services.embedding.model_installer import is_installed, profile_dir
 
 pytestmark = pytest.mark.slow
 

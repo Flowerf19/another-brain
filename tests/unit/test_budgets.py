@@ -16,7 +16,7 @@ from another_brain.config import (
     BUDGET_TOPIC_TOKENS,
 )
 from another_brain.errors import ValidationError
-from another_brain.model_manifest import QUERY_PROMPT
+from another_brain.services.embedding.model_manifest import QUERY_PROMPT
 
 VOCAB = {
     "[CLS]": 0, "[SEP]": 1, "[UNK]": 2,
