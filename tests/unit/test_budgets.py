@@ -140,6 +140,61 @@ class TestNoTruncation:
         validator.validate_remember(topic="t", summary="s", content=long_chars)
 
 
+class TestLanguageInput:
+    """Vietnamese/English through every counter (TASK-045)."""
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Xin chào thế giới",
+            "chào bạn tôi là một kỹ sư phần mềm",
+            "Tôi học tiếng Việt hàng ngày và viết ghi chú",
+            "hello world hello world",
+            "SQLite FTS5 vector benchmark 2026",
+        ],
+    )
+    def test_vi_and_en_content_counts_words(self, validator, text):
+        # WordLevel fixture: one token per whitespace-separated word, no specials
+        assert validator.content_tokens(text) == len(text.split())
+
+    @pytest.mark.parametrize(
+        "topic,summary",
+        [
+            ("chủ-đề", "tóm tắt nội dung tiếng Việt"),
+            ("my-topic", "summary text in english"),
+            ("sqlite-benchmark", "Kết quả đo hiệu năng vector và FTS5"),
+        ],
+    )
+    def test_vi_and_en_document_counts(self, validator, topic, summary):
+        expected = len(topic.replace("-", " ").split()) + len(summary.split()) + 2
+        assert validator.document_tokens(topic, summary) == expected
+
+    @pytest.mark.parametrize(
+        "query",
+        ["tìm kiếm ghi chú cũ về sqlite", "how do i find old notes", "", "   "],
+    )
+    def test_vi_and_en_query_counts_or_rejects(self, validator, query):
+        if not query.strip():
+            with pytest.raises(ValidationError):
+                validator.validate_query(query)
+            return
+        assert validator.query_tokens(query) == len(query.split()) + 19
+        validator.validate_query(query)  # all of these are within budget
+
+
+class TestOneBelowLimit:
+    def test_all_budgets_pass_one_below(self, validator):
+        topic_words = BUDGET_TOPIC_TOKENS - 1
+        # document budget covers topic + summary + specials: 11 + S + 2 = 255
+        summary_words = BUDGET_DOCUMENT_TOKENS - 2 - topic_words - 1
+        validator.validate_remember(
+            topic=" ".join(["word"] * topic_words),
+            summary=" ".join(["word"] * summary_words),
+            content=" ".join(["word"] * (BUDGET_CONTENT_TOKENS - 1)),
+        )
+        validator.validate_query(" ".join(["word"] * (BUDGET_QUERY_TOKENS - 19 - 1)))
+
+
 class TestAllAtOnce:
     def test_multiple_overbudget_fields_reported_together(self, validator):
         topic = " ".join(["word"] * (BUDGET_TOPIC_TOKENS + 1))

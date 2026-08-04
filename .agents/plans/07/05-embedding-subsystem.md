@@ -32,9 +32,9 @@ manifest module — nowhere else.
 | TASK-044 | One lazy session per MCP process; serialize first load; close on shutdown; record measured per-process memory for the release metric (no hidden daemon). | ✅ | 2026-08-04 |
 | TASK-027 | Versioned payload builder: document = `topic.replace("-"," ") + "\n" + summary.strip()`; query = `QUERY_PROMPT + query.strip()`; reject empty stripped query. Profile/input-version validation blocks mixed search until re-embedding completes. | ✅ | 2026-08-04 |
 | TASK-029 | One tokenizer budget validator: topic ≤12 (no specials), document ≤256 (with specials), prompted query ≤128 (with specials), content ≤1024 (no specials). Reject limit+1 with actual/allowed counts; delete `CONTENT_MAX_CHARS`; never truncate/chunk. | ✅ | 2026-08-04 |
-| TASK-028 | Update `brain_remember` description, MCP instructions, schema docs, tests for stable reusable topics (target 3–8, hard max 12 tokens; no catalog duplication/workflow labels/keyword stuffing). | | |
-| TASK-019 | Turn GOAL-001 q4 assertions into permanent slow tests; Torch/ST stay evaluation-only, absent from wheel and final lockfile. | | |
-| TASK-045 | Unit-test boundaries: token counts at every limit ±1, VI/EN input, query/document asymmetry, output norm, corrupt/missing external data, hash mismatch, interrupted download, concurrent installers. | | |
+| TASK-028 | Update `brain_remember` description, MCP instructions, schema docs, tests for stable reusable topics (target 3–8, hard max 12 tokens; no catalog duplication/workflow labels/keyword stuffing). | ✅ | 2026-08-04 |
+| TASK-019 | Turn GOAL-001 q4 assertions into permanent slow tests; Torch/ST stay evaluation-only, absent from wheel and final lockfile. | ✅ | 2026-08-04 |
+| TASK-045 | Unit-test boundaries: token counts at every limit ±1, VI/EN input, query/document asymmetry, output norm, corrupt/missing external data, hash mismatch, interrupted download, concurrent installers. | ✅ | 2026-08-04 |
 | TASK-046 | Expose profile/load state via health and `model status` without loading the model to answer status. | ⏳ (status wired; load state pending provider) | 2026-08-04 |
 
 ## Test Plan
