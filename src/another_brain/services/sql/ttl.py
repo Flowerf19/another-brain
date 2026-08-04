@@ -18,6 +18,7 @@ from another_brain.services.sql.connection import SQLiteConnectionFactory
 from another_brain.services.sql.retry import busy_retry
 
 _DAY_MS = 86_400_000
+GRACE_MS = FORGET_GRACE_DAYS * _DAY_MS
 
 DEFAULT_PURGE_BATCH = 500
 
@@ -54,7 +55,6 @@ def purge_expired(
     if max_rows < 1:
         raise ValidationError(f"max_rows must be >= 1, got {max_rows}")
     now = clock()
-    grace_ms = FORGET_GRACE_DAYS * _DAY_MS
     with factory.connect() as con:
         raw = con.connection
 
@@ -67,7 +67,7 @@ def purge_expired(
                     "  WHERE expires_at_ms <= ?"
                     "     OR (deleted_at_ms IS NOT NULL AND deleted_at_ms + ? < ?)"
                     "  LIMIT ?)",
-                    (now, grace_ms, now, max_rows),
+                    (now, GRACE_MS, now, max_rows),
                 )
                 raw.commit()
                 return cursor.rowcount

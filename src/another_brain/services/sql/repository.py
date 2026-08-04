@@ -19,9 +19,10 @@ import numpy as np
 
 from another_brain.domain.models import EmbeddingVector, MemoryRecord, RecentFilters
 from another_brain.errors import DuplicateMemoryError, StorageError, ValidationError
-from another_brain.protocols import Scope, ScopeKey
+from another_brain.protocols import MutationOutcome, Scope, ScopeKey
 from another_brain.services.sql.connection import SQLiteConnectionFactory
 from another_brain.services.sql.retry import busy_retry
+from another_brain.services.sql.ttl import GRACE_MS, ttl_ms_for
 
 _MEMORY_COLUMNS = (
     "memory_id", "brain_id", "agent_id", "scope", "scope_id", "topic",
@@ -130,6 +131,125 @@ class SQLiteMemoryRepository:
                         f" {self._brain_id!r}"
                     ) from exc
                 raise
+
+    # -- lifecycle -----------------------------------------------------------
+
+    def reinforce(self, memory_id: str) -> MutationOutcome:
+        """Re-arm ``expires_at`` from importance for a live row."""
+        now = self._clock()
+
+        def _tx() -> MutationOutcome:
+            raw.execute("BEGIN IMMEDIATE")
+            try:
+                row = raw.execute(
+                    "SELECT importance FROM memories"
+                    " WHERE brain_id = ? AND memory_id = ? AND deleted_at_ms IS NULL"
+                    " AND expires_at_ms > ?",
+                    (self._brain_id, memory_id, now),
+                ).fetchone()
+                if row is None:
+                    raw.rollback()
+                    return MutationOutcome.NOT_FOUND
+                raw.execute(
+                    "UPDATE memories SET expires_at_ms = ?"
+                    " WHERE brain_id = ? AND memory_id = ?",
+                    (now + ttl_ms_for(row[0]), self._brain_id, memory_id),
+                )
+                raw.commit()
+                return MutationOutcome.APPLIED
+            except Exception:
+                raw.rollback()
+                raise
+
+        with self._factory.connect() as con:
+            raw = con.connection
+            return busy_retry(_tx)  # type: ignore[return-value]
+
+    def soft_delete(self, memory_id: str) -> MutationOutcome:
+        """Forget: mark deleted and clamp expiry to ``now + grace``, never extending."""
+        now = self._clock()
+        grace_expiry = now + GRACE_MS
+
+        def _tx() -> MutationOutcome:
+            raw.execute("BEGIN IMMEDIATE")
+            try:
+                row = raw.execute(
+                    "SELECT expires_at_ms FROM memories"
+                    " WHERE brain_id = ? AND memory_id = ? AND deleted_at_ms IS NULL"
+                    " AND expires_at_ms > ?",
+                    (self._brain_id, memory_id, now),
+                ).fetchone()
+                if row is None:
+                    raw.rollback()
+                    return MutationOutcome.NOT_FOUND
+                current = row[0]
+                raw.execute(
+                    "UPDATE memories SET deleted_at_ms = ?, expires_at_ms = ?"
+                    " WHERE brain_id = ? AND memory_id = ?",
+                    (now, min(current, grace_expiry), self._brain_id, memory_id),
+                )
+                raw.commit()
+                return MutationOutcome.APPLIED
+            except Exception:
+                raw.rollback()
+                raise
+
+        with self._factory.connect() as con:
+            raw = con.connection
+            return busy_retry(_tx)  # type: ignore[return-value]
+
+    def restore(self, memory_id: str) -> MutationOutcome:
+        """Undo a soft delete still inside its grace window; re-arm from importance."""
+        now = self._clock()
+        grace_cutoff = now - GRACE_MS
+
+        def _tx() -> MutationOutcome:
+            raw.execute("BEGIN IMMEDIATE")
+            try:
+                row = raw.execute(
+                    "SELECT importance FROM memories"
+                    " WHERE brain_id = ? AND memory_id = ? AND deleted_at_ms IS NOT NULL"
+                    " AND deleted_at_ms > ?",
+                    (self._brain_id, memory_id, grace_cutoff),
+                ).fetchone()
+                if row is None:
+                    raw.rollback()
+                    return MutationOutcome.NOT_FOUND
+                raw.execute(
+                    "UPDATE memories SET deleted_at_ms = NULL, expires_at_ms = ?"
+                    " WHERE brain_id = ? AND memory_id = ?",
+                    (now + ttl_ms_for(row[0]), self._brain_id, memory_id),
+                )
+                raw.commit()
+                return MutationOutcome.APPLIED
+            except Exception:
+                raw.rollback()
+                raise
+
+        with self._factory.connect() as con:
+            raw = con.connection
+            return busy_retry(_tx)  # type: ignore[return-value]
+
+    def hard_delete(self, memory_id: str) -> MutationOutcome:
+        """Admin: permanently remove a live or soft-deleted row of this brain."""
+        def _tx() -> MutationOutcome:
+            raw.execute("BEGIN IMMEDIATE")
+            try:
+                cursor = raw.execute(
+                    "DELETE FROM memories WHERE brain_id = ? AND memory_id = ?",
+                    (self._brain_id, memory_id),
+                )
+                raw.commit()
+                return (
+                    MutationOutcome.APPLIED if cursor.rowcount else MutationOutcome.NOT_FOUND
+                )
+            except Exception:
+                raw.rollback()
+                raise
+
+        with self._factory.connect() as con:
+            raw = con.connection
+            return busy_retry(_tx)  # type: ignore[return-value]
 
     # -- reads ----------------------------------------------------------------
 
