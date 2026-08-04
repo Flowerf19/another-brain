@@ -26,9 +26,6 @@ another-brain = "another_brain.cli:main"
 dev = [
     "pytest>=8",
     "pytest-asyncio>=0.24",
-    # TODO(TASK-076): temporary — legacy Redis tests still import redis-py.
-    # Removed together with the legacy runtime in GOAL-015; never a runtime dep.
-    "redis>=7.1",
 ]
 
 [tool.hatch.build.targets.wheel]
