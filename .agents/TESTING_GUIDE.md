@@ -2,12 +2,12 @@
 
 ## Transition rule
 
-Branch `v0.11.0` is moving from the legacy Redis/Docker runtime to a clean
-SQLite wheel. Test commands are phase-aware:
+Branch `v0.11.0` is the clean SQLite wheel; the legacy Redis/Docker runtime
+was deleted in GOAL-015 and never returns:
 
-- use the current branch only for the code that still exists in that phase;
-- use a separate `main` worktree for Redis behavior evidence;
-- never install/reintroduce Redis or Docker into `v0.11.0` after GOAL-015.
+- use a separate `main` worktree for legacy behavior evidence;
+- never install/reintroduce Redis or Docker into `v0.11.0`;
+- `scripts/check-clean-tree.sh` enforces both rules and runs in CI.
 
 Legacy oracle setup:
 
@@ -18,30 +18,27 @@ git worktree add ../another-brain-main main
 Baseline oracle commit is `edc0e57` unless Plan 07 records a later maintenance
 export commit.
 
-## Current pre-cleanup commands
+## Current commands
 
-Until the package shell and early deletion land, the current checkout still has
-the legacy test layout:
+The clean tree requires no external service:
 
 ```bash
+uv run pytest -m "not slow"     # fast suite (unit + integration)
+uv run pytest                   # everything, incl. slow gates
 uv run pytest tests/unit
-uv run pytest
+scripts/check-clean-tree.sh     # dep graph + zero-reference gate
+scripts/check-wheel-install.sh  # clean wheel install gate
+uv build --no-sources
 ```
 
-The full legacy integration suite requires Redis and can silently skip. For
-trustworthy Redis evidence, run it from `../another-brain-main`, not by keeping
-Redis as a target dependency here. Record skipped tests with:
-
-```bash
-uv run pytest -rs
-```
-
-Do not treat a green legacy suite as approval of the new retrieval contract;
-the universal cosine gate has a known content-only match bug.
+For trustworthy legacy evidence, run the old suite from
+`../another-brain-main`, never from this branch. Do not treat a green legacy
+suite as approval of the new retrieval contract; the universal cosine gate
+has a known content-only match bug.
 
 ## Clean-branch target commands
 
-After GOAL-009/015, tests must require no external service:
+The clean tree requires no external service:
 
 ```bash
 uv run pytest                    # permanent unit + SQLite integration suite

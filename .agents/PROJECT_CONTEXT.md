@@ -2,9 +2,12 @@
 
 ## Branch state
 
-Branch `v0.11.0` is an approved clean rebuild in progress. The checked-in
-runtime still contains the legacy Redis/Docker implementation until the early
-cleanup phase, so distinguish code evidence from target architecture:
+Branch `v0.11.0` is an approved clean rebuild in progress. The package shell
+(GOAL-009) and early deletion (GOAL-015) have landed: the tree contains only
+the final `src/another_brain/` package — no Redis/Docker/Torch code, tests,
+config, or docs remain, and `scripts/check-clean-tree.sh` keeps it that way.
+Storage, retrieval, embedding, and the MCP server are not implemented yet;
+CLI commands exit with typed not-yet-available errors pointing at their GOAL.
 
 - target: `.agents/plans/another-brain-architecture.md`;
 - execution: `.agents/plans/07-multiplatform-embedded-runtime.md` (master) plus

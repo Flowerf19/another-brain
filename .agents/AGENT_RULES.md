@@ -25,10 +25,10 @@ git worktree add ../another-brain-main main
 ```
 
 Do not import Redis code, add a `STORAGE_BACKEND` switch, or make the new
-protocols implement Redis. Branch `v0.11.0` removes Redis, Docker, Torch, and
-SentenceTransformers early, after the final package shell/domain tests are
-working. A maintenance branch based on `main` may provide a one-time JSONL
-export; the clean branch only imports JSONL.
+protocols implement Redis. Branch `v0.11.0` removed Redis, Docker, Torch, and
+SentenceTransformers in GOAL-015; `scripts/check-clean-tree.sh` (CI-enforced)
+fails on any reintroduction. A maintenance branch based on `main` may provide
+a one-time JSONL export; the clean branch only imports JSONL.
 
 ## Final runtime boundary
 
