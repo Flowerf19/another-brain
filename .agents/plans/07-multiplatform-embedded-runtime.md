@@ -860,13 +860,13 @@ comparison remains available from the external `main` worktree.
 
 | ID | Task | Done | Date |
 |----|------|------|------|
-| TASK-076 | Delete Redis repositories/index/keys, Redis audit implementation, Redis config/env parsing, backend flags, Redis-only fixtures/tests, and all imports immediately after the package shell is green; retain no Redis package extra. | | |
-| TASK-077 | Delete `docker/`, `.dockerignore`, Compose/Docker install and health paths, Docker-specific model/cache assumptions, and Docker instructions from scripts/product docs. | | |
-| TASK-078 | Delete runtime SentenceTransformers/Torch providers, precision code, PyTorch source config, root extras/tests/lock packages; retain fp32 only in the non-workspace `spikes/fp32/` frozen evaluation project excluded from distribution. | | |
-| TASK-079 | Move the backend-neutral domain/tool response code needed by the package shell, then delete superseded top-level `src/` modules/stubs and `pythonpath=["src"]` assumptions before new persistence/retrieval implementation begins. | | |
-| TASK-080 | Regenerate root `uv.lock` and inspect wheel plus dependency graph; fail if Redis, Torch, SentenceTransformers, CUDA, LanceDB, DuckDB, or Docker tooling appears in root/core/transitive runtime, while checking the isolated fp32 lock separately. | | |
-| TASK-081 | Run an early zero-reference check over `src/`, permanent `tests/`, scripts, product docs, README, pyproject, and workflows for Redis/Docker/Torch runtime paths; external-oracle instructions in this plan and superseded historical plans are the only allowed references. | | |
-| TASK-082 | Mark plans 03/04/05 and conflicting rules as superseded, then update AGENT_RULES/PROJECT_CONTEXT so future agents cannot reintroduce Redis/Docker or summary-only embedding behavior. | | |
+| TASK-076 | Delete Redis repositories/index/keys, Redis audit implementation, Redis config/env parsing, backend flags, Redis-only fixtures/tests, and all imports immediately after the package shell is green; retain no Redis package extra. | ✅ | 2026-08-04 |
+| TASK-077 | Delete `docker/`, `.dockerignore`, Compose/Docker install and health paths, Docker-specific model/cache assumptions, and Docker instructions from scripts/product docs. | ✅ | 2026-08-04 |
+| TASK-078 | Delete runtime SentenceTransformers/Torch providers, precision code, PyTorch source config, root extras/tests/lock packages; retain fp32 only in the non-workspace `spikes/fp32/` frozen evaluation project excluded from distribution. | ✅ | 2026-08-04 |
+| TASK-079 | Move the backend-neutral domain/tool response code needed by the package shell, then delete superseded top-level `src/` modules/stubs and `pythonpath=["src"]` assumptions before new persistence/retrieval implementation begins. | ✅ | 2026-08-04 |
+| TASK-080 | Regenerate root `uv.lock` and inspect wheel plus dependency graph; fail if Redis, Torch, SentenceTransformers, CUDA, LanceDB, DuckDB, or Docker tooling appears in root/core/transitive runtime, while checking the isolated fp32 lock separately. | ✅ | 2026-08-04 |
+| TASK-081 | Run an early zero-reference check over `src/`, permanent `tests/`, scripts, product docs, README, pyproject, and workflows for Redis/Docker/Torch runtime paths; external-oracle instructions in this plan and superseded historical plans are the only allowed references. | ✅ | 2026-08-04 |
+| TASK-082 | Mark plans 03/04/05 and conflicting rules as superseded, then update AGENT_RULES/PROJECT_CONTEXT so future agents cannot reintroduce Redis/Docker or summary-only embedding behavior. | ✅ | 2026-08-04 |
 
 ### GOAL-016: Final packaging, platform, footprint, and documentation gate
 
