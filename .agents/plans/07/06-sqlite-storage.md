@@ -24,6 +24,11 @@ Module targets: `storage/connection.py`, `schema.py`, `repository.py`,
 | ID | Task | Done | Date |
 |----|------|------|------|
 | TASK-047 | `SQLiteConnectionFactory`: bootstrap (schema lock, autocommit, fresh-DB `page_size=16384` before first object, WAL, `synchronous=NORMAL`, fail fast on wrong page size in non-empty DB), normal read/write (local PRAGMAs, verify invariants, short `BEGIN IMMEDIATE`), read-only (`mode=ro`, `query_only=ON`, inspect never mutate). Narrow enable-load-disable window for sqlite-vec; per-connection NumPy fallback capability; guaranteed close in `finally`. | | |
+> Progress 2026-08-04: models-first delivered early — `domain/models.py`
+> now defines MemoryRecord/AuditEvent/ImportRun/EmbeddingProfile/RecentFilters/
+> SearchPreview with locked validation (TASK-048 partial; DDL + FTS triggers +
+> indexes pending).
+
 | TASK-048 | Schema v1 exactly per master plan: `schema_migrations`, `embedding_profiles`, `memories` (all locked CHECKs incl. `UNIQUE(brain_id,memory_id)`, `CHECK(length(embedding)=2560)`), external-content `memory_fts(topic,summary,content)` with insert/update/delete triggers, `import_runs`, `audit_events` (no memory FK), and the required indexes/orderings. | | |
 | TASK-049 | Migration runner: checksum validation, `PRAGMA user_version`, exclusive schema transaction, concurrent-creator safety, crash rollback, fail-fast on unknown/newer versions. | | |
 | TASK-050 | Append-only store/get/recent: normalized scope tuple; by-ID get on `(bound brain_id, memory_id)`; recent ordering `created_at DESC,memory_id ASC`; strict JSON metadata; row+FTS commit atomically. | | |
