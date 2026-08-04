@@ -116,8 +116,6 @@ class MemoryRecord:
             raise ValidationError(
                 f"record_version must be positive, got {self.record_version}"
             )
-        if self.deleted_at_ms is not None and self.deleted_at_ms < 0:
-            raise ValidationError(f"deleted_at_ms must be non-negative")
         if self.embedding is not None and not isinstance(self.embedding, EmbeddingVector):
             raise ValidationError(
                 f"embedding must be an EmbeddingVector, got"
