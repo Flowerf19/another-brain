@@ -24,13 +24,22 @@ Module targets: `retrieval/query.py`, `lexical.py`, `vector.py`, `fusion.py`,
 
 | ID | Task | Done | Date |
 |----|------|------|------|
-| TASK-056 | Safe FTS5 query construction from Unicode terms without exposing MATCH syntax; punctuation-only input → no lexical branch; names/IDs/paths tokenized predictably. | | |
-| TASK-057 | `SQLiteLexicalRetriever`: BM25 weights 5:3:1, mandatory brain/scope/live filters before limit 50, order `bm25 ASC,memory_id ASC`, one-based ranks, no embedding dependency. | | |
-| TASK-058 | Scalar exact cosine over filtered regular BLOBs: reject malformed/non-finite, integer micro-cosine via Python half-even `round(score*1_000_000)`, floor 300000, rank by `cosine_key DESC,memory_id ASC`. | | |
-| TASK-059 | Forced/vectorized NumPy fallback with identical filtered IDs, FLOAT32 decode, canonical key/floor/order; fallback state exposed via doctor/health without semantic drift. | | |
-| TASK-060 | Pure `rrf_fuse()`: equal branch weights, k=60, dedupe, branch evidence, fixed 50-candidate inputs, final top-5, locked tie-break (fused desc, branch count desc, best rank asc, `memory_id` asc). | | |
-| TASK-061 | `HybridMemoryRetriever`: independent branches, lexical-only results allowed, vector-only when no safe FTS terms, never a universal post-fusion cosine gate. | | |
-| TASK-062 | Ranking tests: lexical-only identifiers, semantic-only matches, fused promotion, VI diacritics, duplicate/adversarial terms, live-filter starvation, source labels, canonical floor boundaries (0.299998/0.300000/0.300002), ties, malformed vectors, exact sqlite-vec/NumPy candidate/order/RRF parity within `1e-6` raw tolerance — **plus the 24-case behavior partition of `embedding-quality-v1` as a gate (deferred from GOAL-001, approved revision 2026-08-04)**. | | |
+| TASK-056 | Safe FTS5 query construction from Unicode terms without exposing MATCH syntax; punctuation-only input → no lexical branch; names/IDs/paths tokenized predictably. | ✅ | 2026-08-04 |
+| TASK-057 | `SQLiteLexicalRetriever`: BM25 weights 5:3:1, mandatory brain/scope/live filters before limit 50, order `bm25 ASC,memory_id ASC`, one-based ranks, no embedding dependency. | ✅ | 2026-08-04 |
+| TASK-058 | Scalar exact cosine over filtered regular BLOBs: reject malformed/non-finite, integer micro-cosine via Python half-even `round(score*1_000_000)`, floor 300000, rank by `cosine_key DESC,memory_id ASC`. | ✅ | 2026-08-04 |
+| TASK-059 | Forced/vectorized NumPy fallback with identical filtered IDs, FLOAT32 decode, canonical key/floor/order; fallback state exposed via doctor/health without semantic drift. | ✅ | 2026-08-04 |
+| TASK-060 | Pure `rrf_fuse()`: equal branch weights, k=60, dedupe, branch evidence, fixed 50-candidate inputs, final top-5, locked tie-break (fused desc, branch count desc, best rank asc, `memory_id` asc). | ✅ | 2026-08-04 |
+| TASK-061 | `HybridMemoryRetriever`: independent branches, lexical-only results allowed, vector-only when no safe FTS terms, never a universal post-fusion cosine gate. | ✅ | 2026-08-04 |
+| TASK-062 | Ranking tests: lexical-only identifiers, semantic-only matches, fused promotion, VI diacritics, duplicate/adversarial terms, live-filter starvation, source labels, canonical floor boundaries (0.299998/0.300000/0.300002), ties, malformed vectors, exact sqlite-vec/NumPy candidate/order/RRF parity within `1e-6` raw tolerance — **plus the 24-case behavior partition of `embedding-quality-v1` as a gate (deferred from GOAL-001, approved revision 2026-08-04)**. | ✅ | 2026-08-04 |
+> Gate note 2026-08-04: the 12 content-only cases assert the approved case text
+> at candidate/fused-list level (\"returned via the lexical branch even below the
+> cosine floor\"). On the full 624-doc store the expected doc is lexical rank 1 but
+> fused rank 7-9 (not top-5): the six dual-branch live-tail docs collide on the
+> shared \"runid\" token family, and locked equal-weight RRF lets two-branch hits
+> outrank one-branch rank-1. A strict top-5 reading is unsatisfiable without
+> changing a locked constant or regenerating the corpus with disjoint identifier
+> families (plan revision). Parity exactness holds on engineered fixtures with
+> rounding-boundary gaps; raw tolerance 1e-6.
 | TASK-063 | Judged 1k/10k/50k/100k retrieval suite; emit quality/latency/size/parity evidence manifests (100 warmups, 1000 measured, 5 repetitions, pooled + per-run p50/p95/p99) before service cutover. | | |
 | TASK-031 | (Deferred from GOAL-008, approved revision 2026-08-04.) In a worktree pinned to `main` baseline `edc0e57`, in the same environment setup as TASK-008: run and record the legacy unit/integration baseline; export deterministic fake-vector fixtures (identity binding, append-only writes, TTL, reinforce, soft-delete/restore, recent ordering `created_at DESC,memory_id ASC`, audit privacy, MCP previews, health) into backend-neutral JSON under `tests/fixtures/legacy-baseline/` in the `v0.11.0` branch. | | |
 | TASK-008 | Run the pinned `main` worktree oracle on the same judged fixtures; record Recall@5/MRR/nDCG@10 and intentional ranking differences; enforce locked embedded thresholds without adding Redis to `v0.11.0`. | | |

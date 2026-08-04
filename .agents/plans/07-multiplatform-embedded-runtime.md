@@ -750,13 +750,13 @@ Execute after package foundation in GOAL-009.
 
 | ID | Task | Done | Date |
 |----|------|------|------|
-| TASK-056 | Implement safe FTS5 query construction from Unicode terms without exposing MATCH syntax; punctuation-only input yields no lexical branch, while names/IDs/paths are tokenized predictably. | | |
-| TASK-057 | Implement `SQLiteLexicalRetriever` with BM25 weights 5:3:1, mandatory brain/scope/live filters before limit, order `bm25 ASC,memory_id ASC`, one-based ranks, and no embedding dependency. | | |
-| TASK-058 | Implement scalar exact cosine over filtered regular BLOBs, reject malformed/non-finite results, compute integer micro-cosine with Python half-even rounding, apply floor 300000, and rank by key then `memory_id`. | | |
-| TASK-059 | Implement forced/vectorized NumPy fallback with identical filtered IDs, FLOAT32 decoding, canonical key/floor/order, and expose fallback state through doctor/health without semantic drift. | | |
-| TASK-060 | Implement pure `rrf_fuse()` with equal branch weights, `k=60`, deduplication, branch evidence, fixed 50-candidate branch limits, final top-5, and the locked tie-break sequence. | | |
-| TASK-061 | Implement `HybridMemoryRetriever`: run lexical/vector candidates independently, allow lexical-only results, use vector-only for no safe FTS terms, and never apply a universal post-fusion cosine gate. | | |
-| TASK-062 | Add ranking tests for lexical-only identifiers, semantic-only matches, fused promotion, Vietnamese diacritics, duplicate/adversarial terms, live-filter starvation, source labels, canonical floor/ties, malformed vectors, and exact sqlite-vec/NumPy candidate/order/RRF parity within `1e-6` raw-score tolerance. **Gate includes the 24-case behavior partition of `embedding-quality-v1` (deferred from GOAL-001, approved revision 2026-08-04).** | | |
+| TASK-056 | Implement safe FTS5 query construction from Unicode terms without exposing MATCH syntax; punctuation-only input yields no lexical branch, while names/IDs/paths are tokenized predictably. | ✅ | 2026-08-04 |
+| TASK-057 | Implement `SQLiteLexicalRetriever` with BM25 weights 5:3:1, mandatory brain/scope/live filters before limit, order `bm25 ASC,memory_id ASC`, one-based ranks, and no embedding dependency. | ✅ | 2026-08-04 |
+| TASK-058 | Implement scalar exact cosine over filtered regular BLOBs, reject malformed/non-finite results, compute integer micro-cosine with Python half-even rounding, apply floor 300000, and rank by key then `memory_id`. | ✅ | 2026-08-04 |
+| TASK-059 | Implement forced/vectorized NumPy fallback with identical filtered IDs, FLOAT32 decoding, canonical key/floor/order, and expose fallback state through doctor/health without semantic drift. | ✅ | 2026-08-04 |
+| TASK-060 | Implement pure `rrf_fuse()` with equal branch weights, `k=60`, deduplication, branch evidence, fixed 50-candidate branch limits, final top-5, and the locked tie-break sequence. | ✅ | 2026-08-04 |
+| TASK-061 | Implement `HybridMemoryRetriever`: run lexical/vector candidates independently, allow lexical-only results, use vector-only for no safe FTS terms, and never apply a universal post-fusion cosine gate. | ✅ | 2026-08-04 |
+| TASK-062 | Add ranking tests for lexical-only identifiers, semantic-only matches, fused promotion, Vietnamese diacritics, duplicate/adversarial terms, live-filter starvation, source labels, canonical floor/ties, malformed vectors, and exact sqlite-vec/NumPy candidate/order/RRF parity within `1e-6` raw-score tolerance. **Gate includes the 24-case behavior partition of `embedding-quality-v1` (deferred from GOAL-001, approved revision 2026-08-04).** | ✅ | 2026-08-04 |
 | TASK-063 | Run the judged 1k/10k/50k/100k retrieval suite and emit quality/latency/size/parity evidence manifests before service cutover. | | |
 
 ### GOAL-013: Wire the final service, MCP tools, health, and transports
