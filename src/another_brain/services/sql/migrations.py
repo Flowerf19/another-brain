@@ -17,25 +17,23 @@ before the first schema object; the flows are deliberately separate).
 """
 from __future__ import annotations
 
-import hashlib
 import sqlite3
 import time
 from pathlib import Path
 
 from filelock import FileLock
 
+from another_brain.config import SQLITE_PAGE_SIZE
 from another_brain.errors import MigrationError
 from another_brain.services.sql.connection import SCHEMA_LOCK_SUFFIX
-from another_brain.services.sql.schema import DDL_V1_STATEMENTS, SCHEMA_VERSION
+from another_brain.services.sql.schema import (
+    DDL_V1_STATEMENTS,
+    SCHEMA_VERSION,
+    checksum,
+)
 
 # version -> single statements; append-only (a new version adds a new entry).
 MIGRATIONS: dict[int, list[str]] = {SCHEMA_VERSION: DDL_V1_STATEMENTS}
-
-
-def _checksum_for(version: int) -> str:
-    return hashlib.sha256(
-        "\n".join(MIGRATIONS[version]).encode("utf-8")
-    ).hexdigest()
 
 
 def migrate(db_path: Path) -> int:
@@ -45,6 +43,12 @@ def migrate(db_path: Path) -> int:
     with FileLock(str(db_path) + SCHEMA_LOCK_SUFFIX):
         raw = sqlite3.connect(str(db_path))
         try:
+            page_size = raw.execute("PRAGMA page_size").fetchone()[0]
+            if page_size != SQLITE_PAGE_SIZE:
+                raise MigrationError(
+                    f"database page size is {page_size}, expected"
+                    f" {SQLITE_PAGE_SIZE}; call bootstrap() before migrate()"
+                )
             current = raw.execute("PRAGMA user_version").fetchone()[0]
             if current > SCHEMA_VERSION:
                 raise MigrationError(
@@ -70,7 +74,7 @@ def _apply(raw: sqlite3.Connection, from_version: int) -> None:
             raw.execute(
                 "INSERT INTO schema_migrations(version, checksum, applied_at)"
                 " VALUES (?, ?, ?)",
-                (version, _checksum_for(version), int(time.time() * 1000)),
+                (version, checksum(), int(time.time() * 1000)),
             )
         raw.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         raw.commit()
@@ -80,8 +84,12 @@ def _apply(raw: sqlite3.Connection, from_version: int) -> None:
 
 
 def _verify_ledger(raw: sqlite3.Connection) -> None:
-    """The recorded ledger must exactly match the frozen migration set."""
-    expected = {version: _checksum_for(version) for version in sorted(MIGRATIONS)}
+    """The recorded ledger must exactly match the frozen migration set.
+
+    The single source of truth is :func:`schema.checksum` (the exact frozen
+    DDL text); the runner never recomputes a parallel hash.
+    """
+    expected = {SCHEMA_VERSION: checksum()}
     actual = {
         version: checksum
         for version, checksum in raw.execute(

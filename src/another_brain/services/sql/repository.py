@@ -71,6 +71,9 @@ class SQLiteMemoryRepository:
         brain_id: str,
         clock: Callable[[], int] = _now_ms,
     ) -> None:
+        # Fail-fast open contract: an unmigrated, partial, or missing schema
+        # is a typed error here, not a late OperationalError on first query.
+        factory.verify_schema()
         self._factory = factory
         self._brain_id = brain_id
         self._clock = clock

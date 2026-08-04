@@ -1,17 +1,21 @@
 """SQLite connection factory — three flows, one locked contract (TASK-047).
 
 - ``bootstrap()`` — cross-process locked writer that sets ``page_size``
-  BEFORE the first schema object exists, then flips persistent WAL. No
-  tables are created here (the migration runner owns DDL, TASK-049) and the
-  lock file is the same one the runner will take, so bootstrap + migrate
-  serialize across processes.
+  BEFORE the first schema object exists, verifies it read back, then flips
+  persistent WAL. Refuses a non-empty/foreign database whose page size
+  cannot be set. No tables are created here (the migration runner owns DDL,
+  TASK-049) and the lock file is the same one the runner will take, so
+  bootstrap + migrate serialize across processes.
 - ``connect()`` — normal read/write connection: local PRAGMAs
   (``foreign_keys``, ``busy_timeout``, ``synchronous``) then verifies the
   database state (WAL journal + locked page size). Fails fast on a database
   that was never bootstrapped or has a foreign page size.
 - ``connect(read_only=True)`` — ``mode=ro`` URI + ``query_only``; inspects
-  without setting any write PRAGMA and never creates the file (a missing
-  database is a typed :class:`DatabaseOpenError`).
+  without setting any write PRAGMA (``foreign_keys`` and ``busy_timeout``
+  are still applied) and never creates the file (a missing database is a
+  typed :class:`DatabaseOpenError`).
+- ``verify_schema()`` — fail-fast typed check that the database was
+  bootstrapped AND migrated (version + all six tables present).
 
 Every connection is a :class:`Connection` wrapper with guaranteed close
 (context manager + idempotent ``close()``), narrow sqlite-vec extension
@@ -31,7 +35,8 @@ from another_brain.config import (
     SQLITE_PAGE_SIZE,
     SQLITE_SYNCHRONOUS,
 )
-from another_brain.errors import DatabaseOpenError, StorageError
+from another_brain.errors import DatabaseOpenError, MigrationError, StorageError
+from another_brain.services.sql.schema import SCHEMA_TABLES, SCHEMA_VERSION
 
 SCHEMA_LOCK_SUFFIX = ".schema.lock"
 
@@ -47,12 +52,25 @@ class SQLiteConnectionFactory:
         return self._db_path
 
     def bootstrap(self) -> None:
-        """One-time locked bootstrap; idempotent, crash-safe, no DDL."""
+        """One-time locked bootstrap; idempotent, crash-safe, no DDL.
+
+        Sets and verifies ``page_size`` (a foreign non-empty database cannot
+        be re-paged and is refused), then flips persistent WAL.
+        """
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         with FileLock(str(self._db_path) + SCHEMA_LOCK_SUFFIX):
             con = sqlite3.connect(str(self._db_path))
             try:
+                con.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_MS}")
+                con.execute("PRAGMA foreign_keys=ON")
+                con.execute(f"PRAGMA synchronous={SQLITE_SYNCHRONOUS}")
                 con.execute(f"PRAGMA page_size={SQLITE_PAGE_SIZE}")
+                page_size = con.execute("PRAGMA page_size").fetchone()[0]
+                if page_size != SQLITE_PAGE_SIZE:
+                    raise StorageError(
+                        f"refusing to bootstrap non-empty/foreign database:"
+                        f" page size is {page_size}, expected {SQLITE_PAGE_SIZE}"
+                    )
                 mode = con.execute("PRAGMA journal_mode=WAL").fetchone()[0]
             finally:
                 con.close()
@@ -60,6 +78,38 @@ class SQLiteConnectionFactory:
                 raise StorageError(
                     f"journal_mode could not be set to WAL, got {mode!r}"
                 )
+
+    def verify_schema(self) -> None:
+        """Fail-fast typed check that the database is bootstrapped AND migrated.
+
+        Verifies ``user_version`` matches :data:`SCHEMA_VERSION` and every v1
+        table exists (FTS5 shadow tables excluded). A missing file is a
+        :class:`DatabaseOpenError` (``connect(read_only=True)`` never creates
+        it). The repository init path uses this so an unmigrated or partial
+        schema surfaces as a typed error instead of a late
+        ``OperationalError`` on the first query.
+        """
+        with self.connect(read_only=True) as con:
+            raw = con.connection
+            version = raw.execute("PRAGMA user_version").fetchone()[0]
+            tables = {
+                row[0]
+                for row in raw.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                    " AND name NOT LIKE 'memory_fts_%'"
+                )
+            }
+        if version != SCHEMA_VERSION:
+            raise MigrationError(
+                f"schema version {version}, expected {SCHEMA_VERSION};"
+                " run migrate() before opening the repository"
+            )
+        missing = SCHEMA_TABLES - tables
+        if missing:
+            raise StorageError(
+                f"schema incomplete, missing tables: {sorted(missing)};"
+                " run migrate() before opening the repository"
+            )
 
     def connect(self, *, read_only: bool = False) -> Connection:
         if read_only:
@@ -125,6 +175,8 @@ class Connection:
     def _configure(self) -> None:
         if self._read_only:
             self._raw.execute("PRAGMA query_only=ON")
+            self._raw.execute("PRAGMA foreign_keys=ON")
+            self._raw.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_MS}")
             return
         self._raw.execute("PRAGMA foreign_keys=ON")
         self._raw.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_MS}")

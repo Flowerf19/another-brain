@@ -155,7 +155,7 @@ class TestRecent:
     def test_filters_topic_catalog_window(self, repo):
         _, repository = repo
         repository.store(_record(memory_id="m1", topic="sqlite", created_at_ms=100))
-        repository.store(_record(memory_id="m2", topic="redis", created_at_ms=200))
+        repository.store(_record(memory_id="m2", topic="rust", created_at_ms=200))
         repository.store(_record(memory_id="m3", topic="sqlite", catalog="research", created_at_ms=300))
         assert [r.memory_id for r in repository.recent(
             self.USER1, limit=10, filters=RecentFilters(topic="sqlite"))] == ["m3", "m1"]

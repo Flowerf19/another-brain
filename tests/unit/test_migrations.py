@@ -36,7 +36,7 @@ class TestApply:
         raw = sqlite3.connect(str(db_path))
         try:
             assert raw.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
-            assert _ledger(raw) == {1: migrations._checksum_for(1)}
+            assert _ledger(raw) == {1: migrations.checksum()}
             tables = {
                 r[0] for r in raw.execute(
                     "SELECT name FROM sqlite_master WHERE type='table'"
@@ -78,11 +78,24 @@ class TestFailFast:
     def test_ddl_drift_changes_expected_checksum(self, db_path, monkeypatch):
         migrations.migrate(db_path)
         # the frozen DDL changed without a version bump -> ledger mismatch
-        monkeypatch.setitem(
-            migrations.MIGRATIONS, 1, DDL_V1_STATEMENTS + ["CREATE INDEX extra ON memories(created_at_ms)"]
-        )
+        # (checksum is the single source of truth; the runner imports it)
+        monkeypatch.setattr(migrations, "checksum", lambda: "0" * 64)
         with pytest.raises(MigrationError, match="ledger mismatch"):
             migrations.migrate(db_path)
+
+    def test_migrate_without_bootstrap_refused(self, tmp_path):
+        """A fresh 4096-byte-page file must never be migrated in place."""
+        path = tmp_path / "unbootstrapped.sqlite3"
+        raw = sqlite3.connect(str(path))
+        raw.execute("CREATE TABLE t(x)")
+        raw.close()
+        with pytest.raises(MigrationError, match="bootstrap"):
+            migrations.migrate(path)
+
+    def test_checksum_is_single_source(self):
+        from another_brain.services.sql.schema import checksum as schema_checksum
+
+        assert migrations.checksum is schema_checksum  # no parallel hash
 
 
 class TestCrashRollback:

@@ -14,8 +14,10 @@
 
 Timestamps are signed INTEGER epoch milliseconds (negative values are legal
 per contract). ``metadata`` and audit ``detail_json`` are stored as canonical
-JSON text and enforced as JSON objects at the schema level. The embedding
-BLOB is exactly 2560 bytes (640 × float32, little-endian).
+JSON text and enforced as JSON objects at the schema level. Identity and
+text fields are non-empty at the schema level (``length(...) > 0``), and
+``scope_id`` is canonical: global scope pins exactly ``'global'``. The
+embedding BLOB is exactly 2560 bytes (640 × float32, little-endian).
 
 The DDL is immutable and split into single statements
 (``DDL_V1_STATEMENTS``) so the migration runner can execute each inside one
@@ -27,6 +29,17 @@ from __future__ import annotations
 import hashlib
 
 SCHEMA_VERSION = 1
+
+#: The six v1 tables, minus FTS5 shadow tables; used by
+#: :meth:`~another_brain.services.sql.connection.SQLiteConnectionFactory.verify_schema`.
+SCHEMA_TABLES: frozenset[str] = frozenset({
+    "schema_migrations",
+    "embedding_profiles",
+    "memories",
+    "memory_fts",
+    "import_runs",
+    "audit_events",
+})
 
 DDL_V1_STATEMENTS: list[str] = [
     """CREATE TABLE schema_migrations(
@@ -55,7 +68,7 @@ DDL_V1_STATEMENTS: list[str] = [
   brain_id TEXT NOT NULL,
   agent_id TEXT NOT NULL,
   scope TEXT NOT NULL CHECK(scope IN ('user', 'project', 'global')),
-  scope_id TEXT NOT NULL,
+  scope_id TEXT NOT NULL CHECK(length(scope_id) > 0),
   topic TEXT NOT NULL,
   catalog TEXT NOT NULL,
   summary TEXT NOT NULL,
@@ -73,6 +86,13 @@ DDL_V1_STATEMENTS: list[str] = [
   embedding BLOB NOT NULL CHECK(length(embedding) = 2560),
   record_version INTEGER NOT NULL CHECK(record_version > 0),
   UNIQUE(brain_id, memory_id),
+  CHECK(length(memory_id) > 0),
+  CHECK(length(brain_id) > 0),
+  CHECK(length(agent_id) > 0),
+  CHECK(length(topic) > 0),
+  CHECK(length(catalog) > 0),
+  CHECK(length(summary) > 0),
+  CHECK(scope <> 'global' OR scope_id = 'global'),
   CHECK(updated_at_ms >= created_at_ms),
   CHECK(
     period_start_ms IS NULL OR period_end_ms IS NULL
@@ -119,7 +139,8 @@ END;""",
     CHECK(action IN ('remember', 'reinforce', 'forget', 'restore', 'hard_delete')),
   event_at_ms INTEGER NOT NULL,
   timeline_day TEXT NOT NULL,
-  detail_json TEXT NOT NULL CHECK(json_valid(detail_json))
+  detail_json TEXT NOT NULL
+    CHECK(json_valid(detail_json) AND json_type(detail_json) = 'object')
 );""",
     """CREATE INDEX memories_recent
   ON memories(brain_id, scope, scope_id, deleted_at_ms, expires_at_ms,

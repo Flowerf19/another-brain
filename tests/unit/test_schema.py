@@ -92,6 +92,8 @@ class TestMemoriesConstraints:
     @pytest.mark.parametrize("column,value", [
         ("scope", "team"), ("importance", 6), ("importance", 0),
         ("record_version", 0), ("updated_at_ms", 999),  # < created 1000
+        ("memory_id", ""), ("brain_id", ""), ("agent_id", ""),
+        ("topic", ""), ("catalog", ""), ("summary", ""), ("scope_id", ""),
     ])
     def test_check_rejects_bad_values(self, con, column, value):
         _profile(con)
@@ -100,6 +102,12 @@ class TestMemoriesConstraints:
         fields[_COLUMNS.index(column)] = value
         with pytest.raises(sqlite3.IntegrityError):
             con.execute(_INSERT_SQL, tuple(fields))
+
+    def test_global_scope_pins_canonical_scope_id(self, con):
+        _profile(con)
+        with pytest.raises(sqlite3.IntegrityError):
+            con.execute(_INSERT_SQL, _memory(con, scope="global", scope_id="team-x"))
+        con.execute(_INSERT_SQL, _memory(con, scope="global", scope_id="global"))
 
     def test_metadata_must_be_json_object(self, con):
         _profile(con)
@@ -195,6 +203,13 @@ class TestAuditAndImportChecks:
                 "INSERT INTO audit_events(event_id, brain_id, memory_id,"
                 " agent_id, action, event_at_ms, timeline_day, detail_json)"
                 " VALUES ('e3', 'b', 'm', 'a', 'forget', 1, '2026-08-04', 'nope')"
+            )
+        # valid JSON but not an object is still rejected at the schema level
+        with pytest.raises(sqlite3.IntegrityError, match="json"):
+            con.execute(
+                "INSERT INTO audit_events(event_id, brain_id, memory_id,"
+                " agent_id, action, event_at_ms, timeline_day, detail_json)"
+                " VALUES ('e4', 'b', 'm', 'a', 'forget', 1, '2026-08-04', '[]')"
             )
 
     def test_import_run_constraints(self, con):

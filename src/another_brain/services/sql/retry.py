@@ -8,6 +8,7 @@ typed :class:`BusyExhausted` surfaces instead of a hang.
 """
 from __future__ import annotations
 
+import random
 import sqlite3
 import time
 from collections.abc import Callable
@@ -34,5 +35,8 @@ def busy_retry(
             if "locked" not in text and "busy" not in text:
                 raise
             last = exc
-            time.sleep(base_s * (2**attempt) + attempt * 0.01)
+            # bounded exponential backoff with jitter: two writers colliding
+            # lockstep must not resynchronize across attempts
+            delay = base_s * (2**attempt)
+            time.sleep(delay * random.uniform(0.5, 1.5))
     raise BusyExhausted(f"write busy after {attempts} attempts: {last}") from last

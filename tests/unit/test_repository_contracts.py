@@ -8,7 +8,12 @@ import numpy as np
 import pytest
 
 from another_brain.domain.models import EmbeddingVector, MemoryRecord
-from another_brain.errors import BusyExhausted, StorageError
+from another_brain.errors import (
+    BusyExhausted,
+    DatabaseOpenError,
+    MigrationError,
+    StorageError,
+)
 from another_brain.protocols import MutationOutcome, Scope, ScopeKey
 from another_brain.services.sql.connection import SQLiteConnectionFactory
 from another_brain.services.sql.repository import SQLiteMemoryRepository, _row_to_record
@@ -220,6 +225,26 @@ class TestBusyRetryClassification:
         with pytest.raises(sqlite3.OperationalError, match="no such table"):
             busy_retry(broken, attempts=5, base_s=0.001)
         assert calls["n"] == 1  # not retried — classification, not blindness
+
+
+class TestOpenContract:
+    def test_repository_init_requires_bootstrapped_db(self, tmp_path):
+        factory = SQLiteConnectionFactory(tmp_path / "missing.sqlite3")
+        with pytest.raises(DatabaseOpenError, match="does not exist"):
+            SQLiteMemoryRepository(factory, brain_id="default")
+
+    def test_repository_init_requires_migrated_schema(self, tmp_path):
+        factory = SQLiteConnectionFactory(tmp_path / "brain.sqlite3")
+        factory.bootstrap()
+        with pytest.raises(MigrationError, match="migrate"):
+            SQLiteMemoryRepository(factory, brain_id="default")
+
+    def test_repository_init_refuses_partial_schema(self, sql_factory):
+        with sql_factory.connect() as con:
+            con.connection.execute("DROP TABLE import_runs")
+            con.connection.commit()
+        with pytest.raises(StorageError, match="import_runs"):
+            SQLiteMemoryRepository(sql_factory, brain_id="default")
 
 
 class TestCloseAndFileRelease:

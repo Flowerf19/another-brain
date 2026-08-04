@@ -4,9 +4,9 @@ Runs the judged corpus through the PRODUCT provider (raw ONNX q4, no Torch)
 and enforces the locked q4-only thresholds from the Q4 gate revision
 2026-08-04: macro Recall@5 >= 0.90, MRR >= 0.80, nDCG@10 >= 0.83.
 
-The paired fp32 cosine thresholds stay evaluation-only (Torch lives in the
-spike environment, absent from the wheel and the final lockfile); only the
-q4 profile can be asserted permanently.
+The paired fp32 cosine thresholds stay evaluation-only (the fp32 baseline
+lives in the spike environment, absent from the wheel and the final
+lockfile); only the q4 profile can be asserted permanently.
 
 Skips when the pinned q4 profile is not installed — run
 `another-brain model pull` first. Marked ``slow``; CI runs the fast suite.
