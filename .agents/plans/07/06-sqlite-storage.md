@@ -25,9 +25,11 @@ Module targets: `storage/connection.py`, `schema.py`, `repository.py`,
 |----|------|------|------|
 | TASK-047 | `SQLiteConnectionFactory`: bootstrap (schema lock, autocommit, fresh-DB `page_size=16384` before first object, WAL, `synchronous=NORMAL`, fail fast on wrong page size in non-empty DB), normal read/write (local PRAGMAs, verify invariants, short `BEGIN IMMEDIATE`), read-only (`mode=ro`, `query_only=ON`, inspect never mutate). Narrow enable-load-disable window for sqlite-vec; per-connection NumPy fallback capability; guaranteed close in `finally`. | | |
 > Progress 2026-08-04: models-first delivered early — `domain/models.py`
-> now defines MemoryRecord/AuditEvent/ImportRun/EmbeddingProfile/RecentFilters/
-> SearchPreview with locked validation (TASK-048 partial; DDL + FTS triggers +
-> indexes pending).
+> defines MemoryRecord/AuditEvent/ImportRun/EmbeddingProfile/RecentFilters/
+> SearchPreview with locked validation, and `schema.py` now carries the full
+> v1 DDL (six tables, CHECK constraints incl. `CHECK(length(embedding)=2560)`,
+> FTS5 external-content + triggers, seven indexes, `checksum()` for TASK-049).
+> TASK-048 remains open for the migration-runner integration.
 
 | TASK-048 | Schema v1 exactly per master plan: `schema_migrations`, `embedding_profiles`, `memories` (all locked CHECKs incl. `UNIQUE(brain_id,memory_id)`, `CHECK(length(embedding)=2560)`), external-content `memory_fts(topic,summary,content)` with insert/update/delete triggers, `import_runs`, `audit_events` (no memory FK), and the required indexes/orderings. | | |
 | TASK-049 | Migration runner: checksum validation, `PRAGMA user_version`, exclusive schema transaction, concurrent-creator safety, crash rollback, fail-fast on unknown/newer versions. | | |
