@@ -31,7 +31,9 @@ def _sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def _make_manifest(files: dict[str, bytes], revision: str = REVISION) -> ModelManifest:
+def _make_manifest(
+    files: dict[str, bytes], revision: str = REVISION, dimensions: int = 4
+) -> ModelManifest:
     return ModelManifest(
         profile="test",
         repo="test/harrier",
@@ -41,7 +43,7 @@ def _make_manifest(files: dict[str, bytes], revision: str = REVISION) -> ModelMa
         query_prompt_utf8_sha256=_sha256_bytes(b"Q"),
         document_template="d",
         input_version=2,
-        dimensions=4,
+        dimensions=dimensions,
         dtype="float32",
         normalization="unit_l2",
     )

@@ -29,3 +29,19 @@ class ModelHashMismatchError(ModelInstallError):
         self.name = name
         self.expected = expected
         self.actual = actual
+
+
+class EmbeddingError(BrainError):
+    """Embedding provider failure; the caller sees a typed, actionable error."""
+
+
+class ModelNotInstalledError(EmbeddingError):
+    """The pinned profile is not installed (or its marker is invalid)."""
+
+
+class EmbeddingLoadError(EmbeddingError):
+    """Session/tokenizer initialization failed; health goes ERROR, no retry."""
+
+
+class EmbeddingOutputError(EmbeddingError):
+    """A run produced invalid output (shape/dtype/finite/unit-norm)."""

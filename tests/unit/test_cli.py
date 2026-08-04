@@ -61,12 +61,12 @@ class TestParsingAndExitCodes:
         assert captured.out == ""  # errors go to stderr only
         assert "model pull failed" in captured.err
 
-    def test_model_status_does_not_import_heavy_deps(self, capsys):
+    def test_model_status_answers_without_loading(self, capsys):
+        """Status works from disk state; heavy imports are covered by the
+        subprocess test below (in-process sys.modules is polluted by other
+        test modules)."""
         assert cli.main(["model", "status"]) == cli.EXIT_OK
-        import sys
-
-        assert "onnxruntime" not in sys.modules
-        assert "tokenizers" not in sys.modules
+        assert "installed: no" in capsys.readouterr().out
 
     def test_help_lists_all_commands(self, capsys):
         with pytest.raises(SystemExit) as exc:
