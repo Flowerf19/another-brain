@@ -1,4 +1,12 @@
 """Unit test for the recent CLI line formatter (hook/context consumption)."""
+import pytest
+
+# TODO(TASK-076): legacy FastMCP (pre-2.0 SDK) module — deleted in GOAL-015.
+pytest.skip(
+    "legacy mcp.server.fastmcp removed in MCP SDK 2.0; module deleted in TASK-076",
+    allow_module_level=True,
+)
+
 from main import format_recent_lines
 
 

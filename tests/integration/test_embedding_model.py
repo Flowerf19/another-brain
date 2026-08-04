@@ -5,6 +5,15 @@ profile). Skips cleanly when the model has not been pulled yet:
 
 Loads a 270M model on CPU — expect a few seconds on first encode.
 """
+import pytest
+
+# TODO(TASK-078): legacy SentenceTransformers/Torch provider tests — the
+# `local` extra is removed (TASK-037); module deleted in GOAL-015.
+pytest.skip(
+    "torch/sentence-transformers removed in TASK-037; module deleted in TASK-078",
+    allow_module_level=True,
+)
+
 import math
 import os
 from pathlib import Path
