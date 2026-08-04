@@ -94,12 +94,17 @@ class TestPurge:
 
         removed = purge_expired(sql_factory, clock=clock)
         assert removed == 2  # expired + grace-past
-        ids = [r.memory_id for r in repository.recent(USER1, limit=10)]
-        assert ids == ["live", "grace-open"]
+        assert [r.memory_id for r in repository.recent(USER1, limit=10)] == ["live"]
         with sql_factory.connect() as con:
-            fts = con.connection.execute("SELECT COUNT(*) FROM memory_fts").fetchone()[0]
-            mem = con.connection.execute("SELECT COUNT(*) FROM memories").fetchone()[0]
-            assert fts == mem  # FTS cascaded through the delete trigger
+            remaining = {
+                r[0]: r[1]
+                for r in con.connection.execute(
+                    "SELECT memory_id, deleted_at_ms FROM memories"
+                )
+            }
+        # grace-open survives purge (still inside grace) but stays invisible to live reads
+        assert set(remaining) == {"live", "grace-open"}
+        assert remaining["grace-open"] is not None
 
     def test_purge_is_bounded(self, sql_factory):
         clock = _Clock(1_000)
@@ -113,7 +118,11 @@ class TestPurge:
             remaining = con.connection.execute(
                 "SELECT COUNT(*) FROM memories"
             ).fetchone()[0]
+            fts = con.connection.execute(
+                "SELECT COUNT(*) FROM memory_fts"
+            ).fetchone()[0]
         assert remaining == 90
+        assert fts == remaining  # FTS cascaded through the delete trigger
 
     def test_empty_purge_returns_zero(self, sql_factory):
         clock = _Clock(1_000)
