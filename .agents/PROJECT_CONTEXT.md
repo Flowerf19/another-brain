@@ -92,6 +92,11 @@ vector database, ANN sidecar, or storage backend selector.
 - Over-limit input is rejected; no truncation/chunking.
 - q4 ONNX-community revision:
   `d59c919d0159aea2c19ed7d04288fcdd048d0f9c`.
+- TASK-042 (2026-08-04): the q4 profile is encoded once in
+  `src/another_brain/model_manifest.py` (repo, revision, five file hashes, byte-exact
+  query prompt + hash, document template, input version 2, dims 640, unit_l2);
+  installer/provider/schema consume it. The spike `fetch_models.py` imports its q4
+  constants from the manifest so evidence and installer cannot drift.
 
 ### Retrieval
 

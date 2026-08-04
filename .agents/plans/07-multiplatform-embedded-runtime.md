@@ -726,7 +726,7 @@ Execute after package foundation in GOAL-009.
 
 | ID | Task | Done | Date |
 |----|------|------|------|
-| TASK-042 | Encode the locked repository/revision, five filenames/hashes, exact prompt/hash, dimensions, normalization, and input version in one immutable manifest consumed by installer/provider/schema. | | |
+| TASK-042 | Encode the locked repository/revision, five filenames/hashes, exact prompt/hash, dimensions, normalization, and input version in one immutable manifest consumed by installer/provider/schema. | ✅ | 2026-08-04 |
 | TASK-043 | Make model installation idempotent and crash-safe: one lock per manifest, stale temp cleanup, hash before rename, and no partially installed profile visible to another process. | | |
 | TASK-044 | Keep one lazy ONNX session per MCP process, serialize first load, and close references on shutdown; document measured per-process memory rather than introducing a hidden embedding daemon in the MVP. | | |
 | TASK-045 | Unit-test tokenizer counts and payload bytes at every boundary, Vietnamese/English input, query/document asymmetry, output norm, corrupt/missing external data, hash mismatch, interrupted download, and concurrent installers. | | |

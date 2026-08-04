@@ -16,6 +16,16 @@ from pathlib import Path
 
 from huggingface_hub import hf_hub_download, snapshot_download
 
+# The q4 profile identity lives once, in the product manifest; the spike
+# imports it so evidence and installer can never drift. The fp32 oracle
+# profile is evaluation-only and stays local.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+from another_brain.model_manifest import (  # noqa: E402
+    FILES_SHA256 as Q4_FILES_SHA256,
+    REPO as Q4_REPO,
+    REVISION as Q4_REVISION,
+)
+
 MODELS = Path(__file__).resolve().parent / ".models"
 
 FP32_REPO = "microsoft/harrier-oss-v1-270m"
@@ -23,16 +33,6 @@ FP32_REVISION = "31de22b673913c7d658c0f03f792d77c2dcf8ebd"
 FP32_SAFETENSORS_SHA256 = (
     "90933b6826b61afd9331e0ebe3c0598b421a32eda5fb301a114fe36f306cb51a"
 )
-
-Q4_REPO = "onnx-community/harrier-oss-v1-270m-ONNX"
-Q4_REVISION = "d59c919d0159aea2c19ed7d04288fcdd048d0f9c"
-Q4_FILES_SHA256 = {
-    "onnx/model_q4.onnx": "228dca2603b907d673dd99cf89c309c0ca68baeed127416a5e027a48e62b0f49",
-    "onnx/model_q4.onnx_data": "b5a15487360f5341659480ae4b5ad60028d5f865bd329196ec8d5708bbed3118",
-    "config.json": "5366f9919a82aaeceb6707bf218c5769f414d60f5dbaf781fa07e5465487fd7c",
-    "tokenizer.json": "ec95be298bea26f90370854faa650744c9fb0a04ca5e5ff95dd3913393ac5e45",
-    "tokenizer_config.json": "135405f3479eaebc473e2e78593f2195c7598948a215ee748758def426b30f59",
-}
 
 
 def sha256(path: Path) -> str:

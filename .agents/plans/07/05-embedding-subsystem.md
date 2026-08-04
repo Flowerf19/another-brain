@@ -25,7 +25,7 @@ manifest module — nowhere else.
 
 | ID | Task | Done | Date |
 |----|------|------|------|
-| TASK-042 | Encode the locked repository `onnx-community/harrier-oss-v1-270m-ONNX` @ `d59c919d...f9c`, five files/hashes, prompt/hash, dims, normalization, input version in one immutable manifest consumed by installer/provider/schema. | | |
+| TASK-042 | Encode the locked repository `onnx-community/harrier-oss-v1-270m-ONNX` @ `d59c919d...f9c`, five files/hashes, prompt/hash, dims, normalization, input version in one immutable manifest consumed by installer/provider/schema. | ✅ | 2026-08-04 |
 | TASK-018 | Download exactly the five pinned files: temp files, resume/progress on stderr, SHA-256 before rename, atomic publish, per-OS cache (platformdirs), one cross-process lock per manifest. | | |
 | TASK-043 | Idempotent crash-safe install: stale temp cleanup, no partially installed profile visible to another process; concurrent installers converge. | | |
 | TASK-017 | Raw ONNX Runtime CPU provider: direct `sentence_embedding`, FLOAT32 `[batch,640]` finite/unit-norm validation, query-only prompt, lazy load, thread-safe single initialization, health/load-error state. | | |
