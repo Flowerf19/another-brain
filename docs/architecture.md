@@ -13,3 +13,9 @@ vectors (`sqlite-vec` scalar or NumPy fallback) via equal-weight RRF `k=60`.
 Embeddings are Harrier OSS v1 270M q4 through raw ONNX Runtime CPU over a
 pinned, hash-locked model artifact. One `brain.sqlite3` file per user, shared
 by independent stdio processes through WAL.
+
+Embeddings run in-process: one lazy ONNX session per MCP process (first load
+serialized under a lock, references closed on shutdown). There is no hidden
+embedding daemon. Measured per-process memory is recorded in
+`benchmarks/reports/embedding-memory-2026-08-04.md` (~322 MiB RSS for the
+session on the reference machine).

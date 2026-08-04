@@ -177,6 +177,35 @@ class TestConcurrentFirstLoad:
         assert provider.health() == EmbeddingHealth.READY
 
 
+class TestClose:
+    def test_close_is_idempotent_and_drops_references(self, provider):
+        provider.embed_document(topic="t", summary="s")
+        assert provider.health() == EmbeddingHealth.READY
+        provider.close()
+        provider.close()  # idempotent
+        assert provider.health() == EmbeddingHealth.NOT_LOADED
+        assert provider.load_error() is None
+
+    def test_embed_after_close_reloads_lazily(self, provider):
+        provider.embed_document(topic="t", summary="s")
+        assert FakeSession.created == 1
+        provider.close()
+        provider.embed_document(topic="t", summary="s")
+        assert FakeSession.created == 2  # new session, still one per load
+        assert provider.health() == EmbeddingHealth.READY
+
+    def test_close_resets_error_state_and_retries(self, provider):
+        FakeSession.shape = ("batch", 512)
+        with pytest.raises(EmbeddingLoadError):
+            provider.embed_document(topic="t", summary="s")
+        assert provider.health() == EmbeddingHealth.ERROR
+        provider.close()  # reset: next embed retries the load
+        FakeSession.shape = ("batch", DIM)
+        provider.embed_document(topic="t", summary="s")
+        assert provider.health() == EmbeddingHealth.READY
+        assert FakeSession.created == 2
+
+
 class TestGraphContract:
     def test_dim_mismatch_fails_load_and_sticks(self, provider):
         FakeSession.shape = ("batch", 512)

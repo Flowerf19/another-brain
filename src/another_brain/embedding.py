@@ -72,6 +72,20 @@ class ONNXEmbeddingProvider:
         """Detail behind ``ERROR`` state, if any."""
         return self._error
 
+    def close(self) -> None:
+        """Drop session/tokenizer references (MCP shutdown path, TASK-044).
+
+        Idempotent. State returns to ``NOT_LOADED`` and a later embed lazily
+        re-loads; call only when no embed is in flight. RSS may not drop
+        until process exit because ORT keeps its allocation arena cached.
+        """
+        with self._load_lock:
+            self._session = None
+            self._tokenizer = None
+            self._state = EmbeddingHealth.NOT_LOADED
+            self._error = None
+            self._failure = None
+
     # -- payloads (locked input version 2) ----------------------------------
 
     def embed_document(self, *, topic: str, summary: str) -> EmbeddingVector:
