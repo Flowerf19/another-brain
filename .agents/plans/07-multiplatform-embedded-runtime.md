@@ -704,7 +704,7 @@ Execute after package foundation in GOAL-009.
 | TASK-037 | Lock core ranges to `mcp>=2.0,<2.1`, `onnxruntime>=1.28,<1.29`, `tokenizers>=0.23,<0.24`, `numpy>=2.1,<3`, `platformdirs>=4.3,<5`, `sqlite-vec>=0.1.9,<0.2`, and `filelock>=3.16,<4`; resolve exact versions in root `uv.lock` and remove Redis/root Torch extras. | ✅ | 2026-08-04 |
 | TASK-038 | Implement Redis-free config with fixed retrieval/token contracts, `BRAIN_ID`, timezone/retention, data/model overrides, and HTTP precedence/defaults; accept numeric loopback only and reject wildcard/hostname/LAN/public/link-local binds or invalid ports. | ✅ | 2026-08-04 |
 | TASK-039 | Resolve default paths with `platformdirs`: `brain.sqlite3` in the per-user data directory and immutable model artifacts in the per-user cache directory; create directories with user-only permissions where supported. | ✅ | 2026-08-04 |
-| TASK-040 | Implement CLI: bare command = protocol-clean stdio; `serve --http [--host HOST] [--port PORT]`, `model pull/status`, `doctor`, `recent`, `admin restore|hard-delete`, and `import-jsonl`. Keep logs/progress on stderr and never import Redis/Torch/ST at startup. | | |
+| TASK-040 | Implement CLI: bare command = protocol-clean stdio; `serve --http [--host HOST] [--port PORT]`, `model pull/status`, `doctor`, `recent`, `admin restore|hard-delete`, and `import-jsonl`. Keep logs/progress on stderr and never import Redis/Torch/ST at startup. | ✅ | 2026-08-04 |
 | TASK-041 | Build sdist/wheel with `uv build --no-sources`, install the wheel into a clean environment, run `another-brain --help`, and fail if imports resolve from the checkout instead of the installed wheel. | | |
 
 ### GOAL-010: Complete model manifest, cache, and process-local runtime
