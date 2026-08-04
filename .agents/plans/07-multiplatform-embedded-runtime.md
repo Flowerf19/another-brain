@@ -499,9 +499,13 @@ they do not introduce additional subsystems or change the append-only IDs.
 #### Q4 quality corpus and gate — TASK-001..004
 
 The versioned `embedding-quality-v1` corpus contains 600 memory documents and
-120 judged semantic queries: 60 Vietnamese and 60 English. Prompted query token
-buckets contain 40 queries each at 1–16, 17–64, and 65–128 Harrier tokens;
-20 Vietnamese queries are no-diacritic variants. Relevance is graded 0..3,
+120 judged semantic queries: 60 Vietnamese and 60 English. Query token buckets
+contain 40 queries each at 1–16, 17–64, and 65–128 Harrier tokens, counted on
+the raw query text without prompt or special tokens (a prompted-total reading
+is impossible: `QUERY_PROMPT` alone is 19–21 tokens, so bucket 1–16 would be
+empty); bucket-3 queries are capped at 107 raw tokens so the final prompted
+query stays within the 128-token budget. 20 Vietnamese queries are
+no-diacritic variants. Relevance is graded 0..3,
 each query has at least one relevant document and four judged hard negatives.
 A separate 24-case behavior partition has 12 content-only identifiers, six
 punctuation-only queries, and six expired/deleted starvation cases.
