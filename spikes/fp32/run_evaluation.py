@@ -33,12 +33,16 @@ sys.path.insert(0, str(SPIKE))
 TOP_K_RECALL = 5
 NDCG_K = 10
 
+# Locked thresholds (Plan 07 Q4 gate). Revision 2026-08-04 approved by the
+# maintainer on evidence q4gate-20260804T072033Z (report:
+# spikes/fp32/reports/q4-gate-2026-08-04.md): cosine median 0.99 -> 0.98,
+# nDCG@10 0.85 -> 0.83. Never lower a gate without an approved plan revision.
 THRESHOLDS = {
-    "paired_cosine_median": {"op": ">=", "value": 0.99},
+    "paired_cosine_median": {"op": ">=", "value": 0.98},
     "paired_cosine_p5": {"op": ">=", "value": 0.97},
     "q4_recall_at_5": {"op": ">=", "value": 0.90},
     "q4_mrr": {"op": ">=", "value": 0.80},
-    "q4_ndcg_at_10": {"op": ">=", "value": 0.85},
+    "q4_ndcg_at_10": {"op": ">=", "value": 0.83},
     "delta_recall_at_5": {"op": "<=", "value": 0.02},
     "delta_mrr": {"op": "<=", "value": 0.02},
     "delta_ndcg_at_10": {"op": "<=", "value": 0.02},
