@@ -23,7 +23,7 @@ Module targets: `storage/connection.py`, `schema.py`, `repository.py`,
 
 | ID | Task | Done | Date |
 |----|------|------|------|
-| TASK-047 | `SQLiteConnectionFactory`: bootstrap (schema lock, autocommit, fresh-DB `page_size=16384` before first object, WAL, `synchronous=NORMAL`, fail fast on wrong page size in non-empty DB), normal read/write (local PRAGMAs, verify invariants, short `BEGIN IMMEDIATE`), read-only (`mode=ro`, `query_only=ON`, inspect never mutate). Narrow enable-load-disable window for sqlite-vec; per-connection NumPy fallback capability; guaranteed close in `finally`. | | |
+| TASK-047 | `SQLiteConnectionFactory`: bootstrap (schema lock, autocommit, fresh-DB `page_size=16384` before first object, WAL, `synchronous=NORMAL`, fail fast on wrong page size in non-empty DB), normal read/write (local PRAGMAs, verify invariants, short `BEGIN IMMEDIATE`), read-only (`mode=ro`, `query_only=ON`, inspect never mutate). Narrow enable-load-disable window for sqlite-vec; per-connection NumPy fallback capability; guaranteed close in `finally`. | ✅ | 2026-08-04 |
 > Progress 2026-08-04: models-first delivered early — `domain/models.py`
 > defines MemoryRecord/AuditEvent/ImportRun/EmbeddingProfile/RecentFilters/
 > SearchPreview with locked validation, and `schema.py` now carries the full

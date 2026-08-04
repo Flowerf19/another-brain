@@ -61,6 +61,10 @@ BUDGET_DOCUMENT_TOKENS = 256    # topic+summary payload, with special tokens
 BUDGET_QUERY_TOKENS = 128       # prompted query, with special tokens
 BUDGET_CONTENT_TOKENS = 1024    # lexical-only content, no special tokens
 
+SQLITE_PAGE_SIZE = 16384        # set before the first schema object
+SQLITE_BUSY_TIMEOUT_MS = 5000   # locked busy envelope per attempt
+SQLITE_SYNCHRONOUS = "NORMAL"    # WAL durability level
+
 
 def _str(env: Mapping[str, str], key: str, default: str) -> str:
     value = env.get(key, "").strip()

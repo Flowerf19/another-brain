@@ -736,7 +736,7 @@ Execute after package foundation in GOAL-009.
 
 | ID | Task | Done | Date |
 |----|------|------|------|
-| TASK-047 | Implement `SQLiteConnectionFactory` with the separate bootstrap, normal read/write, and read-only flows above, narrow extension loading, guaranteed close, and per-connection NumPy fallback capability. | | |
+| TASK-047 | Implement `SQLiteConnectionFactory` with the separate bootstrap, normal read/write, and read-only flows above, narrow extension loading, guaranteed close, and per-connection NumPy fallback capability. | ✅ | 2026-08-04 |
 | TASK-048 | Implement schema v1 exactly as specified above: migration/profile/memory/FTS/audit/import-run tables, `UNIQUE(brain_id,memory_id)`, FTS triggers, constraints, and scope/topic/catalog/recent/expiry/deletion indexes. | | |
 | TASK-049 | Implement migration runner with checksum validation, `PRAGMA user_version`, exclusive schema transaction, concurrent-creator safety, crash rollback, and fail-fast behavior for unknown/newer versions. | | |
 | TASK-050 | Implement append-only store/get/recent: collection operations use the normalized scope tuple, by-ID get uses `(bound brain_id,memory_id)`, recent ordering is deterministic, metadata is strict JSON, and row+FTS commit atomically. | | |

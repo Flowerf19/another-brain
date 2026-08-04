@@ -45,3 +45,11 @@ class EmbeddingLoadError(EmbeddingError):
 
 class EmbeddingOutputError(EmbeddingError):
     """A run produced invalid output (shape/dtype/finite/unit-norm)."""
+
+
+class StorageError(BrainError):
+    """SQLite storage failure — connection, bootstrap, or state mismatch."""
+
+
+class DatabaseOpenError(StorageError):
+    """The database file cannot be opened in the requested mode."""

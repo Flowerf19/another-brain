@@ -6,7 +6,7 @@ import sqlite3
 
 import pytest
 
-from another_brain.schema import DDL_V1, SCHEMA_VERSION, checksum
+from another_brain.services.sql.schema import DDL_V1, SCHEMA_VERSION, checksum
 
 
 @pytest.fixture
