@@ -1,148 +1,118 @@
 # Another Brain
 
-**v0.11.0**
+**v0.11.1**
 
-> **Development-branch notice:** `v0.11.0` is being rebuilt as a standalone
-> SQLite/FTS5/ONNX tool with no Docker or Redis. The runnable commands below
-> still describe the legacy implementation preserved on `main` (`edc0e57`)
-> until the clean wheel lands. For implementation, use the
-> [approved target architecture](.agents/plans/another-brain-architecture.md)
-> and [Plan 07](.agents/plans/07-multiplatform-embedded-runtime.md), not the
-> legacy deployment instructions.
+Another Brain is a native, local MCP memory service for AI agents. It runs as
+one installed Python command on Windows and Ubuntu, stores data in SQLite/FTS5,
+and generates multilingual embeddings with ONNX Runtime CPU.
 
-One shared long-term memory for all your AI agents — a self-hosted MCP
-server with hybrid search, local multilingual embeddings, and
-self-expiring memory.
+The default transport is stdio, so there is no background service to manage.
+Windows and Ubuntu use the same Python package while keeping their own native
+data and model-cache directories.
 
-## What it does
+## Features
 
-Each AI agent remembers nothing or remembers in its own silo: a bug
-fixed in a Claude session is invisible to Codex the next morning.
-Another Brain is one small service that every agent connects to over
-MCP. Whatever one agent stores — a decision, a fix, a preference — any
-other agent on the same `brain_id` can recall it later, in its own
-session, days or weeks on.
+- Shared diary memory for Claude Code, Codex, Cursor, Gemini CLI, and other MCP
+  hosts.
+- SQLite source of truth with durable expiry, soft deletion, and audit events.
+- Hybrid FTS5 keyword and exact vector retrieval, fused with RRF.
+- Pinned Harrier 270M q4 ONNX model for Vietnamese and English.
+- Eight stable MCP tools: `brain_remember`, `brain_search`, `brain_recent`,
+  `brain_get`, `brain_reinforce`, `brain_forget`, `brain_health`, and
+  `brain_audit`.
 
-- **Shared by design** — one brain for Claude Code, Codex, pi, bots;
-  `agent_id` is recorded as provenance, not a partition.
-- **Remembers like a diary** — dated entries with a topic and a short
-  summary; append-only, an update is a new entry plus a forget.
-- **Forgets on purpose** — every entry carries an importance-derived
-  TTL (7–365 days); only an explicit reinforce after real use renews
-  it. The system fails toward forgetting, never toward bloat.
-- **Recall is claims, not facts** — search returns what past agents
-  wrote down, unverified; see the
-  [trust model](docs/memory-trust-model.md).
-- **Fully local** — Redis 8.8 hybrid search (BM25 + vector fused in one
-  `FT.HYBRID` call) and a 270M multilingual embedding model (Vietnamese
-  + English) that runs offline; footprint under ~1 GB.
+## Install on Windows
 
-Agents interact through eight `brain_*` tools:
+Requirements: Python 3.12+ and
+[uv](https://docs.astral.sh/uv/getting-started/installation/).
 
-| Tool | Purpose |
-| --- | --- |
-| `brain_remember` | Store a memory (topic + 1-2 sentence summary, optional detail) |
-| `brain_search` | Hybrid semantic + keyword search, preview lines only |
-| `brain_recent` | Newest entries on the timeline, no query needed |
-| `brain_get` | Full detail for one memory |
-| `brain_reinforce` | Renew TTL after a memory proved useful — the only renewal |
-| `brain_forget` | Soft-delete what proved wrong (30-day admin-recoverable grace) |
-| `brain_health` | Service + index + embedding status |
-| `brain_audit` | Secret-free mutation trail (who/what/when, never the text) |
-
-## Quick start
-
-Requirements: `git`, Docker with the compose plugin (Linux permission
-denied → `sudo usermod -aG docker $USER`, re-login), optionally Node.js
->= 18 for the skill step.
-
-One command installs Redis 8.8 + the MCP server, then asks which
-detected agent harnesses get the `another-brain` skill:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/Flowerf19/another-brain/main/scripts/install.sh | sh
+```powershell
+git clone <this-repository-url>
+Set-Location another-brain
+.\scripts\install.ps1
 ```
 
-Or by hand:
+To install without downloading the approximately 0.5 GB model immediately:
 
-```bash
-git clone <this repo> && cd another-brain
-docker compose -f docker/docker-compose.yml up -d --build
+```powershell
+.\scripts\install.ps1 -SkipModel
+another-brain model pull
 ```
 
-Defaults work out of the box (`BRAIN_ID=default`, Redis on 1906, MCP on
-1905); create a `.env` and pass `--env-file .env` only to override.
-Server endpoint: `http://localhost:1905/mcp`. First boot downloads the
-embedding model (~0.5 GB) into a Docker volume.
+Register the installed stdio command with one or more MCP hosts:
 
-## Connect your agents
-
-Per-harness setup — registers the MCP server in the harness's own
-config **and** installs the `another-brain` skill that teaches agents
-the recall loop:
-
-```bash
-scripts/connect.sh                    # list known + detected harnesses
-scripts/connect.sh claude-code codex  # connect the ones you use
+```powershell
+.\scripts\connect.ps1 codex
+.\scripts\connect.ps1 claude-code,cursor
 ```
 
-Supported: `claude-code`/`codex` (native CLIs), `gemini-cli`/`cursor`
-(JSON merge), `pi` (upserts the shared `~/.config/mcp/mcp.json` that the
-pi-mcp-adapter extension reads). Other hosts: register
-`http://localhost:1905/mcp` (or stdio from a checkout — see
-[`docs/deployment.md`](docs/deployment.md)) and install the skill with
-`npx skills add Flowerf19/another-brain -g -y`.
+## Install on Ubuntu
 
-Without the skill the tools still work; agents only discover the
-workflow from it.
+```bash
+git clone <this-repository-url>
+cd another-brain
+./scripts/install.sh
+./scripts/connect.sh codex
+```
+
+Set `AB_SKIP_MODEL=1` when running `install.sh` to defer the model download.
+
+## Run and verify
+
+```text
+another-brain doctor
+another-brain model status
+another-brain
+```
+
+Running `another-brain` with no subcommand starts MCP over stdio. For a local
+HTTP endpoint instead:
+
+```text
+another-brain serve --http
+```
+
+HTTP is restricted to numeric loopback addresses. The default endpoint is
+`http://127.0.0.1:1905/mcp`.
 
 ## Configuration
 
-All settings are environment variables (`.env` auto-loaded; real env
-wins). Every inconsistency is a startup error. The useful subset:
-
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `BRAIN_ID` | `default` | Brain namespace this server writes to |
-| `REDIS_URL` | `redis://localhost:1905` | Redis >= 8.4; the compose Redis maps host port **1906** — set this when running from source |
-| `EMBEDDING_MODEL` / `EMBEDDING_DIM` | `microsoft/harrier-oss-v1-270m` / `640` | Local embedding model |
-| `MODEL_DOWNLOAD_POLICY` | `manual` | `disabled` / `manual` / `lazy` / `on_start` |
-| `SEARCH_TOP_K` / `SEARCH_MIN_COSINE` | `20` / `0.30` | Recall page size and quality floor |
-| `TTL_IMPORTANCE_5`...`TTL_IMPORTANCE_1` | 365d...7d | All-or-none override set |
-| `FORGET_GRACE_SECONDS` | `2592000` | Soft-delete recovery window |
-| `TIMELINE_TIMEZONE` | `Asia/Ho_Chi_Minh` | `timeline_day` derivation |
-| `MCP_HTTP_HOST` / `MCP_HTTP_PORT` | `127.0.0.1` / `1905` | HTTP transport bind |
+| `BRAIN_ID` | `default` | Local namespace stored in the database |
+| `ANOTHER_BRAIN_DATA_DIR` | OS user-data directory | Parent directory for `brain.sqlite3` |
+| `ANOTHER_BRAIN_DATABASE` | `<data-dir>/brain.sqlite3` | Explicit SQLite file path |
+| `ANOTHER_BRAIN_MODEL_DIR` | OS user-cache directory | Verified ONNX model artifacts |
+| `TIMELINE_TIMEZONE` | `Asia/Ho_Chi_Minh` | Timeline-day and response timezone |
+| `MCP_HTTP_HOST` | `127.0.0.1` | Numeric loopback address only |
+| `MCP_HTTP_PORT` | `1905` | Optional HTTP port |
+| `AUDIT_RETENTION_DAYS` | `90` | Audit-event retention |
+| `FORGET_GRACE_SECONDS` | `2592000` | Restore window after soft deletion |
 
-Changing `EMBEDDING_DIM` against an existing index refuses startup (no
-reindex tooling yet).
+## Development
 
-## Safety & trust
+```text
+uv sync --locked
+uv run pytest --cov=another_brain --cov-branch --cov-report=term-missing --cov-fail-under=90
+uv build --no-sources
+```
 
-- **No auth layer, by design.** Every connected caller can read and
-  write the whole brain. Bind the HTTP transport to localhost or a
-  private network only.
-- **Memories are claims, not facts.** Treat recall like advice from a
-  colleague, not ground truth:
-  [`docs/memory-trust-model.md`](docs/memory-trust-model.md).
-- **No secrets in memory or audit.** The audit trail records actions
-  and ids, never memory text; don't store credentials in memories
-  either.
+The standard suite uses deterministic fake embeddings and skips only the
+downloaded-model gate. To exercise the pinned ONNX files as well:
 
-## For agents and developers
+```powershell
+$env:ANOTHER_BRAIN_TEST_MODEL_DIR = "C:\path\to\model"
+uv run pytest -m slow
+```
 
-Deeper documentation lives in the repo, by audience:
+```bash
+ANOTHER_BRAIN_TEST_MODEL_DIR=/path/to/model uv run pytest -m slow
+```
 
-- Operating the service: [`docs/deployment.md`](docs/deployment.md) —
-  manual install, model management, per-harness connectors, networking.
-- Tool parameter contracts: [`docs/mcp-tools.md`](docs/mcp-tools.md).
-- Why memories are claims, not facts:
-  [`docs/memory-trust-model.md`](docs/memory-trust-model.md).
-- Module map: [`docs/architecture.md`](docs/architecture.md).
-- Working in this repo (read order, source layout, testing, rules,
-  architecture plans): start with
-  [`.agents/README.md`](.agents/README.md). A source checkout is only
-  needed to hack on the service itself: `uv sync --extra local`.
+See [deployment](docs/deployment.md), [MCP tool contracts](docs/mcp-tools.md),
+[architecture](docs/architecture.md), and the
+[memory trust model](docs/memory-trust-model.md).
 
 ## License
 
-[MIT](LICENSE) — Redis and the embedding model keep their own licenses.
+[MIT](LICENSE). The embedding model retains its own license.

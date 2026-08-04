@@ -1,87 +1,43 @@
 # Architecture
 
-> **`v0.11.0` transition:** the approved target below is being implemented.
-> The old top-level `src/` still contains the legacy Redis runtime until the
-> early cleanup phase. Use `main` commit `edc0e57` as the legacy oracle; do not
-> carry Redis/Docker forward in this branch.
-
-Canonical sources:
-
-- [approved target architecture](../.agents/plans/another-brain-architecture.md)
-- [active implementation plan](../.agents/plans/07-multiplatform-embedded-runtime.md)
-- [memory trust model](memory-trust-model.md)
-
-Plans 01–05 are superseded Redis-era history.
-
-## Target shape
-
 ```text
 MCP host
-  -> installed `another-brain` executable
-  -> stdio default / localhost HTTP optional
+  -> installed another-brain executable
+  -> stdio default / numeric-loopback HTTP optional
   -> MemoryService
-       -> Harrier 270M q4 via raw ONNX Runtime CPU
-       -> SQLite memory/lifecycle/audit repository
+       -> Harrier 270M q4 through ONNX Runtime CPU
+       -> SQLite memory, lifecycle, and audit repository
        -> FTS5 lexical retrieval
-       -> sqlite-vec scalar or NumPy exact vector retrieval
-       -> app-layer RRF
+       -> NumPy exact vector retrieval
+       -> application-layer reciprocal-rank fusion
 ```
 
-Final runtime prerequisites are Python/uv and downloaded model artifacts — no
-Docker daemon or Redis server.
+The runtime is a regular Python wheel. Native path selection is delegated to
+`platformdirs`, so Windows and Ubuntu use their conventional per-user data and
+cache locations without platform-specific branches in the storage layer.
 
-## Target modules
+## Package boundaries
 
 ```text
 src/another_brain/
   cli.py, app.py, config.py
-  domain/       diary models and retention
-  embedding/    manifest, verified install, provider, payload, budgets
-  storage/      SQLite connection, schema, memory, audit
-  retrieval/    safe FTS query, lexical, vector, fusion, orchestration
-  mcp/          tools and transports
+  domain/       memory records, validation, retention
+  embedding/    pinned manifest, verified install, ONNX provider, payloads
+  storage/      SQLite connection, schema, repository
+  retrieval/    safe lexical search, exact vectors, RRF orchestration
+  mcp/          MCP SDK v2 tool surface
 ```
 
-Protocols isolate service tests but do not enable backend selection. SQLite is
-the only runtime store.
+SQLite is the only storage implementation. The database enables WAL, foreign
+keys, NORMAL synchronous mode, a five-second busy timeout, and 16 KiB pages.
+FTS5 indexes topic, summary, and content while the ordinary memory table
+remains the source of truth.
 
-## Memory and embedding
+One normalized FLOAT32[640] vector is generated from the humanized topic plus
+summary. Content remains lexical-only. Vector candidates must meet cosine
+0.30; lexical-only candidates remain eligible. The two ranked branches are
+fused with equal-weight RRF (`k=60`) and deterministic tie-breaking.
 
-One append-only diary entry contains topic, catalog, summary, optional content,
-timeline/identity fields, durable expiry/deletion, metadata, and one vector.
-The vector is normalized FLOAT32[640] from:
-
-```text
-humanized topic
-summary
-```
-
-Content is FTS5-only. The q4 ONNX graph already performs last-token pooling and
-L2 normalization.
-
-Tokenizer hard limits: topic 12, final document 256, prompted query 128,
-content 1,024. No silent truncation or automatic chunking.
-
-## Retrieval
-
-FTS5 indexes topic/summary/content with initial BM25 weights 5:3:1. Vector
-search is exact and applies cosine floor 0.30. Equal-weight RRF (`k=60`) fuses
-branch ranks. Lexical-only candidates remain valid without cosine, fixing the
-legacy content-only match bug.
-
-Every branch filters brain/scope, durable expiry, and soft deletion before
-limits. sqlite-vec failure chooses NumPy exact fallback rather than a source
-build or install failure.
-
-## Transition
-
-Use a separate worktree for legacy evidence:
-
-```bash
-git worktree add ../another-brain-main main
-```
-
-The clean branch creates the final package shell, deletes Redis/Docker/Torch
-early, then builds SQLite/retrieval/service vertically. Legacy data migration
-uses neutral JSONL exported from a maintenance branch based on `main`; the clean
-release imports and re-embeds it without a Redis dependency.
+Expiry is persisted on every row and enforced in reads. Reads do not renew a
+memory; only reinforcement does. Forget is a recoverable soft deletion during
+the configured grace period, while hard deletion is an explicit admin action.

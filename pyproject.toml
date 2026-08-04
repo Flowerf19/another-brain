@@ -1,43 +1,67 @@
 [project]
 name = "another-brain"
-version = "0.11.0"
-description = "Shared long-term memory for MCP agents — one brain, many agents. Hybrid search on Redis 8.8, local multilingual embeddings, self-expiring diary model."
+version = "0.11.1"
+description = "Native cross-platform MCP memory for Windows and Linux using SQLite, FTS5, and local ONNX embeddings."
 license = "MIT"
 requires-python = ">=3.12"
 dependencies = [
-    "mcp>=1.2",
-    # >=7.1 is the first redis-py with FT.HYBRID (native hybrid search) support.
-    "redis>=7.1",
+    "filelock>=3.16,<4",
+    "mcp>=2.0,<2.1",
+    "numpy>=2.1,<3",
+    "onnxruntime>=1.28,<1.29",
+    "platformdirs>=4.3,<5",
+    "tokenizers>=0.23,<0.24",
+    "tzdata>=2025.2; platform_system == 'Windows'",
 ]
 
-[project.optional-dependencies]
-# Local embedding/memory model support (Step 03). Deployments that use an
-# external provider (openai_compat/ollama/gemini) never need torch.
-local = [
-    "sentence-transformers>=5.0",
-    # Declared directly so the pytorch-cpu source pin below applies (uv
-    # sources don't reach transitive deps); keeps CUDA wheels out of the venv.
-    "torch>=2.9",
+[project.scripts]
+another-brain = "another_brain.cli:main"
+
+[build-system]
+requires = ["hatchling>=1.31,<2"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/another_brain"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/another_brain",
+    "tests/native",
+    "scripts/connect.ps1",
+    "scripts/connect.sh",
+    "scripts/install.ps1",
+    "scripts/install.sh",
+    "README.md",
+    "LICENSE",
+    "pyproject.toml",
+    "uv.lock",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=8",
     "pytest-asyncio>=0.24",
+    "pytest-cov>=6,<8",
 ]
 
-# This dev machine has no NVIDIA GPU — pin torch to the CPU wheel index so the
-# `local` extra doesn't pull multi-GB CUDA builds. Docker/prod can override.
-[[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
-explicit = true
-
-[tool.uv.sources]
-torch = [{ index = "pytorch-cpu" }]
-
 [tool.pytest.ini_options]
-pythonpath = ["src"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "slow: requires the downloaded pinned ONNX model",
+    "integration: exercises process or transport boundaries",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["another_brain"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_also = [
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]

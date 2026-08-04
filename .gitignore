@@ -2,13 +2,19 @@ __pycache__/
 *.py[co]
 .pytest_cache/
 .venv/
+venv/
+.wheel-venv/
 .cache/
+.uv-cache/
 .coverage
 dist/
+dist-native/
+.tmp-native*/
+tests/native/.tmp-run-*/
 node_modules/
 
-# Local environment (REDIS_URL, identity) — never committed
+# Local environment overrides; never committed.
 .env
 
-# Codegraph knowledge-graph index (local tooling)
+# Local code-graph tooling.
 .codegraph/

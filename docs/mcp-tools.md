@@ -1,108 +1,64 @@
-# MCP Tools
+# MCP tools
 
-> **Transition note:** tool names and the diary/trust loop remain stable, but
-> this page still describes the currently checked-in Redis implementation. The
-> `v0.11.0` target embeds one vector from humanized topic + summary, makes
-> content FTS5-only, applies cosine floor only to vector candidates, and uses
-> tokenizer limits topic/document/query/content = 12/256/128/1,024. See the
-> [target architecture](../.agents/plans/another-brain-architecture.md).
+Server name: `another-brain`. `brain_id` comes from process configuration and
+`agent_id` comes from the MCP client handshake; neither is a tool parameter.
 
-Server name: `another-brain`. Eight tools, implemented in
-[`src/server/tools.py`](../src/server/tools.py). `brain_id` and `agent_id` are
-bound from server config — no tool accepts identity input.
+`scope` is `user`, `project`, or `global`. User and project memories require a
+`scope_id`; global scope normalizes it to `global`.
 
-Conventions shared by all tools:
+## `brain_remember`
 
-- `scope` is `user | project | global`. `scope_id` is required for `user` and
-  `project`; `scope=global` pins `scope_id="global"` and may omit it.
-- Timestamps in responses are ISO 8601 in the configured `TIMELINE_TIMEZONE`.
-- `topic` and `catalog` are lowercase-kebab slugs. `catalog` is an open
-  vocabulary (starter set: `bug`, `decision`, `preference`, `task`, `fact`,
-  `note`).
+Appends one diary entry. Required fields are `topic`, `summary`, and `scope`.
+Optional fields are `scope_id`, `catalog`, `content`, `importance`, and
+`metadata`. Importance 5..1 maps to 365/180/90/30/7 days. The embedding uses
+only the humanized topic and summary; content is FTS5-only.
 
-## brain_remember
+Returns `memory_id`, `timeline_day`, and `expires_at`.
 
-Append one diary entry. The store is append-only — no merge, no update.
+## `brain_search`
 
-| Param | Required | Notes |
-| --- | --- | --- |
-| `topic` | yes | slug labeling the entry |
-| `summary` | yes | 1-2 sentences; the canonical text — this is what gets embedded |
-| `scope` (+ `scope_id`) | yes | see conventions |
-| `catalog` | no | default `note` |
-| `content` | no | optional detail/checklist, BM25-searchable, never embedded, max `CONTENT_MAX_CHARS` (4000) |
-| `importance` | no | 1-5, sets TTL: 5=365d, 4=180d, 3=90d, 2=30d, 1=7d |
-| `metadata` | no | JSON object, provenance only |
+Hybrid lexical and vector search. Required fields are `query` and `scope`.
+Optional filters are `scope_id`, `topic`, `catalog`, `timeline_day`,
+`min_importance`, and `days`.
 
-Returns `memory_id`, `timeline_day`, `expires_at`.
+Returns previews with scores, never full content or embeddings. Lexical-only
+matches do not have to pass the vector cosine floor.
 
-## brain_search
+## `brain_recent`
 
-Hybrid semantic + BM25 search (one `FT.HYBRID` call, RRF-fused in Redis, cosine
-floor applied before the top-k cut). Returns preview lines only: `memory_id`,
-`topic`, `catalog`, `summary`, `timeline_day`, `importance`, `has_content`,
-`relevance_score`, `score_source`. Never returns `content` or embeddings.
+Returns newest live previews for a scope without embedding a query and without
+renewing retention. Parameters are `scope`, optional `scope_id`, `days`, and
+`limit`.
 
-| Param | Required | Notes |
-| --- | --- | --- |
-| `query` | yes | non-empty; a query with no lexical terms degrades to KNN-only |
-| `scope` (+ `scope_id`) | yes | see conventions |
-| `topic`, `catalog` | no | exact TAG filters |
-| `timeline_day` | no | `YYYY-MM-DD` |
-| `min_importance` | no | 1-5 |
-| `days` | no | only memories from the last N days |
+## `brain_get`
 
-## brain_recent
+Returns one live memory in full by `memory_id`, including content, metadata,
+identity provenance, and timestamps. It is a pure read.
 
-Timeline listing, newest first (sort by `period_start`), same preview shape as
-`brain_search` without scores. Params: `scope` (+`scope_id`), optional
-`topic`, `catalog`, `timeline_day`, `min_importance`, `days`, `limit`
-(default `SEARCH_TOP_K`, max 100).
+## `brain_reinforce`
 
-## brain_get
+Re-arms the importance-derived TTL after the memory has actually proved useful.
+This is the only ordinary retention renewal.
 
-Full record by `memory_id`: everything in the preview plus `content`, `scope`,
-`scope_id`, `agent_id`, `metadata`, and all timestamps. Pure read — never
-extends TTL. Soft-deleted records report `found: false`.
+## `brain_forget`
 
-## brain_reinforce
+Soft-deletes a wrong or stale memory immediately. An administrator can restore
+it during the grace period with `another-brain admin restore <memory-id>` or
+remove it permanently with `another-brain admin hard-delete <memory-id>`.
 
-The **only** TTL renewal: re-arms the full importance TTL after a fetched
-memory proved correct and valuable in use. Don't reinforce on sight — fetch,
-use, judge, then reinforce.
+## `brain_health`
 
-## brain_forget
+Reports secret-free SQLite, model-installation, embedding, and client status.
+It does not load the model merely to answer health.
 
-Soft delete: excluded from all queries immediately, key TTL shrunk to
-`FORGET_GRACE_SECONDS` (default 30 days). An admin can restore within the
-grace window (`python src/main.py admin restore <memory_id>`); `admin
-hard-delete` is permanent. Harmless outdated memories can simply be left to
-expire.
+## `brain_audit`
 
-## brain_health
+Returns newest mutation events for an optional timeline day. Events contain
+action, memory id, acting agent id, and time; memory text is never included.
 
-Service status: Redis reachability, active index contract (embedding model,
-dim, dtype, metric, index mode), the server-bound `brain_id`, and your
-client identity as detected from the MCP handshake. Also reports embedding
-load state — `embedding_ready` (model in memory; loading is lazy, so
-`false` before the first embed is normal) and `embedding_error` (last load
-failure, degrades status). Secret-free.
+## Recall loop
 
-## brain_audit
-
-Mutation trail for one brain-day (`day` param, `YYYY-MM-DD`, defaults to
-today; `limit` max 500, newest first). Events record `action`
-(`remember`/`reinforce`/`forget`/`restore`/`hard_delete`), `memory_id`, acting
-`agent_id`, and `ts` — never memory text. Audit keys live 90 days
-(`AUDIT_RETENTION_DAYS`).
-
-## The recall loop
-
-Search/recent return previews; when a result answers the question, use it
-directly; when `has_content` is true and detail is needed, call `brain_get`.
-After actually *using* a memory, close the loop: `brain_reinforce` if it
-proved correct, `brain_forget` if it proved wrong. Reads alone change nothing.
-
-Memories are claims by past agents, not verified facts — the epistemic
-contract for reading and writing them is
-[`docs/memory-trust-model.md`](memory-trust-model.md).
+Search or inspect recent previews, fetch full detail only when needed, then
+reinforce after successful use or forget when disproved. Memories are claims
+from previous agents rather than verified facts; see the
+[trust model](memory-trust-model.md).
