@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: done
 created: 2026-08-04
 last_updated: 2026-08-04
 parent: .agents/plans/07-multiplatform-embedded-runtime.md
@@ -26,7 +26,7 @@ acceptance criteria, not adjustable in test code.
 | TASK-004 | Enforce the Q4 thresholds above (revised 2026-08-04 per approved decision: median cosine ≥0.98, p5 ≥0.97; macro Recall@5 ≥0.90, MRR ≥0.80, nDCG@10 ≥0.83; q4≤fp32 deltas 0.02/0.03; resource budgets — evidence: `spikes/fp32/reports/q4-gate-2026-08-04.md`). The 24-case behavior partition is deferred to the GOAL-012 gate (TASK-062). On failure: stop or record an approved plan revision. | ✅ | 2026-08-04 |
 | TASK-005 | Build checksummed judged fixtures plus deterministic 1k/10k/50k/100k stores (realistic text/scope/importance/expiry/deletion distributions, recorded seeds); write and checksum `benchmarks/reference-machine.json` before any performance run. | ✅ | 2026-08-04 |
 | TASK-006 | Benchmark regular-table `vec_distance_cosine` vs forced NumPy fallback and weighted FTS5 on those stores; enforce canonical candidate/order parity (`abs <= 1e-6` raw-score tolerance, exact IDs/order/ranks/RRF); emit ingest/DB-size/latency/extension manifests. | | |
-| TASK-007 | Implement the reusable spawned-process workload driver + allowed-outcome oracle using deterministic fake/precomputed embeddings: fresh-open storm (8 processes, 5 seeds), mixed WAL workload (2 writers/2 readers, 500 ops each, 50 hot IDs, both extension modes), crash probe, busy-exhaustion probe. Validate barriers/seeds/injection on a throwaway SQLite toy before TASK-055 applies it to the real repository. | | |
+| TASK-007 | Implement the reusable spawned-process workload driver + allowed-outcome oracle using deterministic fake/precomputed embeddings: fresh-open storm (8 processes, 5 seeds), mixed WAL workload (2 writers/2 readers, 500 ops each, 50 hot IDs, both extension modes), crash probe, busy-exhaustion probe. Validate barriers/seeds/injection on a throwaway SQLite toy before TASK-055 applies it to the real repository. | ✅ | 2026-08-04 |
 
 ## Test Plan
 
