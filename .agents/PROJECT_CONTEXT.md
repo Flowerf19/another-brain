@@ -7,12 +7,25 @@ runtime still contains the legacy Redis/Docker implementation until the early
 cleanup phase, so distinguish code evidence from target architecture:
 
 - target: `.agents/plans/another-brain-architecture.md`;
-- execution: `.agents/plans/07-multiplatform-embedded-runtime.md`;
-- legacy oracle: `main` baseline `edc0e57`, preferably in a separate worktree;
+- execution: `.agents/plans/07-multiplatform-embedded-runtime.md` (master) plus
+  per-phase sub-plans under `.agents/plans/07/`;
 - public README/deployment commands: legacy until the installed wheel exists.
 
-Do not preserve Redis in this branch merely for comparison. Main can be
-inspected with `git show main:<path>` or executed from another worktree.
+## External legacy oracle (TASK-035)
+
+The complete legacy Redis/Docker implementation is the external comparison
+oracle, recorded and verified as:
+
+- commit: `edc0e573a10bb8ea9148c9830cf19fe15f757972` (`edc0e57`), an ancestor
+  of `main` (verified 2026-08-04); a later explicitly recorded
+  maintenance-export commit may replace it;
+- access: `git worktree add ../another-brain-main main` — run it from that
+  worktree, or inspect with `git show main:<path>`;
+- rule: Redis/Docker/Torch runtime code is never created, copied back, or
+  checkpointed in `v0.11.0`; comparison happens only through the worktree,
+  deterministic fixtures, or JSONL artifacts.
+
+Do not preserve Redis in this branch merely for comparison.
 
 ## Product boundary
 

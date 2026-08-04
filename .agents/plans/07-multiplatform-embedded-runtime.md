@@ -427,6 +427,26 @@ flowchart LR
     remember → search → get → reinforce/forget flow; installing the optional
     thin skill changes proactive behavior only, never correctness.
 
+### Sub-plans
+
+Execution proceeds one sub-plan at a time, in this order. Task IDs remain
+append-only and authoritative here; sub-plans carry the per-phase acceptance
+criteria and must not restate contracts in a way that can drift from this
+document.
+
+| # | File | Covers | Gate to start |
+|---|------|--------|---------------|
+| 07.01 | `07/01-contracts-and-oracle.md` | GOAL-008 | — |
+| 07.02 | `07/02-package-shell.md` | GOAL-009 | 07.01 |
+| 07.03 | `07/03-clean-slate-deletion.md` | GOAL-015 | 07.02 |
+| 07.04 | `07/04-evidence-harnesses.md` | GOAL-001, GOAL-002 (TASK-005..007) | 07.03 |
+| 07.05 | `07/05-embedding-subsystem.md` | GOAL-005, GOAL-010 | 07.03 (evidence from 07.04 before TASK-019) |
+| 07.06 | `07/06-sqlite-storage.md` | GOAL-011 | 07.03 |
+| 07.07 | `07/07-retrieval.md` | GOAL-012, TASK-008 | 07.06 |
+| 07.08 | `07/08-service-and-mcp.md` | GOAL-013 | 07.05, 07.07 |
+| 07.09 | `07/09-import-and-cutover.md` | GOAL-014 | 07.08 + validated external artifact |
+| 07.10 | `07/10-release-gate.md` | GOAL-016 | all prior |
+
 ### Execution order
 
 GOAL numbers and task IDs are append-only, so execution order is explicit:
@@ -667,7 +687,7 @@ Execute after package foundation in GOAL-009.
 | TASK-032 | Add desired retrieval fixtures that explicitly fix the bug: a lexical-only content identifier survives with cosine below 0.30; vector-only candidates below 0.30 do not; deleted/expired rows are absent before branch limits. | | |
 | TASK-033 | Define and fixture the canonical JSONL v1 envelope specified under GOAL-014, including absolute expiry, checksums, IDs, identity, timestamps, metadata, deletion and audit state; omit embedding bytes. | | |
 | TASK-034 | Define final repository/retriever/audit/embedding Protocols with the locked scoped-collection and `(bound brain_id, memory_id)` by-ID semantics; include no Redis types, score encodings, or backend selector. | | |
-| TASK-035 | Record `main` baseline `edc0e57` (or the exact later maintenance-export commit) plus worktree commands as the external Redis oracle. Do not create, modify, or checkpoint Redis runtime code in `v0.11.0`. | | |
+| TASK-035 | Record `main` baseline `edc0e57` (or the exact later maintenance-export commit) plus worktree commands as the external Redis oracle. Do not create, modify, or checkpoint Redis runtime code in `v0.11.0`. | ✅ | 2026-08-04 |
 
 ### GOAL-009: Establish the installable final package and Redis-free config
 
