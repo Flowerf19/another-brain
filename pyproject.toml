@@ -34,10 +34,7 @@ packages = ["src/another_brain"]
 [tool.hatch.build.targets.sdist]
 include = ["src/another_brain"]
 
-# TODO(TASK-079): pythonpath/testpaths keep the legacy flat src/ layout
-# importable until GOAL-015 deletes it; the wheel only ships another_brain.
 [tool.pytest.ini_options]
-pythonpath = ["src"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
