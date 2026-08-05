@@ -9,16 +9,11 @@ Locked semantics (master plan 07, "Runtime and identity flows"):
 - ``brain_id`` is process-bound configuration; ``agent_id`` comes from the MCP
   handshake. Neither is ever a tool argument, so neither appears in these
   signatures. Repository/audit implementations are constructed already bound
-  to one ``brain_id``.
-- Collection operations (``store``/``recent``/``search``) normalize one scope
-  tuple ``(brain_id, scope, scope_id)``; since the brain is bound, callers
-  pass a normalized :class:`ScopeKey`. ``scope_id`` is non-empty for ``user``
-  and ``project``; ``global`` canonicalizes to the literal ``"global"`` and
-  rejects conflicting values.
+  to one ``brain_id``. Every read is bounded by that brain — there is no
+  finer-grained partition.
 - By-ID operations (``get``/``reinforce``/``soft_delete``/``restore``/
-  ``hard_delete``) key on ``(bound brain_id, memory_id)``. Scope is read from
-  the stored row and never trusted from the caller. An ID that exists only in
-  a different brain is indistinguishable from an unknown ID.
+  ``hard_delete``) key on ``(bound brain_id, memory_id)``. An ID that exists
+  only in a different brain is indistinguishable from an unknown ID.
 - Live reads exclude expired (``expires_at <= now``) and soft-deleted rows
   before any limit. ``restore`` may address a soft-deleted row still inside
   its grace window; ``hard_delete`` may address a live or soft-deleted row.
@@ -44,40 +39,6 @@ if TYPE_CHECKING:
         RecentFilters,
         SearchPreview,
     )
-
-GLOBAL_SCOPE_ID = "global"
-
-
-class Scope(str, Enum):
-    """Memory visibility scope. ``scope_id`` rules live in :class:`ScopeKey`."""
-
-    USER = "user"
-    PROJECT = "project"
-    GLOBAL = "global"
-
-
-@dataclass(frozen=True)
-class ScopeKey:
-    """Normalized collection scope for one bound brain.
-
-    ``scope_id`` must be non-empty for ``user``/``project`` and is pinned to
-    the literal ``"global"`` for ``Scope.GLOBAL``; any other combination is a
-    validation error raised by the service layer before persistence.
-    """
-
-    scope: Scope
-    scope_id: str
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "scope", Scope(self.scope))
-        if not isinstance(self.scope_id, str) or not self.scope_id:
-            raise ValueError(f"scope_id must be a non-empty string, got {self.scope_id!r}")
-        if self.scope is Scope.GLOBAL and self.scope_id != GLOBAL_SCOPE_ID:
-            raise ValueError(
-                f"scope=global canonicalizes scope_id to {GLOBAL_SCOPE_ID!r},"
-                f" got {self.scope_id!r}"
-            )
-
 
 class MutationOutcome(Enum):
     """Result of a by-ID lifecycle mutation.
@@ -162,12 +123,11 @@ class MemoryRepository(Protocol):
 
     def recent(
         self,
-        scope: ScopeKey,
         *,
         limit: int,
         filters: RecentFilters | None = None,
     ) -> Sequence[MemoryRecord]:
-        """Live records in one collection scope, newest first.
+        """Live records of the bound brain, newest first.
 
         Deterministic order: ``created_at DESC, memory_id ASC``. Expired and
         soft-deleted rows are excluded before ``limit`` is applied.
@@ -224,10 +184,9 @@ class MemoryRetriever(Protocol):
         *,
         query_text: str,
         query_vector: EmbeddingVector,
-        scope: ScopeKey,
         filters: RecentFilters | None = None,
     ) -> Sequence[SearchPreview]:
-        """Return fused previews for a bounded query in one collection scope.
+        """Return fused previews for a bounded query over the bound brain.
 
         ``query_text`` drives the lexical branch (skipped when it yields no
         safe FTS terms); ``query_vector`` is the prompted-query embedding,

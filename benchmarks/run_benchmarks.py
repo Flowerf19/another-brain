@@ -168,7 +168,7 @@ def main() -> int:
             "warmups": args.warmups, "measured": args.measured, "runs": args.runs,
             "queries_per_mode": N_QUERIES, "candidate_limit": CANDIDATE_LIMIT,
             "sleep_ms_between_calls": args.sleep_ms,
-            "filters": "brain_id + live (expires_at_ms > now, deleted_at IS NULL); no scope narrowing (worst-case scan)",
+            "filters": "brain_id + live (expires_at_ms > now, deleted_at IS NULL); no collection narrowing (worst-case scan)",
             "micro_cosine": "half-even round(score*1e6), floor 300000, key DESC then memory_id ASC",
         },
         "stores": {},

@@ -8,7 +8,7 @@ rewritten from the final tool definitions in TASK-088.
 |------|---------|
 | `brain_remember` | append a diary entry: stable reusable **topic** (3–8 Harrier tokens, hard max 12), `catalog`, summary, optional content |
 | `brain_search` | hybrid FTS5 + exact-vector search, fused with RRF |
-| `brain_recent` | newest-first timeline listing within a scope |
+| `brain_recent` | newest-first timeline listing within the bound brain |
 | `brain_get` | fetch one entry by `memory_id` (bound-brain isolated) |
 | `brain_reinforce` | re-arm expiry from importance |
 | `brain_forget` | soft delete with a 30-day grace window |

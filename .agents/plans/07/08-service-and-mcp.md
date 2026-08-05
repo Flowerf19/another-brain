@@ -1,7 +1,7 @@
 ---
 status: draft
 created: 2026-08-04
-last_updated: 2026-08-04
+last_updated: 2026-08-05
 parent: .agents/plans/07-multiplatform-embedded-runtime.md
 covers: GOAL-013
 ---
@@ -159,7 +159,7 @@ before tool dispatch, never wildcard fallback.
 > fresh-install stderr check now asserts the `model pull` message (exit 3 is
 > unchanged).
 
-| TASK-068 | Service/tool contracts with fake embedding + temp SQLite: every response shape, scoped collections, by-ID cross-brain/deleted/expired/grace, global normalization, content-only retrieval, HTTP negative binds/headers. | | |
+| TASK-068 | Service/tool contracts with fake embedding + temp SQLite: every response shape, collection operations in the bound brain, by-ID cross-brain/deleted/expired/grace, content-only retrieval, HTTP negative binds/headers. | | |
 | TASK-069 | End-to-end subprocess test using the installed console script and isolated data/model home: initialize, remember, search, get, reinforce, forget, restart, verify persistence/expiry. | | |
 | TASK-091 | Make the skill optional: concise server instructions + self-contained descriptions for all eight tools and every public field; hard rules stay in server validation with actionable actual/allowed errors; test initialize/tools-list metadata and the full no-skill flow; reduce `skills/another-brain/SKILL.md` to a 100–200-word activation/project-scope/trust-loop adapter with no duplicated contracts. | ✅ | 2026-08-05 |
 > Landed 2026-08-05. Server instructions (136 words) ship on `MCPServer`;

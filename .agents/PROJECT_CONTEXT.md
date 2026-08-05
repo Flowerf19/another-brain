@@ -67,6 +67,13 @@ both are now approved revisions recorded in `.agents/plans/07/07-retrieval.md`:
 TASK-008: the clean branch beats the legacy oracle on every aggregate
 (Recall@5 0.9783 vs 0.9000, MRR 0.9958 vs 0.9205, nDCG@10 0.8824 vs 0.7983).
 
+**Scope removal 2026-08-05 (approved revision, TASK-057 note in 07.07).** The
+mandatory `scope`/`scope_id` partition was removed product-wide; `brain_id` is
+the only boundary and the retrieval suite is now whole-brain by construction.
+The TASK-063/008 manifests and the 2026-08-04/05 retrieval-suite reports were
+recorded against the removed scoped contract and are historical — their
+recall/latency numbers are not directly comparable with post-removal runs.
+
 **Closed 2026-08-05 — TASK-006 lexical benchmark.** `run_suite.py` measured
 only `vector_branch` and `hybrid_search`; the weighted-FTS5 branch now ships
 as a first-class `lexical_branch` series, measured once per store (BM25 has
@@ -107,7 +114,7 @@ column sets match the spec exactly, all seven required indexes exist,
 **TASK-006** is closed by the lexical benchmark above; 07.04 is `done` again.
 
 The uncommitted `SearchPreview` / `domain/timeline.py` work is now assigned to
-**TASK-064** (scope note in 07.08). `timeline_day_for()` has no caller yet:
+**TASK-064** (scoping note in 07.08). `timeline_day_for()` has no caller yet:
 the repository persists `record.timeline_day` and both read paths filter on
 it, so the missing link is the service deriving it at write time from
 `AppConfig.timeline_timezone` — and the audit write path must use the same
@@ -145,13 +152,12 @@ vector database, ANN sidecar, or storage backend selector.
 
 ### Identity
 
-- `brain_id`: process-bound isolation namespace.
+- `brain_id`: process-bound isolation namespace — the only partition. The
+  `scope`/`scope_id` partition was removed before release (approved revision
+  recorded in `.agents/plans/07/07-retrieval.md`, TASK-057 note).
 - `agent_id`: provenance detected from MCP `clientInfo`.
-- `scope`: `user | project | global`.
-- `scope_id`: required for user/project; global pins `global`.
-- Collection operations carry brain and normalized scope filters. Stable by-ID
-  operations use `(process-bound brain_id, memory_id)` and read scope from the
-  stored row; they never trust caller-provided scope.
+- Collection operations carry brain and live filters. Stable by-ID
+  operations use `(process-bound brain_id, memory_id)`.
 
 ### Diary and retention
 
@@ -254,9 +260,9 @@ the contract — verified as a property (17 contract facts reachable from the
 server surface alone). Per-argument text must use
 `Annotated[..., Field(description=...)]`: the SDK builds each input schema from
 the signature, so docstring prose reaches the tool description but never the
-field. The skill is now a thin 168-word adapter (TASK-091) holding only what a
-schema cannot know — the mechanical `scope_id` derivation and the
-claims-not-truth stance.
+field. The skill is a thin adapter (TASK-091) holding only what a
+schema cannot know — the claims-not-truth stance and the close-the-loop
+timing.
 
 Canonical install path:
 

@@ -1,7 +1,7 @@
 ---
 status: frozen
 created: 2026-08-04
-last_updated: 2026-08-04
+last_updated: 2026-08-05
 source: .agents/plans/07-multiplatform-embedded-runtime.md (GOAL-014)
 ---
 
@@ -10,6 +10,10 @@ source: .agents/plans/07-multiplatform-embedded-runtime.md (GOAL-014)
 Neutral migration envelope between the legacy Redis runtime (external `main`
 maintenance exporter) and the clean `v0.11.0` importer. Frozen: changes
 require an approved plan revision, never an edit inside test code.
+
+Amended 2026-08-05 under the approved scope-removal revision (TASK-057 note,
+`.agents/plans/07/07-retrieval.md`): `scope`/`scope_id` dropped from the
+memory payload (20 → 18 keys).
 
 ## Envelope
 
@@ -48,9 +52,9 @@ rejected.
 - Audit lines follow, sorted by `(brain_id, event_at_ms, event_id)`;
   `idempotency_key = "audit:<brain_id>:<event_id>"`.
 
-### Memory payload — exactly these 20 keys
+### Memory payload — exactly these 18 keys
 
-`memory_id`, `brain_id`, `agent_id`, `scope`, `scope_id`, `topic`, `catalog`,
+`memory_id`, `brain_id`, `agent_id`, `topic`, `catalog`,
 `summary`, `content`, `timeline_day` (`YYYY-MM-DD`), `period_start_ms`,
 `period_end_ms` (both nullable), `created_at_ms`, `updated_at_ms`,
 `importance` (1..5), `expires_at_ms` (absolute, authoritative),
@@ -58,8 +62,7 @@ rejected.
 `remaining_ttl_ms` = `max(0, expires_at_ms - exported_at_ms)`.
 
 Embedding bytes and source embedding-profile IDs are absent; import
-re-embeds topic+summary under input version 2. Scope tuples are normalized:
-`scope_id` non-empty for `user`/`project`, pinned to `"global"` for `global`.
+re-embeds topic+summary under input version 2.
 
 ### Audit payload — exactly these 7 keys
 

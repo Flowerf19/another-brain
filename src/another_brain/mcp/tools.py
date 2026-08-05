@@ -38,17 +38,6 @@ from another_brain.services.memory_service import MemoryService
 
 DEFAULT_AGENT_ID = "unknown-client"
 
-Scope = Annotated[str, Field(description=(
-    "Which collection to use: 'project' for knowledge about a codebase, "
-    "'user' for a person's preferences and cross-project facts, 'global' for "
-    "knowledge useful everywhere."
-))]
-ScopeId = Annotated[str, Field(description=(
-    "REQUIRED for scope=user (the user's handle) and scope=project (the "
-    "project slug, e.g. the git repository directory name). Omit only for "
-    "scope=global. Reuse the exact same value for the same subject — two "
-    "spellings split one collection's memory in half."
-))]
 TopicFilter = Annotated[str | None, Field(default=None, description=(
     "Optional: return only memories whose topic matches this slug exactly."
 ))]
@@ -152,8 +141,6 @@ def register_tools(server: MCPServer, service: MemoryService) -> None:
             " knowledge, with names, commands, versions, and dates preserved"
             " exactly. Embedded together with topic and shown in search results."
         ))],
-        scope: Scope,
-        scope_id: ScopeId = "",
         catalog: Annotated[str, Field(description=(
             "Open kebab-case class for filtering. Starter set: bug, decision,"
             " preference, task, fact, note."
@@ -185,7 +172,7 @@ def register_tools(server: MCPServer, service: MemoryService) -> None:
         """
         result = service.remember(
             topic=topic, summary=summary, agent_id=agent_id_from(ctx),
-            scope=scope, scope_id=scope_id, catalog=catalog, content=content,
+            catalog=catalog, content=content,
             importance=importance, metadata=metadata,
         )
         return {
@@ -201,8 +188,6 @@ def register_tools(server: MCPServer, service: MemoryService) -> None:
             " file paths, and error strings are worth including verbatim —"
             " they are matched by keyword even when the meaning does not match."
         ))],
-        scope: Scope,
-        scope_id: ScopeId = "",
         topic: TopicFilter = None,
         catalog: CatalogFilter = None,
         timeline_day: DayFilter = None,
@@ -226,15 +211,13 @@ def register_tools(server: MCPServer, service: MemoryService) -> None:
         brain_forget if it proved wrong.
         """
         results = service.search(
-            query, scope=scope, scope_id=scope_id, topic=topic, catalog=catalog,
+            query, topic=topic, catalog=catalog,
             timeline_day=timeline_day, min_importance=min_importance, days=days,
         )
         return {"count": len(results), "results": [_preview(r) for r in results]}
 
     @server.tool()
     def brain_recent(
-        scope: Scope,
-        scope_id: ScopeId = "",
         limit: Annotated[int, Field(ge=1, le=100, description=(
             "How many entries to return, newest first. Maximum 100."
         ))] = 20,
@@ -248,14 +231,11 @@ def register_tools(server: MCPServer, service: MemoryService) -> None:
         listing with no query. Use it to catch up on what was stored recently,
         or to walk one day (timeline_day) or one topic.
 
-        Also the way to discover which scope_id values are already in use
-        before storing something new.
-
         Same preview shape as brain_search, ordered by time instead of
         relevance.
         """
         records = service.recent(
-            scope=scope, scope_id=scope_id, limit=limit, topic=topic,
+            limit=limit, topic=topic,
             catalog=catalog, timeline_day=timeline_day,
             min_importance=min_importance, days=days,
         )
@@ -285,8 +265,6 @@ def register_tools(server: MCPServer, service: MemoryService) -> None:
             "found": True,
             **_record_preview(record),
             "content": record.content,
-            "scope": record.scope.value,
-            "scope_id": record.scope_id,
             "agent_id": record.agent_id,
             "metadata": record.metadata,
             "created_at": _iso(record.created_at_ms, tz),

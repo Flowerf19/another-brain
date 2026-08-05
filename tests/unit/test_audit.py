@@ -143,12 +143,11 @@ class TestFailureIsolation:
         from another_brain.services.sql.repository import SQLiteMemoryRepository
         from tests.unit.test_lifecycle import EMBED
         from another_brain.domain.models import MemoryRecord
-        from another_brain.protocols import Scope
 
         repository = SQLiteMemoryRepository(sql_factory, brain_id="default")
         record = MemoryRecord(
-            memory_id="m1", brain_id="default", agent_id="a", scope=Scope.USER,
-            scope_id="u1", topic="t", catalog="c", summary="s", content="",
+            memory_id="m1", brain_id="default", agent_id="a",
+            topic="t", catalog="c", summary="s", content="",
             timeline_day="2026-08-04", period_start_ms=None, period_end_ms=None,
             created_at_ms=1, updated_at_ms=1, importance=3,
             expires_at_ms=10**15, deleted_at_ms=None, metadata={},

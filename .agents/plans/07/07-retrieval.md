@@ -26,6 +26,33 @@ Module targets: `retrieval/query.py`, `lexical.py`, `vector.py`, `fusion.py`,
 |----|------|------|------|
 | TASK-056 | Safe FTS5 query construction from Unicode terms without exposing MATCH syntax; punctuation-only input → no lexical branch; names/IDs/paths tokenized predictably. | ✅ | 2026-08-04 |
 | TASK-057 | `SQLiteLexicalRetriever`: BM25 weights 5:3:1, mandatory brain/scope/live filters before limit 50, order `bm25 ASC,memory_id ASC`, one-based ranks, no embedding dependency. | ✅ | 2026-08-04 |
+> Approved revision 2026-08-05 — **the scope partition is removed from the
+> product entirely; the lexical contract becomes mandatory brain/live filters
+> before limit 50.** The row above keeps the pre-removal wording. Rationale:
+> the product goal is one shared memory for all agents on a brain —
+> `agent_id` is provenance, not a partition — and a mandatory scope
+> partition re-created silos inside that brain. Measured ablation on the
+> judged stores: scope filtering yields 0.0% recall delta and +0.2 ms at 1k
+> rows (the designed, TTL-bounded scale); a benefit appears only on the 10k
+> (−37.6% recall unscoped) and 100k (−50.8%) multi-scope stress fixtures,
+> whose magnitude is inflated by template-filler vocabulary collision. The
+> wrong-scope failure mode (agent writes to scope A, searches scope B →
+> silent recall 0) is unrecoverable per-query and unmeasurable by the
+> fixture, which assumes perfect scope discipline. Schema v1 was unreleased
+> and is edited in place: the `scope`/`scope_id` columns and CHECKs are
+> dropped and the recent/topic/catalog indexes are reshaped brain_id-first.
+> Because v1 is unreleased, pre-removal draft stores fail the migration-ledger
+> checksum rather than being treated as structurally compatible. Locked contract
+> sentences changed with this revision: the identity flow, the
+> schema v1 column/index contract, the retrieval filter list, the JSONL v1
+> memory payload (20 → 18 keys), and the pending TASK-068 wording in the
+> master plan; the identity table, core field list, and retrieval contract
+> in `../another-brain-architecture.md`; and the frozen JSONL contract
+> `.agents/contracts/another-brain-jsonl-v1.md`. **Benchmark comparability:
+> the retrieval suite is now whole-brain by construction, so the TASK-063
+> evidence manifests and the 2026-08-04/05 retrieval-suite reports —
+> recorded against the removed scoped contract — are historical and not
+> directly comparable with post-removal runs.**
 | TASK-058 | Scalar exact cosine over filtered regular BLOBs: reject malformed/non-finite, integer micro-cosine via Python half-even `round(score*1_000_000)`, floor 300000, rank by `cosine_key DESC,memory_id ASC`. | ✅ | 2026-08-04 |
 | TASK-059 | Forced/streaming NumPy fallback with identical filtered IDs, FLOAT32 decode, canonical key/floor/order; fallback state exposed via doctor/health without semantic drift. | ✅ | 2026-08-04 |
 > Approved revision 2026-08-05 — **"vectorized" is corrected to "streaming":

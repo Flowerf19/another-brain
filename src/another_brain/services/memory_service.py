@@ -7,9 +7,13 @@ internals — no connection factory, no SQL, no FTS or vector adapter.
 
 Identity is bound, never chosen by a caller. ``brain_id`` comes from config
 and is fixed for the process; ``agent_id`` is provenance the MCP layer detects
-from ``clientInfo`` and passes in per call. By-ID operations read scope from
-the stored row rather than trusting a caller-supplied scope, so a memory in
-another brain is indistinguishable from one that never existed.
+from ``clientInfo`` and passes in per call. By-ID operations read the row
+within the bound brain, so a memory in another brain is indistinguishable
+from one that never existed.
+
+``brain_id`` is the hard boundary — every row and every read stays inside
+it. There is no finer-grained partition: search and recent always read the
+whole bound brain.
 
 Reads are pure. Only ``reinforce`` and ``restore`` re-arm a TTL; ``forget``
 clamps expiry to the grace window and never extends life.
@@ -41,15 +45,12 @@ from another_brain.domain.retention import expires_at_ms_for
 from another_brain.domain.timeline import timeline_day_for
 from another_brain.errors import ValidationError
 from another_brain.protocols import (
-    GLOBAL_SCOPE_ID,
     AuditRepository,
     EmbeddingHealth,
     EmbeddingProvider,
     MemoryRepository,
     MemoryRetriever,
     MutationOutcome,
-    Scope,
-    ScopeKey,
     StorageHealthProbe,
 )
 from another_brain.services.embedding.budgets import TokenBudgetValidator
@@ -118,8 +119,6 @@ class MemoryService:
         topic: str,
         summary: str,
         agent_id: str,
-        scope: str,
-        scope_id: str = "",
         catalog: str = "general",
         content: str = "",
         importance: int = 3,
@@ -135,7 +134,6 @@ class MemoryService:
         if not isinstance(content, str):
             raise ValidationError(f"content must be a string, got {type(content).__name__}")
         metadata = _validated_metadata(metadata)
-        key = self._scope_key(scope, scope_id)
         # Budgets first: rejecting over-limit input before the embed keeps a
         # doomed call from paying for a model load.
         self._budgets.validate_remember(topic=topic, summary=summary, content=content)
@@ -146,8 +144,6 @@ class MemoryService:
             memory_id=uuid.uuid4().hex,
             brain_id=self.brain_id,
             agent_id=agent_id,
-            scope=key.scope,
-            scope_id=key.scope_id,
             topic=topic,
             catalog=catalog,
             summary=summary,
@@ -171,7 +167,7 @@ class MemoryService:
             record.memory_id,
             agent_id=agent_id,
             at_ms=now_ms,
-            detail={"importance": importance, "scope": key.scope.value},
+            detail={"importance": importance},
         )
         return RememberResult(
             memory_id=record.memory_id,
@@ -185,31 +181,26 @@ class MemoryService:
         self,
         query: str,
         *,
-        scope: str,
-        scope_id: str = "",
         topic: str | None = None,
         catalog: str | None = None,
         timeline_day: str | None = None,
         min_importance: int | None = None,
         days: int | None = None,
     ) -> Sequence[SearchPreview]:
-        """Hybrid search in one collection scope; pure read, never touches TTL."""
+        """Hybrid search over the bound brain; pure read, never touches TTL."""
         self._budgets.validate_query(query)
-        key = self._scope_key(scope, scope_id)
         filters = self._filters(
             topic=topic, catalog=catalog, timeline_day=timeline_day,
             min_importance=min_importance, days=days,
         )
         query_vector = self._embedder.embed_query(query)
         return self._retriever.search(
-            query_text=query, query_vector=query_vector, scope=key, filters=filters,
+            query_text=query, query_vector=query_vector, filters=filters,
         )
 
     def recent(
         self,
         *,
-        scope: str,
-        scope_id: str = "",
         limit: int = 20,
         topic: str | None = None,
         catalog: str | None = None,
@@ -217,14 +208,14 @@ class MemoryService:
         min_importance: int | None = None,
         days: int | None = None,
     ) -> Sequence[MemoryRecord]:
-        """Timeline listing, newest first; pure read, no embedding involved."""
+        """Timeline listing of the bound brain, newest first; pure read, no
+        embedding involved."""
         _require_limit(limit, RECENT_LIMIT_MAX)
-        key = self._scope_key(scope, scope_id)
         filters = self._filters(
             topic=topic, catalog=catalog, timeline_day=timeline_day,
             min_importance=min_importance, days=days,
         )
-        return self._repo.recent(key, limit=limit, filters=filters)
+        return self._repo.recent(limit=limit, filters=filters)
 
     def get(self, memory_id: str) -> MemoryRecord | None:
         """Full record by ID within the bound brain; ``None`` when not visible.
@@ -352,34 +343,6 @@ class MemoryService:
                 detail=detail or {},
             )
         )
-
-    def _scope_key(self, scope: str, scope_id: str) -> ScopeKey:
-        """Normalize scope, filling in the canonical global ``scope_id``.
-
-        ``scope=global`` pins the literal ``'global'``; user/project scopes
-        need an explicit id, rejected here with an actionable message because
-        the tool schema marks it optional for global's sake.
-        """
-        try:
-            parsed = Scope(scope)
-        except ValueError:
-            allowed = ", ".join(s.value for s in Scope)
-            raise ValidationError(
-                f"scope must be one of {allowed}; got {scope!r}"
-            ) from None
-        if parsed is Scope.GLOBAL:
-            if scope_id and scope_id != GLOBAL_SCOPE_ID:
-                raise ValidationError(
-                    f"scope=global canonicalizes scope_id to {GLOBAL_SCOPE_ID!r},"
-                    f" got {scope_id!r}"
-                )
-            return ScopeKey(parsed, GLOBAL_SCOPE_ID)
-        if not scope_id:
-            raise ValidationError(
-                f"scope_id is required when scope={parsed.value!r} — pass the user"
-                f" name or project slug (only scope='global' may omit it)"
-            )
-        return ScopeKey(parsed, scope_id)
 
     def _filters(
         self,

@@ -1,12 +1,11 @@
 """SQLite ``MemoryRepository`` — append-only store/get/recent (TASK-050).
 
-Bound to one ``brain_id`` at construction. Collection operations use the
-normalized ``ScopeKey`` tuple; by-ID operations key on
-``(bound brain_id, memory_id)`` — scope is read from the stored row, never
-trusted from the caller. Live reads exclude expired/soft-deleted rows before
-any limit. ``row + FTS`` commit atomically inside one short ``BEGIN
-IMMEDIATE`` transaction with the bounded busy retry envelope; a duplicate
-``(brain_id, memory_id)`` is a typed integrity error, never an overwrite.
+Bound to one ``brain_id`` at construction. Collection operations read the
+bound brain; by-ID operations key on ``(bound brain_id, memory_id)``. Live
+reads exclude expired/soft-deleted rows before any limit. ``row + FTS``
+commit atomically inside one short ``BEGIN IMMEDIATE`` transaction with the
+bounded busy retry envelope; a duplicate ``(brain_id, memory_id)`` is a
+typed integrity error, never an overwrite.
 """
 from __future__ import annotations
 
@@ -19,13 +18,13 @@ import numpy as np
 
 from another_brain.domain.models import EmbeddingVector, MemoryRecord, RecentFilters
 from another_brain.errors import DuplicateMemoryError, StorageError, ValidationError
-from another_brain.protocols import MutationOutcome, Scope, ScopeKey
+from another_brain.protocols import MutationOutcome
 from another_brain.services.sql.connection import SQLiteConnectionFactory
 from another_brain.services.sql.retry import busy_retry
 from another_brain.services.sql.ttl import GRACE_MS, ttl_ms_for
 
 _MEMORY_COLUMNS = (
-    "memory_id", "brain_id", "agent_id", "scope", "scope_id", "topic",
+    "memory_id", "brain_id", "agent_id", "topic",
     "catalog", "summary", "content", "timeline_day", "period_start_ms",
     "period_end_ms", "created_at_ms", "updated_at_ms", "importance",
     "expires_at_ms", "deleted_at_ms", "metadata", "profile_id",
@@ -42,7 +41,6 @@ def _now_ms() -> int:
 
 def _row_to_record(row: Sequence) -> MemoryRecord:
     values = dict(zip(_MEMORY_COLUMNS, row))
-    values["scope"] = Scope(values["scope"])
     try:
         values["metadata"] = json.loads(values["metadata"])
     except (TypeError, ValueError) as exc:
@@ -110,7 +108,7 @@ class SQLiteMemoryRepository:
                         f" VALUES ({_PLACEHOLDERS})",
                         (
                             record.memory_id, record.brain_id, record.agent_id,
-                            record.scope.value, record.scope_id, record.topic,
+                            record.topic,
                             record.catalog, record.summary, record.content,
                             record.timeline_day, record.period_start_ms,
                             record.period_end_ms, record.created_at_ms,
@@ -268,12 +266,11 @@ class SQLiteMemoryRepository:
 
     def recent(
         self,
-        scope: ScopeKey,
         *,
         limit: int,
         filters: RecentFilters | None = None,
     ) -> Sequence[MemoryRecord]:
-        """Live records in one collection scope, newest first.
+        """Live records of the bound brain, newest first.
 
         Deterministic order ``created_at DESC, memory_id ASC``; live-filtering
         happens before ``limit`` so stale rows never starve the window.
@@ -281,10 +278,10 @@ class SQLiteMemoryRepository:
         if limit < 1:
             raise ValidationError(f"limit must be >= 1, got {limit}")
         filters = filters or RecentFilters()
-        where = ["brain_id = ?", "scope = ?", "scope_id = ?", _LIVE]
-        params: list[object] = [
-            self._brain_id, scope.scope.value, scope.scope_id, self._clock(),
-        ]
+        where = ["brain_id = ?"]
+        params: list[object] = [self._brain_id]
+        where.append(_LIVE)
+        params.append(self._clock())
         if filters.topic is not None:
             where.append("topic = ?")
             params.append(filters.topic)

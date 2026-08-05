@@ -7,7 +7,6 @@ import pytest
 
 from another_brain.domain.models import EmbeddingVector, MemoryRecord
 from another_brain.errors import ValidationError
-from another_brain.protocols import Scope, ScopeKey
 from another_brain.services.sql.repository import SQLiteMemoryRepository
 from another_brain.services.sql.ttl import (
     DEFAULT_PURGE_BATCH,
@@ -17,7 +16,6 @@ from another_brain.services.sql.ttl import (
 )
 
 EMBED = EmbeddingVector(values=np.zeros(640, dtype=np.float32))
-USER1 = ScopeKey(Scope.USER, "user-1")
 DAY = 86_400_000
 
 
@@ -37,8 +35,6 @@ def _record(clock: _Clock, **overrides) -> MemoryRecord:
         memory_id="mem-1",
         brain_id="default",
         agent_id="agent-a",
-        scope=Scope.USER,
-        scope_id="user-1",
         topic="t",
         catalog="c",
         summary="s",
@@ -94,7 +90,7 @@ class TestPurge:
 
         removed = purge_expired(sql_factory, clock=clock)
         assert removed == 2  # expired + grace-past
-        assert [r.memory_id for r in repository.recent(USER1, limit=10)] == ["live"]
+        assert [r.memory_id for r in repository.recent(limit=10)] == ["live"]
         with sql_factory.connect() as con:
             remaining = {
                 r[0]: r[1]
@@ -150,7 +146,7 @@ class TestNeverRenewOnRead:
             con.connection.commit()
         clock.advance(DAY * 10)  # reads happen much later
         assert repository.get("m1") is not None
-        assert repository.recent(USER1, limit=5)
+        assert repository.recent(limit=5)
         with sql_factory.connect() as con:
             stored = con.connection.execute(
                 "SELECT expires_at_ms FROM memories WHERE memory_id='m1'"

@@ -6,12 +6,11 @@ import numpy as np
 import pytest
 
 from another_brain.domain.models import EmbeddingVector, MemoryRecord
-from another_brain.protocols import MutationOutcome, Scope, ScopeKey
+from another_brain.protocols import MutationOutcome
 from another_brain.services.sql.repository import SQLiteMemoryRepository
 from another_brain.services.sql.ttl import GRACE_MS, expires_at_ms_for, ttl_ms_for
 
 EMBED = EmbeddingVector(values=np.zeros(640, dtype=np.float32))
-USER1 = ScopeKey(Scope.USER, "user-1")
 DAY = 86_400_000
 
 
@@ -31,8 +30,6 @@ def _store(repository, clock, memory_id, **overrides) -> None:
         memory_id=memory_id,
         brain_id=repository._brain_id,
         agent_id="agent-a",
-        scope=Scope.USER,
-        scope_id="user-1",
         topic="t",
         catalog="c",
         summary="s",
@@ -119,7 +116,7 @@ class TestSoftDelete:
         _store(repository, clock, "m1")
         repository.soft_delete("m1")
         assert repository.get("m1") is None
-        assert repository.recent(USER1, limit=10) == []
+        assert repository.recent(limit=10) == []
 
     @pytest.mark.parametrize("scenario", ["unknown", "expired", "already-deleted"])
     def test_not_found(self, sql_factory, scenario):

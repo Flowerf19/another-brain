@@ -46,7 +46,8 @@ print(f"ok: {module}")
 PY
 
 echo "== bare command: typed missing-model error, stdout clean =="
-OUT="$("$BIN" 2>"$WORK/stderr" || echo "exit=$?")"
+OUT="$(BRAIN_DATA_DIR="$WORK/data" BRAIN_MODEL_CACHE_DIR="$WORK/models" \
+  "$BIN" 2>"$WORK/stderr" || echo "exit=$?")"
 [ "$OUT" = "exit=3" ] || { echo "FAIL: bare command expected exit 3, got $OUT"; exit 1; }
 grep -q "model pull" "$WORK/stderr" || { echo "FAIL: missing model-not-installed error on stderr"; exit 1; }
 

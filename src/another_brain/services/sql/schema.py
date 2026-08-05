@@ -4,7 +4,7 @@
 
 1. ``schema_migrations``   — checksummed migration ledger (TASK-049);
 2. ``embedding_profiles``  — locked embedding contract, FK target of memories;
-3. ``memories``            — the diary rows (identity, scope, text, timeline,
+3. ``memories``            — the diary rows (identity, text, timeline,
                              metadata JSON, embedding BLOB);
 4. ``memory_fts``          — FTS5 external-content index over memories,
                              synchronized by triggers (never a source of truth);
@@ -15,14 +15,17 @@
 Timestamps are signed INTEGER epoch milliseconds (negative values are legal
 per contract). ``metadata`` and audit ``detail_json`` are stored as canonical
 JSON text and enforced as JSON objects at the schema level. Identity and
-text fields are non-empty at the schema level (``length(...) > 0``), and
-``scope_id`` is canonical: global scope pins exactly ``'global'``. The
+text fields are non-empty at the schema level (``length(...) > 0``). The
 embedding BLOB is exactly 2560 bytes (640 × float32, little-endian).
 
 The DDL is immutable and split into single statements
 (``DDL_V1_STATEMENTS``) so the migration runner can execute each inside one
 exclusive transaction (``executescript`` would commit implicitly).
 ``DDL_V1`` and :func:`checksum` fingerprint the exact text for TASK-049.
+
+v1 is unreleased, so this DDL is revised directly. A store built from an
+older draft is rejected by the migration ledger rather than treated as
+compatible with the released schema contract.
 """
 from __future__ import annotations
 
@@ -67,8 +70,6 @@ DDL_V1_STATEMENTS: list[str] = [
   memory_id TEXT NOT NULL,
   brain_id TEXT NOT NULL,
   agent_id TEXT NOT NULL,
-  scope TEXT NOT NULL CHECK(scope IN ('user', 'project', 'global')),
-  scope_id TEXT NOT NULL CHECK(length(scope_id) > 0),
   topic TEXT NOT NULL,
   catalog TEXT NOT NULL,
   summary TEXT NOT NULL,
@@ -92,7 +93,6 @@ DDL_V1_STATEMENTS: list[str] = [
   CHECK(length(topic) > 0),
   CHECK(length(catalog) > 0),
   CHECK(length(summary) > 0),
-  CHECK(scope <> 'global' OR scope_id = 'global'),
   CHECK(updated_at_ms >= created_at_ms),
   CHECK(
     period_start_ms IS NULL OR period_end_ms IS NULL
@@ -143,13 +143,13 @@ END;""",
     CHECK(json_valid(detail_json) AND json_type(detail_json) = 'object')
 );""",
     """CREATE INDEX memories_recent
-  ON memories(brain_id, scope, scope_id, deleted_at_ms, expires_at_ms,
+  ON memories(brain_id, deleted_at_ms, expires_at_ms,
               created_at_ms DESC, memory_id ASC);""",
     """CREATE INDEX memories_topic
-  ON memories(brain_id, scope, scope_id, topic, deleted_at_ms, expires_at_ms,
+  ON memories(brain_id, topic, deleted_at_ms, expires_at_ms,
               created_at_ms DESC, memory_id ASC);""",
     """CREATE INDEX memories_catalog
-  ON memories(brain_id, scope, scope_id, catalog, deleted_at_ms, expires_at_ms,
+  ON memories(brain_id, catalog, deleted_at_ms, expires_at_ms,
               created_at_ms DESC, memory_id ASC);""",
     """CREATE INDEX memories_expiry ON memories(expires_at_ms);""",
     """CREATE INDEX memories_deleted ON memories(deleted_at_ms);""",

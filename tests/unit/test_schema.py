@@ -34,8 +34,6 @@ def _memory(con, row_id: int = 1, **overrides) -> tuple:
         overrides.get("memory_id", "mem-1"),
         overrides.get("brain_id", "default"),
         overrides.get("agent_id", "agent-a"),
-        overrides.get("scope", "user"),
-        overrides.get("scope_id", "u1"),
         overrides.get("topic", "sqlite-benchmark"),
         overrides.get("catalog", "engineering"),
         overrides.get("summary", "notes"),
@@ -90,10 +88,10 @@ class TestMemoriesConstraints:
         assert con.execute("SELECT COUNT(*) FROM memory_fts").fetchone()[0] == 1
 
     @pytest.mark.parametrize("column,value", [
-        ("scope", "team"), ("importance", 6), ("importance", 0),
+        ("importance", 6), ("importance", 0),
         ("record_version", 0), ("updated_at_ms", 999),  # < created 1000
         ("memory_id", ""), ("brain_id", ""), ("agent_id", ""),
-        ("topic", ""), ("catalog", ""), ("summary", ""), ("scope_id", ""),
+        ("topic", ""), ("catalog", ""), ("summary", ""),
     ])
     def test_check_rejects_bad_values(self, con, column, value):
         _profile(con)
@@ -102,12 +100,6 @@ class TestMemoriesConstraints:
         fields[_COLUMNS.index(column)] = value
         with pytest.raises(sqlite3.IntegrityError):
             con.execute(_INSERT_SQL, tuple(fields))
-
-    def test_global_scope_pins_canonical_scope_id(self, con):
-        _profile(con)
-        with pytest.raises(sqlite3.IntegrityError):
-            con.execute(_INSERT_SQL, _memory(con, scope="global", scope_id="team-x"))
-        con.execute(_INSERT_SQL, _memory(con, scope="global", scope_id="global"))
 
     def test_metadata_must_be_json_object(self, con):
         _profile(con)
@@ -143,7 +135,7 @@ class TestMemoriesConstraints:
 
 _COLUMNS = [
     "row_id",
-    "memory_id", "brain_id", "agent_id", "scope", "scope_id", "topic",
+    "memory_id", "brain_id", "agent_id", "topic",
     "catalog", "summary", "content", "timeline_day", "period_start_ms",
     "period_end_ms", "created_at_ms", "updated_at_ms", "importance",
     "expires_at_ms", "deleted_at_ms", "metadata", "profile_id",
@@ -151,12 +143,12 @@ _COLUMNS = [
 ]
 
 _INSERT_SQL = (
-    "INSERT INTO memories(row_id, memory_id, brain_id, agent_id, scope,"
-    " scope_id, topic, catalog, summary, content, timeline_day,"
+    "INSERT INTO memories(row_id, memory_id, brain_id, agent_id,"
+    " topic, catalog, summary, content, timeline_day,"
     " period_start_ms, period_end_ms, created_at_ms, updated_at_ms,"
     " importance, expires_at_ms, deleted_at_ms, metadata, profile_id,"
     " embedding, record_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,\n"
-    " ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    " ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 )
 
 

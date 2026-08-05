@@ -1,7 +1,7 @@
 ---
 status: in-progress
 created: 2026-07-29
-last_updated: 2026-08-04
+last_updated: 2026-08-05
 ---
 
 # Plan 07 — Clean embedded rebuild (remove Docker, Redis, and Torch)
@@ -102,7 +102,7 @@ pure lexical candidates do not need to pass the vector cosine floor.
    (UTF-8 SHA-256
    `df4b2898bf22e00bacddddd489243a3f8793730e38b842ec10161cebd94d36d6`).
    Empty stripped queries are rejected. `content` is lexical-only; catalog,
-   metadata, scope, time, and importance are filters/provenance.
+   metadata, time, and importance are filters/provenance.
 8. **Topic contract** — a lowercase-kebab stable retrieval subject reusable by
    related diary entries. Count the humanized slug without special tokens;
    target 3–8 Harrier tokens, hard maximum 12. Do not duplicate catalog, use
@@ -152,20 +152,17 @@ flowchart LR
 MCP handshake; neither is accepted as a tool argument. The stable tool names
 are `brain_remember`, `brain_search`, `brain_recent`, `brain_get`,
 `brain_reinforce`, `brain_forget`, `brain_health`, and `brain_audit`.
-Collection operations normalize one scope tuple `(brain_id, scope, scope_id)`:
-`scope_id` is non-empty
-for `user` and `project`, while `global` canonicalizes to the literal `global`
-and rejects conflicting values.
+Collection operations are bound to the process `brain_id` and filter live
+rows only; there is no second partition.
 
 Public IDs are unique per brain with `UNIQUE(brain_id, memory_id)`. The stable
 by-ID tools `brain_get`, `brain_reinforce`, and `brain_forget`, plus admin
 restore/hard-delete, intentionally keep a `memory_id`-only public signature.
-Their repository key is `(bound brain_id, memory_id)`; scope is read from the
-matched row and is never trusted from the caller. An ID that exists only in a
+Their repository key is `(bound brain_id, memory_id)`. An ID that exists only in a
 different brain returns the same `not_found` shape as an unknown ID. Live by-ID
 reads exclude expired/deleted rows; restore may address a soft-deleted row still
 inside its grace window, and hard-delete may address a live or soft-deleted row.
-Audit day reads are keyed by `(brain_id, day)`, not scope.
+Audit day reads are keyed by `(brain_id, day)`.
 
 ### Guidance without a mandatory skill
 
@@ -178,8 +175,8 @@ so a correctness-relevant rule must live in validation and the relevant tool
 schema/description rather than instructions alone.
 
 The skill remains an optional 100–200-word behavior adapter. It contains only
-proactive activation guidance, mechanical project `scope_id` derivation, the
-claims-not-facts stance, and the close-the-loop policy. It does not duplicate
+proactive activation guidance, the claims-not-facts stance, and the
+close-the-loop policy. It does not duplicate
 token budgets, storage/retrieval internals, TTL tables, or tool schemas. A host
 with no installed skill must still complete remember → search → get → reinforce
 or forget correctly; the only lost behavior may be proactive search timing.
@@ -199,11 +196,10 @@ flowchart TD
 ```mermaid
 flowchart TD
     Op{"Operation kind"}
-    Op -->|remember/search/recent| Scope["Normalize scope tuple"]
-    Scope --> Scoped["Query by brain + scope + scope_id"]
+    Op -->|remember/search/recent| Brain["Query live rows in bound brain"]
     Op -->|get/reinforce/forget/admin| Id["Use bound brain + memory_id"]
     Id --> Row{"Matching row?"}
-    Row -->|yes| Stored["Use scope stored on row"]
+    Row -->|yes| Stored["Use matched row"]
     Row -->|no / other brain| Missing["Return not_found"]
 ```
 
@@ -255,7 +251,7 @@ One database file (`brain.sqlite3`) contains:
 - `schema_migrations(version, checksum, applied_at)`;
 - `embedding_profiles` with model, source/artifact revisions, q4 variant,
   dimension, dtype, normalization, query prompt, and input version;
-- `memories` with internal integer `row_id`, public identity/scope, topic,
+- `memories` with internal integer `row_id`, public identity, topic,
   catalog, summary, content, timeline fields, importance, `expires_at`,
   `deleted_at`, metadata JSON, embedding profile, FLOAT32 embedding BLOB, and
   record version;
@@ -276,10 +272,9 @@ All timestamps are signed INTEGER Unix epoch milliseconds; `timeline_day` is
   hashes, query prompt, input version, and `created_at`; the active contract is
   dimension 640, `float32-le`, normalized, input version 2;
 - `memories`: integer `row_id` primary key; text `memory_id`, `brain_id`,
-  `agent_id`, `scope`, `scope_id`, topic/catalog/summary/content; timeline and
+  `agent_id`, topic/catalog/summary/content; timeline and
   period timestamps; importance, expiry/deletion, metadata JSON, profile FK,
-  embedding BLOB, and positive `record_version`. Enforce scope in
-  `user|project|global`, canonical global `scope_id`, importance 1..5,
+  embedding BLOB, and positive `record_version`. Enforce importance 1..5,
   non-empty identity/text fields, valid JSON object metadata, ordered period,
   `updated_at>=created_at`, `UNIQUE(brain_id,memory_id)`, and 2,560-byte BLOB;
 - `audit_events`: text `event_id` primary key, `brain_id`, `memory_id`, acting
@@ -290,11 +285,16 @@ All timestamps are signed INTEGER Unix epoch milliseconds; `timeline_day` is
   version, status in `running|completed|failed`, last committed sequence,
   non-negative counters, and start/completion timestamps.
 
+v1 was edited in place before release to drop the `scope`/`scope_id`
+partition columns and reshape the recent/topic/catalog indexes brain-first
+(TASK-057 revision, sub-plan 07.07). Because v1 is unreleased, stores built
+from the pre-edit draft fail the migration-ledger checksum.
+
 `memory_fts` is FTS5 external content over `memories(row_id)` with
 `unicode61 remove_diacritics 2`; insert/update/delete triggers mirror every
-persisted memory row. Live/scope filtering therefore occurs in the mandatory
+persisted memory row. Live filtering therefore occurs in the mandatory
 join, not by deleting soft-deleted/expired rows from FTS. Required indexes are
-the unique by-ID key; scoped recent/topic/catalog indexes carrying deletion and
+the unique by-ID key; brain-first recent/topic/catalog indexes carrying deletion and
 expiry; an expiry purge index; a deleted-grace index; and
 `audit_events(brain_id,timeline_day,event_at DESC,event_id ASC)`. Recent ordering
 is `created_at DESC,memory_id ASC`; audit day ordering is
@@ -346,7 +346,7 @@ flowchart TD
 ### Retrieval contract
 
 For fixed `top_k=5`, each branch requests fixed `candidate_limit=50` after
-mandatory scope, brain, expiry, and deletion filters.
+mandatory brain, expiry, and deletion filters.
 
 - Lexical: safe OR query over tokenizer-compatible terms, FTS5 BM25 ascending,
   field weights topic=5, summary=3, content=1, ties by `memory_id ASC`.
@@ -373,7 +373,7 @@ equal-score ties, malformed/non-finite embeddings, and rounding-boundary gaps.
 ```mermaid
 flowchart LR
     Query["Bounded query"] --> Terms{"Safe FTS terms?"}
-    Terms -->|yes| Lex["FTS5 BM25<br/>live scoped candidates"]
+    Terms -->|yes| Lex["FTS5 BM25<br/>live brain candidates"]
     Terms -->|no| Skip["Skip lexical branch"]
     Query --> Vec["Exact cosine<br/>sqlite-vec or NumPy"]
     Vec --> Floor{"cosine_key >= 300000"}
@@ -751,7 +751,7 @@ Execute after package foundation in GOAL-009.
 | ID | Task | Done | Date |
 |----|------|------|------|
 | TASK-056 | Implement safe FTS5 query construction from Unicode terms without exposing MATCH syntax; punctuation-only input yields no lexical branch, while names/IDs/paths are tokenized predictably. | ✅ | 2026-08-04 |
-| TASK-057 | Implement `SQLiteLexicalRetriever` with BM25 weights 5:3:1, mandatory brain/scope/live filters before limit, order `bm25 ASC,memory_id ASC`, one-based ranks, and no embedding dependency. | ✅ | 2026-08-04 |
+| TASK-057 | Implement `SQLiteLexicalRetriever` with BM25 weights 5:3:1, mandatory brain/scope/live filters before limit, order `bm25 ASC,memory_id ASC`, one-based ranks, and no embedding dependency. **Approved revision 2026-08-05: scope partition removed product-wide — the filters are brain/live only; rationale, ablation evidence, amended locked contracts (identity flow, schema v1, retrieval filters, JSONL payload, TASK-068 wording), and the benchmark-comparability caveat are recorded in 07.07.** | ✅ | 2026-08-04 |
 | TASK-058 | Implement scalar exact cosine over filtered regular BLOBs, reject malformed/non-finite results, compute integer micro-cosine with Python half-even rounding, apply floor 300000, and rank by key then `memory_id`. | ✅ | 2026-08-04 |
 | TASK-059 | Implement forced/streaming NumPy fallback with identical filtered IDs, FLOAT32 decoding, canonical key/floor/order, and expose fallback state through doctor/health without semantic drift. **Approved revision 2026-08-05: "vectorized" corrected to "streaming" — batching costs 103x peak memory (917 MB worst case, over the 500 MiB budget) for 1.26x speed; recorded in 07.07.** | ✅ | 2026-08-04 |
 | TASK-060 | Implement pure `rrf_fuse()` with equal branch weights, `k=60`, deduplication, branch evidence, fixed 50-candidate branch limits, final top-5, and the locked tie-break sequence. | ✅ | 2026-08-04 |
@@ -792,7 +792,7 @@ flowchart LR
 | TASK-065 | Preserve append-only diary, identity binding, previews/get separation, retention actions, by-ID brain isolation, and audit privacy while replacing Redis health/index behavior with SQLite schema/profile/integrity state. **All 12 oracle-export scenarios replay green (two by the intentional differences TASK-008 records); health gains a backend-neutral `StorageHealthProbe` with opt-in integrity. Detail in 07.08.** | ✅ | 2026-08-05 |
 | TASK-066 | Register the eight stable `brain_*` tools on MCP SDK v2 `MCPServer`, preserving names, public argument contracts, by-ID signatures, and response shapes. **Landed 2026-08-05 as `mcp/tools.py`. Two v2 API differences found by checking the installed SDK rather than this plan's wording: `MCPServer` lives in `mcp.server`, and the handshake field is `client_params.client_info` (snake_case), not `.clientInfo`. Detail in 07.08.** | ✅ | 2026-08-05 |
 | TASK-067 | Wire stdio default and opt-in HTTP under the locked loopback/transport-security policy, including SQLite/model lifecycle, signals, exact host/origin allowlists, and health that never forces model load. **Landed 2026-08-05 as `mcp/server.py` + `services/sql/profile.py`; the CLI now serves. The SDK's own loopback default is weaker than this policy (it allows the `localhost` name and any port), so explicit settings pinned to the exact bound authority are mandatory — verified against the real middleware over a live bind. Registering the `embedding_profiles` row also landed here: nothing did, and `memories.profile_id` is a FK into it. Detail in 07.08.** | ✅ | 2026-08-05 |
-| TASK-068 | Add service/tool contracts with fake embedding plus temporary SQLite covering every response, scoped collections, by-ID cross-brain/deleted/expired/grace cases, global normalization, content-only retrieval, and HTTP negative binds/headers. | | |
+| TASK-068 | Add service/tool contracts with fake embedding plus temporary SQLite covering every response, collection operations in the bound brain, by-ID cross-brain/deleted/expired/grace cases, content-only retrieval, and HTTP negative binds/headers. | | |
 | TASK-069 | Add an end-to-end subprocess test using the installed console script and an isolated data/model home: initialize, remember, search, get, reinforce, forget, restart, and verify persistence/expiry. | | |
 | TASK-091 | Make the skill optional: add concise server instructions plus self-contained descriptions for all eight tools and every public field; keep hard rules in server validation with actionable actual/allowed errors; test initialize/tools-list metadata and the full no-skill flow; then reduce `skills/another-brain/SKILL.md` to a 100–200-word activation/project-scope/trust-loop adapter with no duplicated contracts. **Landed 2026-08-05. Found that docstring prose never reaches a field: all 29 tool fields had a bare type and no description, so a skill-less client inspecting one argument learned nothing about it. Fixed with `Annotated[..., Field(...)]`; SKILL.md 756 → 168 body words. Detail in 07.08.** | ✅ | 2026-08-05 |
 
@@ -813,7 +813,7 @@ JSONL v1 is UTF-8 with LF line endings and has exactly one `manifest`, ordered
   `audit:<brain_id>:<event_id>`. Canonical payload JSON uses sorted keys,
   compact separators, UTF-8, `ensure_ascii=false`, and rejects NaN/Infinity.
 - Memory payload fields are exactly `memory_id`, `brain_id`, `agent_id`,
-  `scope`, `scope_id`, `topic`, `catalog`, `summary`, `content`, `timeline_day`,
+  `topic`, `catalog`, `summary`, `content`, `timeline_day`,
   nullable `period_start_ms`/`period_end_ms`, `created_at_ms`, `updated_at_ms`,
   `importance`, absolute `expires_at_ms`, nullable `deleted_at_ms`, object
   `metadata`, and `record_version`, plus verifier
@@ -933,7 +933,7 @@ comparison remains available from the external `main` worktree.
 
 ### Mandatory gates
 
-1. Architecture, by-ID/scope/JSONL contracts, and recorded external `main` oracle.
+1. Architecture, by-ID/JSONL contracts, and recorded external `main` oracle.
 2. Final package shell/domain tests green, then early Redis/Docker/Torch deletion.
 3. Valid Q4 corpus/resource evidence manifest before release cutover.
 4. SQLite/retrieval/parity/accepted-concurrency evidence before service cutover.
@@ -950,7 +950,8 @@ comparison remains available from the external `main` worktree.
   branch consumes only versioned JSONL fixtures/artifacts. Final export requires
   a maintenance window with all legacy writers stopped.
 - No zero-downtime migration is required; this is a local trusted-user tool.
-- Collection operations are scope-bound. By-ID tools intentionally accept only
+- Collection operations are bound to the process `brain_id`; there is no
+  second partition. By-ID tools intentionally accept only
   `memory_id` and isolate by the process-bound `brain_id`; changing that public
   signature requires an approved contract revision.
 - The database is shared by independent local stdio processes, but the ONNX

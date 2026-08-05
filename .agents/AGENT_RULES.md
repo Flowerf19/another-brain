@@ -51,14 +51,15 @@ flag.
 
 - One memory is one append-only timeline entry.
 - `brain_id` is server-bound storage isolation; `agent_id` is MCP provenance.
-- Scope is `user | project | global`; global pins `scope_id=global`.
+  There is no second partition: the `scope`/`scope_id` contract was removed
+  before release (TASK-057 revision, `.agents/plans/07/07-retrieval.md`).
 - `topic` is a stable reusable semantic subject, not a workflow label.
 - Topic is lowercase-kebab; target 3–8 Harrier tokens after humanizing hyphens,
   hard maximum 12.
 - `summary` is one or two self-contained sentences.
 - One vector is generated from `humanized topic + newline + summary`.
 - `content` is FTS5-only and never embedded.
-- Catalog, metadata, scope, time, and importance are filters/provenance.
+- Catalog, metadata, time, and importance are filters/provenance.
 - Token limits use the pinned Harrier tokenizer: topic 12, document 256,
   prompted query 128, content 1,024. Reject over-limit input; never silently
   truncate or auto-chunk.
@@ -72,8 +73,8 @@ flag.
 - Use `sqlite-vec` scalar exact cosine on regular FLOAT32 BLOBs; use NumPy exact
   scan only as the compatibility fallback.
 - Use FTS5 over topic, summary, and content with initial weights 5:3:1.
-- Collection queries include `brain_id`, scope, scope_id, `expires_at > now`,
-  and `deleted_at IS NULL` before limits. By-ID operations use the bound
+- Collection queries include `brain_id`, `expires_at > now`, and
+  `deleted_at IS NULL` before limits. By-ID operations use the bound
   `(brain_id, memory_id)` key; live reads still exclude expired/deleted rows,
   while restore may address a soft-deleted row inside grace.
 - Configure WAL, `foreign_keys=ON`, `synchronous=NORMAL`, 5-second busy timeout,

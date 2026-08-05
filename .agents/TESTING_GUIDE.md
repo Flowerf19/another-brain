@@ -67,7 +67,7 @@ console script from the wheel, not editable checkout imports.
 
 ### Unit
 
-- domain identity/scope/topic/catalog validation, including normalized scoped
+- domain identity/topic/catalog validation, including brain-bound
   collections and `(bound brain_id,memory_id)` by-ID isolation;
 - Harrier-token budgets at exact limit and limit+1;
 - topic+summary payload and query prompt bytes;

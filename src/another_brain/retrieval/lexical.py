@@ -2,7 +2,7 @@
 
 One branch of the hybrid retriever: weighted BM25 over the external-content
 ``memory_fts(topic, summary, content)`` index with locked weights 5:3:1,
-mandatory brain/scope/live filtering (plus optional ``RecentFilters``)
+mandatory brain/live filtering (plus optional ``RecentFilters`` narrowing)
 BEFORE the fixed 50-candidate limit, deterministic order
 ``bm25 ASC, memory_id ASC``, one-based ranks.
 
@@ -12,9 +12,10 @@ the locked fix for the legacy universal-cosine-gate bug.
 
 The ``CROSS JOIN`` is deliberate: it forbids SQLite from reordering the
 query so the FTS5 MATCH scan always drives (one index pass), the
-brain/scope/live filters apply through the rowid join, and the expensive
+brain/live filters (and optional narrowing) apply through the rowid join,
+and the expensive
 ``bm25()`` call is evaluated only for surviving rows. A plain ``JOIN`` let
-the planner drive from the scoped ``memories`` index and re-evaluate MATCH
+the planner drive from the ``memories`` index and re-evaluate MATCH
 per row — measured 1403 ms vs 13.5 ms on the judged 10k store.
 """
 from __future__ import annotations
@@ -25,9 +26,8 @@ from dataclasses import dataclass
 from another_brain.config import BM25_WEIGHTS, CANDIDATE_LIMIT
 from another_brain.domain.models import RecentFilters
 from another_brain.errors import ValidationError
-from another_brain.protocols import ScopeKey
 from another_brain.retrieval.fusion import BranchCandidate
-from another_brain.retrieval.query import scoped_live_where
+from another_brain.retrieval.query import live_where
 
 _WEIGHT_TOPIC, _WEIGHT_SUMMARY, _WEIGHT_CONTENT = BM25_WEIGHTS
 
@@ -50,7 +50,6 @@ class SQLiteLexicalRetriever:
         self,
         *,
         match_query: str,
-        scope: ScopeKey,
         filters: RecentFilters | None = None,
         now_ms: int,
         limit: int = CANDIDATE_LIMIT,
@@ -65,8 +64,8 @@ class SQLiteLexicalRetriever:
             raise ValidationError("match_query must be a non-empty safe FTS5 query")
         if limit < 1:
             raise ValidationError(f"candidate limit must be >= 1, got {limit}")
-        where, params = scoped_live_where(
-            brain_id=self._brain_id, scope=scope, filters=filters, now_ms=now_ms
+        where, params = live_where(
+            brain_id=self._brain_id, filters=filters, now_ms=now_ms
         )
         rows = self._con.execute(
             "SELECT m.memory_id, bm25(memory_fts, ?, ?, ?) AS score"

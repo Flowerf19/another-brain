@@ -3,7 +3,7 @@ status: approved
 approved: 2026-07-31
 owner: architecture
 created: 2026-07-09
-last_updated: 2026-08-04
+last_updated: 2026-08-05
 supersedes:
   - .agents/plans/archive/01-architecture-foundation.md
   - .agents/plans/archive/02-directory-and-class-architecture.md
@@ -94,8 +94,8 @@ installed executable, not an unpinned `uvx` command.
 Correct use does not require an installed skill: server validation is the source
 of truth, initialize instructions carry the short global workflow, and every
 tool/field description is self-contained. `skills/another-brain/SKILL.md`
-remains an optional thin behavior adapter for proactive recall, project-scope
-derivation, and the trust loop; it must not duplicate the full contract.
+remains an optional thin behavior adapter for proactive recall and the trust
+loop; it must not duplicate the full contract.
 
 Independent stdio processes share one SQLite file through WAL. Each process has
 a lazy process-local ONNX session in the MVP; the measured memory cost is a
@@ -107,14 +107,19 @@ release metric, not a reason to introduce a background daemon.
 |---|---|---|
 | `brain_id` | storage isolation namespace | process config |
 | `agent_id` | writer/audit provenance | MCP client handshake |
-| `scope` | `user | project | global` | tool input |
-| `scope_id` | stable id inside scope; global pins `global` | tool input/policy |
 
-Collection operations (`remember`, `search`, `recent`) include normalized
-`brain_id`, `scope`, and `scope_id`. Stable by-ID operations (`get`,
+Collection operations (`remember`, `search`, `recent`) operate on the live
+rows of the process-bound `brain_id`; there is no second partition. Stable
+by-ID operations (`get`,
 `reinforce`, `forget`, admin restore/hard-delete) intentionally take only
-`memory_id` publicly and query by `(process-bound brain_id, memory_id)`; scope
-comes from the stored row. Tool inputs never carry `brain_id` or `agent_id`.
+`memory_id` publicly and query by `(process-bound brain_id, memory_id)`.
+Tool inputs never carry `brain_id` or `agent_id`.
+
+The earlier `scope`/`scope_id` partition (`user | project | global`) was
+removed before release: a mandatory second partition re-created silos inside
+the shared brain and measured zero recall benefit at the designed TTL-bounded
+scale. `brain_id` is the only boundary. Rationale and evidence are recorded
+in the TASK-057 approved revision (`.agents/plans/07/07-retrieval.md`).
 
 There is no auth layer. The service is for trusted local agents; HTTP remains
 loopback/private only. Memories are claims, not facts. Code/current evidence
@@ -129,7 +134,7 @@ forget of the old record; there is no merge or arbitrary token chunking.
 Core fields:
 
 ```text
-memory_id, brain_id, agent_id, scope, scope_id
+memory_id, brain_id, agent_id
 topic, catalog, summary, content
 timeline_day, period_start, period_end, created_at, updated_at
 importance, expires_at, deleted_at, metadata_json
@@ -234,7 +239,7 @@ Hybrid retrieval has independent branches:
 3. **Fusion** — equal-weight RRF, `k=60`, deterministic tie break.
 
 Search returns fixed `top_k=5`; each branch requests fixed
-`candidate_limit=50` after mandatory live/scope filters. RRF `k=60` is a
+`candidate_limit=50` after the mandatory live filter. RRF `k=60` is a
 separate fusion constant, not the candidate count. Vector candidates below cosine 0.30 are removed before fusion. Lexical-only
 candidates remain eligible without a cosine gate. This intentionally fixes the
 legacy bug where an exact identifier found only in `content` could be discarded

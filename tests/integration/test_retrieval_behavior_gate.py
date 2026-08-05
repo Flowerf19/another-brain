@@ -21,7 +21,6 @@ import pytest
 
 from another_brain.config import AppConfig
 from another_brain.domain.models import EmbeddingVector, MemoryRecord
-from another_brain.protocols import Scope, ScopeKey
 from another_brain.retrieval.service import HybridMemoryRetriever
 from another_brain.services.embedding.model_installer import is_installed, profile_dir
 from another_brain.services.embedding.provider import ONNXEmbeddingProvider
@@ -38,22 +37,19 @@ CORPUS = json.loads(
 )
 NOW_MS = CORPUS["now_ms"]
 BRAIN_ID = "behavior-brain"
-SCOPE = ScopeKey(Scope.PROJECT, "corpus")
-
 
 def _day(ms: int) -> str:
     return datetime.fromtimestamp(ms / 1000, tz=timezone.utc).date().isoformat()
 
 
-@pytest.fixture(scope="module")
-def behavior_store(tmp_path_factory):
+def _build_store(tmpdir: Path):
+    """Build the full 624-doc store once; expensive (real q4 embeddings)."""
     config = AppConfig.from_env()
     if not is_installed(config.model_cache_dir, verify_files=False):
         pytest.skip("the pinned q4 profile is not installed; run `another-brain model pull`")
     provider = ONNXEmbeddingProvider(profile_dir(config.model_cache_dir))
 
-    tmp = tmp_path_factory.mktemp("behavior-gate")
-    factory = SQLiteConnectionFactory(tmp / "brain.sqlite3")
+    factory = SQLiteConnectionFactory(tmpdir / "brain.sqlite3")
     factory.bootstrap()
     migrate(factory.db_path)
     with factory.connect() as con:
@@ -70,7 +66,7 @@ def behavior_store(tmp_path_factory):
         vector = provider.embed_document(topic=doc["topic"], summary=doc["summary"])
         repo.store(MemoryRecord(
             memory_id=doc["doc_id"], brain_id=BRAIN_ID, agent_id="corpus-agent",
-            scope=SCOPE.scope, scope_id=SCOPE.scope_id, topic=doc["topic"],
+            topic=doc["topic"],
             catalog=doc["catalog"], summary=doc["summary"], content=doc["content"],
             timeline_day=_day(doc["created_at_ms"]), period_start_ms=None,
             period_end_ms=None, created_at_ms=doc["created_at_ms"],
@@ -81,11 +77,16 @@ def behavior_store(tmp_path_factory):
     return factory, provider
 
 
+@pytest.fixture(scope="module")
+def behavior_store(tmp_path_factory):
+    return _build_store(tmp_path_factory.mktemp("behavior-gate"))
+
+
 def _rank(store, query: str):
     factory, provider = store
     vector: EmbeddingVector = provider.embed_query(query)
     retriever = HybridMemoryRetriever(factory, brain_id=BRAIN_ID, clock=lambda: NOW_MS)
-    return retriever.rank(query_text=query, query_vector=vector, scope=SCOPE)
+    return retriever.rank(query_text=query, query_vector=vector)
 
 
 @pytest.mark.parametrize(
@@ -109,7 +110,7 @@ def test_content_only_identifier_returns_via_lexical(behavior_store, case):
     retriever = HybridMemoryRetriever(
         factory, brain_id=BRAIN_ID, clock=lambda: NOW_MS, top_k=50
     )
-    fused = retriever.rank(query_text=case["query"], query_vector=vector, scope=SCOPE)
+    fused = retriever.rank(query_text=case["query"], query_vector=vector)
     by_id = {r.memory_id: r for r in fused}
     assert case["expect_doc_id"] in by_id, (
         f"{case['case_id']}: {case['expect_doc_id']} was dropped entirely — the"

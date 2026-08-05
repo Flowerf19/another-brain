@@ -1,7 +1,7 @@
 ---
 status: done
 created: 2026-08-04
-last_updated: 2026-08-04
+last_updated: 2026-08-05
 parent: .agents/plans/07-multiplatform-embedded-runtime.md
 covers: GOAL-011
 ---
@@ -63,7 +63,7 @@ Module targets: `storage/connection.py`, `schema.py`, `repository.py`,
 
 ## Test Plan
 
-- Unit: TTL math, scope normalization, retry classification, audit privacy
+- Unit: TTL math, retry classification, audit privacy
   rejection, row mapping, migration checksums.
 - Integration: real temp SQLite with FTS5 (+sqlite-vec when available),
   restart/expiry/deletion/restore, crash injection, concurrent creators,

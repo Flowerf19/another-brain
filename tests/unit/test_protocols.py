@@ -7,15 +7,12 @@ from pathlib import Path
 import pytest
 
 from another_brain.protocols import (
-    GLOBAL_SCOPE_ID,
     AuditRepository,
     EmbeddingProvider,
     EmbeddingHealth,
     MemoryRepository,
     MemoryRetriever,
     MutationOutcome,
-    Scope,
-    ScopeKey,
 )
 
 
@@ -48,12 +45,12 @@ class _Fake:
 
     def store(self, record): pass
     def get(self, memory_id): return None
-    def recent(self, scope, *, limit, filters=None): return []
+    def recent(self, *, limit, filters=None): return []
     def reinforce(self, memory_id): return MutationOutcome.NOT_FOUND
     def soft_delete(self, memory_id): return MutationOutcome.NOT_FOUND
     def restore(self, memory_id): return MutationOutcome.NOT_FOUND
     def hard_delete(self, memory_id): return MutationOutcome.NOT_FOUND
-    def search(self, *, query_text, query_vector, scope, filters=None): return []
+    def search(self, *, query_text, query_vector, filters=None): return []
     def record(self, event): pass
     def list_day(self, day): return []
     def embed_document(self, *, topic, summary): return None
@@ -66,14 +63,6 @@ class _Fake:
 )
 def test_minimal_fake_satisfies_protocol(protocol):
     assert isinstance(_Fake(), protocol)
-
-
-def test_scope_key_normalization():
-    assert ScopeKey(Scope.GLOBAL, GLOBAL_SCOPE_ID).scope is Scope.GLOBAL
-    with pytest.raises(ValueError):
-        ScopeKey(Scope.GLOBAL, "proj-1")
-    with pytest.raises(ValueError):
-        ScopeKey(Scope.USER, "")
 
 
 def test_mutation_outcome_shapes():

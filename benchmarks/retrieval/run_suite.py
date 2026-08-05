@@ -50,12 +50,11 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "spikes" / "fp32"))
 
 from benchmarks.retrieval.build_stores import (  # noqa: E402
-    BRAIN_ID, CORPUS_SCOPE, NOW_MS, SEED, STORES, corpus_vectors,
+    BRAIN_ID, NOW_MS, SEED, STORES, corpus_vectors,
 )
 
 from another_brain.config import AppConfig  # noqa: E402
 from another_brain.domain.models import EmbeddingVector  # noqa: E402
-from another_brain.protocols import Scope, ScopeKey  # noqa: E402
 from another_brain.retrieval.lexical import SQLiteLexicalRetriever  # noqa: E402
 from another_brain.retrieval.query import build_match_query  # noqa: E402
 from another_brain.retrieval.service import HybridMemoryRetriever  # noqa: E402
@@ -71,7 +70,6 @@ REPORTS = ROOT / "benchmarks" / "reports"
 QUERY_CACHE = Path(__file__).resolve().parent / "corpus-q4-query-vectors.npy"
 QUERY_META = Path(__file__).resolve().parent / "corpus-q4-query-vectors.meta.json"
 
-SCOPE = ScopeKey(Scope.PROJECT, CORPUS_SCOPE[1])
 MODES = ("sqlite-vec", "numpy")
 LATENCY_BUDGETS_MS = {10000: 25.0, 50000: 75.0, 100000: 150.0}  # locked, plan SC-9
 
@@ -149,7 +147,6 @@ def run_size(size: int, corpus: dict, qvecs: np.ndarray, *, quick: bool) -> dict
     from another_brain.services.sql.connection import SQLiteConnectionFactory
 
     factory = SQLiteConnectionFactory(path)
-    scope = SCOPE
     queries = corpus["queries"]
     q_by_id = {q["query_id"]: i for i, q in enumerate(queries)}
 
@@ -172,7 +169,7 @@ def run_size(size: int, corpus: dict, qvecs: np.ndarray, *, quick: bool) -> dict
             with factory.connect(read_only=True) as con:
                 if match_query is not None:
                     SQLiteLexicalRetriever(con.connection, brain_id=BRAIN_ID).candidates(
-                        match_query=match_query, scope=scope, now_ms=NOW_MS,
+                        match_query=match_query, now_ms=NOW_MS,
                     )
             elapsed_ms = (time.perf_counter() - start) * 1000
             if i >= warmups:
@@ -196,7 +193,6 @@ def run_size(size: int, corpus: dict, qvecs: np.ndarray, *, quick: bool) -> dict
             fused = retriever.rank(
                 query_text=query["text"],
                 query_vector=EmbeddingVector(values=qvecs[q_by_id[query["query_id"]]]),
-                scope=scope,
             )
             ranked[query["query_id"]] = [r.memory_id for r in fused]
         quality = quality_metrics(corpus, ranked)
@@ -211,7 +207,7 @@ def run_size(size: int, corpus: dict, qvecs: np.ndarray, *, quick: bool) -> dict
             for i, query in enumerate(draws):
                 qv = EmbeddingVector(values=qvecs[q_by_id[query["query_id"]]])
                 start = time.perf_counter()
-                fused = retriever.rank(query_text=query["text"], query_vector=qv, scope=scope)
+                fused = retriever.rank(query_text=query["text"], query_vector=qv)
                 hybrid_ms = (time.perf_counter() - start) * 1000
                 # vector-branch-only latency: candidates on a fresh ro connection
                 start = time.perf_counter()
@@ -224,7 +220,7 @@ def run_size(size: int, corpus: dict, qvecs: np.ndarray, *, quick: bool) -> dict
                     branch = (
                         SQLiteVecVectorRetriever if mode == "sqlite-vec" else NumpyVectorRetriever
                     )(con.connection, brain_id=BRAIN_ID)
-                    branch.candidates(query_vector=qv, scope=scope, now_ms=NOW_MS)
+                    branch.candidates(query_vector=qv, now_ms=NOW_MS)
                 vector_ms = (time.perf_counter() - start) * 1000
                 if i >= warmups:
                     vec_samples.append(vector_ms)
@@ -265,7 +261,7 @@ def run_size(size: int, corpus: dict, qvecs: np.ndarray, *, quick: bool) -> dict
                 factory, brain_id=BRAIN_ID, clock=lambda: NOW_MS,
                 force_vector_backend=mode, top_k=10,
             )
-            fused = retriever.rank(query_text=query["text"], query_vector=qv, scope=scope)
+            fused = retriever.rank(query_text=query["text"], query_vector=qv)
             per_mode[mode] = fused
             with factory.connect(read_only=True) as con:
                 if mode == "sqlite-vec":
@@ -276,7 +272,7 @@ def run_size(size: int, corpus: dict, qvecs: np.ndarray, *, quick: bool) -> dict
                 branch = (
                     SQLiteVecVectorRetriever if mode == "sqlite-vec" else NumpyVectorRetriever
                 )(con.connection, brain_id=BRAIN_ID)
-                hits = branch.candidates(query_vector=qv, scope=scope, now_ms=NOW_MS)
+                hits = branch.candidates(query_vector=qv, now_ms=NOW_MS)
             keys_by_mode.setdefault(mode, {})[query["query_id"]] = [
                 (h.memory_id, h.cosine_key, h.rank) for h in hits
             ]

@@ -17,7 +17,6 @@ import uuid
 from pathlib import Path
 
 TIMELINE_DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-SCOPES = {"user", "project", "global"}
 AUDIT_ACTIONS = {"remember", "reinforce", "forget", "restore", "hard_delete"}
 FORBIDDEN_AUDIT_KEYS = {"topic", "summary", "content", "metadata"}
 
@@ -28,7 +27,7 @@ MANIFEST_KEYS = {
 }
 DATA_KEYS = {"seq", "kind", "idempotency_key", "payload", "payload_sha256"}
 MEMORY_PAYLOAD_KEYS = {
-    "memory_id", "brain_id", "agent_id", "scope", "scope_id", "topic",
+    "memory_id", "brain_id", "agent_id", "topic",
     "catalog", "summary", "content", "timeline_day", "period_start_ms",
     "period_end_ms", "created_at_ms", "updated_at_ms", "importance",
     "expires_at_ms", "deleted_at_ms", "metadata", "record_version",
@@ -84,12 +83,6 @@ def _check_memory_payload(p: dict, exported_at_ms: int, line: str) -> None:
             f" (extra={sorted(set(p) - MEMORY_PAYLOAD_KEYS)},"
             f" missing={sorted(MEMORY_PAYLOAD_KEYS - set(p))})"
         )
-    if p["scope"] not in SCOPES:
-        raise Violation(f"{line}: invalid scope {p['scope']!r}")
-    if not isinstance(p["scope_id"], str) or not p["scope_id"]:
-        raise Violation(f"{line}: scope_id must be a non-empty string")
-    if p["scope"] == "global" and p["scope_id"] != "global":
-        raise Violation(f"{line}: scope=global pins scope_id='global'")
     if not TIMELINE_DAY_RE.match(str(p["timeline_day"])):
         raise Violation(f"{line}: timeline_day must be YYYY-MM-DD")
     for key in ("created_at_ms", "updated_at_ms", "expires_at_ms", "remaining_ttl_ms"):

@@ -14,18 +14,17 @@ from another_brain.errors import (
     MigrationError,
     StorageError,
 )
-from another_brain.protocols import MutationOutcome, Scope, ScopeKey
+from another_brain.protocols import MutationOutcome
 from another_brain.services.sql.connection import SQLiteConnectionFactory
 from another_brain.services.sql.repository import SQLiteMemoryRepository, _row_to_record
 from another_brain.services.sql.retry import busy_retry
 from another_brain.services.sql.ttl import GRACE_MS, purge_expired
 
 EMBED = EmbeddingVector(values=np.zeros(640, dtype=np.float32))
-USER1 = ScopeKey(Scope.USER, "user-1")
 DAY = 86_400_000
 
 _MEMORY_COLUMNS = (
-    "memory_id", "brain_id", "agent_id", "scope", "scope_id", "topic",
+    "memory_id", "brain_id", "agent_id", "topic",
     "catalog", "summary", "content", "timeline_day", "period_start_ms",
     "period_end_ms", "created_at_ms", "updated_at_ms", "importance",
     "expires_at_ms", "deleted_at_ms", "metadata", "profile_id",
@@ -46,8 +45,6 @@ def _store(repository, clock, memory_id, **overrides) -> None:
         memory_id=memory_id,
         brain_id=repository._brain_id,
         agent_id="a",
-        scope=Scope.USER,
-        scope_id="user-1",
         topic="t",
         catalog="c",
         summary="s",
@@ -77,7 +74,7 @@ class TestReopenAndRestart:
             SQLiteConnectionFactory(sql_factory.db_path), brain_id="default", clock=clock
         )
         assert reopened.get("m1") is not None
-        assert reopened.recent(USER1, limit=5)[0].memory_id == "m1"
+        assert reopened.recent(limit=5)[0].memory_id == "m1"
 
     def test_temporary_wal_files_released_after_last_close(self, sql_factory):
         path = sql_factory.db_path
@@ -134,7 +131,7 @@ class TestBoundaryEquality:
 class TestMalformedRows:
     def _row(self, **overrides) -> tuple:
         values = dict(zip(_MEMORY_COLUMNS, (
-            "m1", "default", "a", "user", "u1", "t", "c", "s", "",
+            "m1", "default", "a", "t", "c", "s", "",
             "2026-08-04", None, None, 1, 1, 3, 10**15, None,
             "{}", "q4", b"\x00" * 2560, 1,
         )))

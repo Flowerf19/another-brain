@@ -16,7 +16,6 @@
   "memories": [
     {
       "memory_id": "m-content-id",
-      "scope": "project", "scope_id": "proj-alpha",
       "topic": "benchmark-results", "catalog": "note",
       "summary": "weekly latency numbers for the retrieval store",
       "content": "raw samples archived under run ZXQ-8842",
@@ -29,7 +28,6 @@
     },
     {
       "memory_id": "m-semantic-low",
-      "scope": "project", "scope_id": "proj-alpha",
       "topic": "garden-notes", "catalog": "note",
       "summary": "watering schedule for the basil pots",
       "content": "",
@@ -42,7 +40,6 @@
     },
     {
       "memory_id": "m-semantic-ok",
-      "scope": "project", "scope_id": "proj-alpha",
       "topic": "latency-budgets", "catalog": "decision",
       "summary": "embedding warm latency budget stays at 100ms p95",
       "content": "",
@@ -55,7 +52,6 @@
     },
     {
       "memory_id": "m-deleted",
-      "scope": "project", "scope_id": "proj-alpha",
       "topic": "run-archive", "catalog": "note",
       "summary": "archived benchmark runs",
       "content": "ZXQ-8842 archived notes",
@@ -68,7 +64,6 @@
     },
     {
       "memory_id": "m-expired",
-      "scope": "project", "scope_id": "proj-alpha",
       "topic": "old-runs", "catalog": "note",
       "summary": "superseded benchmark runs",
       "content": "ZXQ-8842 old run details",
@@ -81,7 +76,6 @@
     },
     {
       "memory_id": "m-live-tail",
-      "scope": "project", "scope_id": "proj-alpha",
       "topic": "run-followups", "catalog": "note",
       "summary": "follow-up benchmark measurements",
       "content": "ZXQ-8842 follow-up measurements",
@@ -99,7 +93,6 @@
       "rationale": "Legacy bug: an exact content BM25 match was discarded because only topic+summary is embedded and its cosine fell under the universal 0.30 gate. New contract: pure lexical candidates need no cosine floor.",
       "query_text": "ZXQ-8842",
       "query_vector": [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-      "scope": "project", "scope_id": "proj-alpha",
       "expect": {
         "include": ["m-content-id"],
         "include_branch": {"m-content-id": ["lexical"]},
@@ -112,7 +105,6 @@
       "rationale": "The floor still applies to vector-only candidates: a semantic-ish hit below 0.30 with no lexical support is noise and stays excluded.",
       "query_text": "kwojek zalquin",
       "query_vector": [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-      "scope": "project", "scope_id": "proj-alpha",
       "expect": {
         "include": ["m-semantic-ok"],
         "exclude": ["m-semantic-low"],
@@ -125,7 +117,6 @@
       "rationale": "Expired/soft-deleted rows are filtered before each branch limit, not after: if stale rows occupied branch ranks, live rows would starve. With the four content matches tied on BM25, memory_id ASC ordering puts m-deleted/m-expired ahead of m-live-tail; a branch limit of 2 must still return both live rows.",
       "query_text": "ZXQ-8842",
       "query_vector": [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-      "scope": "project", "scope_id": "proj-alpha",
       "branch_limit_override": 2,
       "expect": {
         "include": ["m-content-id", "m-live-tail"],

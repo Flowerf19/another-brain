@@ -6,12 +6,12 @@ locked DDL). The 624 embedding-quality-v1 corpus documents carry REAL q4
 embeddings from the production provider (cached in ``corpus-q4-vectors.npy``,
 keyed by corpus + manifest hashes); fillers are seeded random unit vectors —
 exact-scan cost is data-independent and judged quality involves corpus docs
-only, so filler vectors affect neither metric honesty. Text/scope/importance/
+only, so filler vectors affect neither metric honesty. Text/importance/
 expiry/deletion distributions mirror TASK-005 with recorded seeds.
 
-Corpus documents live in one scope (``project/proj-1``) so all judged
-relevant docs are visible to the judged queries; fillers follow the scope
-mix, so some land in ``proj-1`` as realistic distractors.
+Corpus documents and fillers are all rows of the single bound benchmark
+brain, so every judged query sees the whole store — the suite measures
+whole-brain retrieval by construction.
 
 Run from the repo root:
 
@@ -55,7 +55,6 @@ from another_brain.services.sql.migrations import migrate  # noqa: E402
 SEED = 20260804
 NOW_MS = 1_785_000_000_000
 BRAIN_ID = "bench-brain"
-CORPUS_SCOPE = ("project", "proj-1")
 SIZES = (1000, 10000, 50000, 100000)
 
 TTL_DAYS = {5: 365, 4: 180, 3: 90, 2: 30, 1: 7}
@@ -114,15 +113,6 @@ def pick_importance(rng: random.Random) -> int:
     return 3
 
 
-def pick_scope(rng: random.Random) -> tuple[str, str]:
-    roll = rng.random()
-    if roll < 0.5:
-        return "user", f"user-{rng.randint(1, 20)}"
-    if roll < 0.9:
-        return "project", f"proj-{rng.randint(1, 10)}"
-    return "global", "global"
-
-
 def filler_text(rng: random.Random) -> tuple[str, str, str, str]:
     cluster = rng.choice(CLUSTERS)
     subject = rng.choice(cluster["subjects"])
@@ -151,11 +141,11 @@ def day_of(ms: int) -> str:
 
 def insert_rows(con: sqlite3.Connection, rows: list[tuple]) -> None:
     sql = (
-        "INSERT INTO memories(memory_id, brain_id, agent_id, scope, scope_id,"
+        "INSERT INTO memories(memory_id, brain_id, agent_id,"
         " topic, catalog, summary, content, timeline_day, period_start_ms,"
         " period_end_ms, created_at_ms, updated_at_ms, importance,"
         " expires_at_ms, deleted_at_ms, metadata, profile_id, embedding,"
-        " record_version) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+        " record_version) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
     )
     for start in range(0, len(rows), 2000):
         con.execute("BEGIN IMMEDIATE")
@@ -187,7 +177,7 @@ def build_store(size: int, corpus: dict, vectors: np.ndarray) -> Path:
         expires = d["expires_at_ms"]
         deleted = d["deleted_at_ms"]
         rows.append((
-            d["doc_id"], BRAIN_ID, "bench-agent", CORPUS_SCOPE[0], CORPUS_SCOPE[1],
+            d["doc_id"], BRAIN_ID, "bench-agent",
             d["topic"], d["catalog"], d["summary"], d["content"],
             day_of(d["created_at_ms"]), None, None, d["created_at_ms"],
             d["created_at_ms"], d["importance"], expires, deleted, "{}",
@@ -196,13 +186,12 @@ def build_store(size: int, corpus: dict, vectors: np.ndarray) -> Path:
     for _ in range(size - len(rows)):
         created += 86_400_000 // 6
         catalog, topic, summary, content = filler_text(rng)
-        scope, scope_id = pick_scope(rng)
         importance = pick_importance(rng)
         expires, deleted = lifecycle(rng, created, importance)
         vec = vec_rng.standard_normal(640, dtype=np.float32)
         vec /= np.linalg.norm(vec)
         rows.append((
-            f"fill-{created}-{len(rows)}", BRAIN_ID, "bench-agent", scope, scope_id,
+            f"fill-{created}-{len(rows)}", BRAIN_ID, "bench-agent",
             topic, catalog, summary, content, day_of(created), None, None,
             created, created, importance, expires, deleted, "{}",
             MODEL_MANIFEST.profile, vec.astype("<f4").tobytes(), 1,

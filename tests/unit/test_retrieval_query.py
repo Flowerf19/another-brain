@@ -10,12 +10,11 @@ import sqlite3
 
 import pytest
 
-from another_brain.protocols import Scope, ScopeKey
 from another_brain.domain.models import RecentFilters
 from another_brain.retrieval.query import (
     build_match_query,
     extract_terms,
-    scoped_live_where,
+    live_where,
 )
 
 TOKENIZER_SAMPLES = [
@@ -111,23 +110,36 @@ def test_hostile_input_is_quoted_literal_data(hostile):
         assert part[1:-1].isalnum()
 
 
-def test_scoped_live_where_mandatory_filters_first():
-    scope = ScopeKey(Scope.PROJECT, "proj-alpha")
-    where, params = scoped_live_where(
-        brain_id="b1", scope=scope, filters=None, now_ms=123
+def test_live_where_mandatory_filters_first():
+    where, params = live_where(
+        brain_id="b1", filters=None, now_ms=123
     )
     assert where == (
-        "m.brain_id = ? AND m.scope = ? AND m.scope_id = ?"
-        " AND m.deleted_at_ms IS NULL AND m.expires_at_ms > ?"
+        "m.brain_id = ? AND m.deleted_at_ms IS NULL AND m.expires_at_ms > ?"
     )
-    assert params == ["b1", "project", "proj-alpha", 123]
+    assert params == ["b1", 123]
 
 
-def test_scoped_live_where_optional_filters():
-    scope = ScopeKey(Scope.GLOBAL, "global")
+def test_live_where_keeps_optional_filters():
     filters = RecentFilters(topic="t", catalog="c", since_ms=1, until_ms=2)
-    where, params = scoped_live_where(
-        brain_id="b1", scope=scope, filters=filters, now_ms=123
+    where, params = live_where(
+        brain_id="b1", filters=filters, now_ms=123
     )
-    assert where.endswith("m.topic = ? AND m.catalog = ? AND m.created_at_ms >= ? AND m.created_at_ms <= ?")
-    assert params == ["b1", "global", "global", 123, "t", "c", 1, 2]
+    assert where == (
+        "m.brain_id = ? AND m.deleted_at_ms IS NULL AND m.expires_at_ms > ?"
+        " AND m.topic = ? AND m.catalog = ? AND m.created_at_ms >= ?"
+        " AND m.created_at_ms <= ?"
+    )
+    assert params == ["b1", 123, "t", "c", 1, 2]
+
+
+def test_live_where_keeps_importance_filter():
+    where, params = live_where(
+        brain_id="b1",
+        filters=RecentFilters(topic="t", min_importance=3), now_ms=123
+    )
+    assert where == (
+        "m.brain_id = ? AND m.deleted_at_ms IS NULL AND m.expires_at_ms > ?"
+        " AND m.topic = ? AND m.importance >= ?"
+    )
+    assert params == ["b1", 123, "t", 3]

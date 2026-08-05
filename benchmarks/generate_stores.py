@@ -1,7 +1,7 @@
 """Deterministic benchmark store generator (TASK-005).
 
 Builds SQLite stores of 1k/10k/50k/100k rows with realistic
-text/scope/importance/expiry/deletion distributions and recorded seeds. Each
+text/importance/expiry/deletion distributions and recorded seeds. Each
 store embeds the 624 embedding-quality-v1 corpus documents (fake vectors for
 now — TASK-063 regenerates with real q4 embeddings before the judged suite)
 plus seeded fillers.
@@ -40,8 +40,6 @@ CREATE TABLE memories(
   memory_id TEXT NOT NULL,
   brain_id TEXT NOT NULL,
   agent_id TEXT NOT NULL,
-  scope TEXT NOT NULL,
-  scope_id TEXT NOT NULL,
   topic TEXT NOT NULL,
   catalog TEXT NOT NULL,
   summary TEXT NOT NULL,
@@ -97,15 +95,6 @@ def pick_importance(rng: random.Random) -> int:
     return 3
 
 
-def pick_scope(rng: random.Random) -> tuple[str, str]:
-    roll = rng.random()
-    if roll < 0.5:
-        return "user", f"user-{rng.randint(1, 20)}"
-    if roll < 0.9:
-        return "project", f"proj-{rng.randint(1, 10)}"
-    return "global", "global"
-
-
 def filler_text(rng: random.Random) -> tuple[str, str, str, str]:
     cluster = rng.choice(CLUSTERS)
     subject = rng.choice(cluster["subjects"])
@@ -151,7 +140,7 @@ def build_store(size: int) -> Path:
         created += 86_400_000 // 6
         expires, deleted = lifecycle(rng, created, d["importance"])
         rows.append((
-            d["doc_id"], BRAIN_ID, "bench-agent", "project", "proj-1",
+            d["doc_id"], BRAIN_ID, "bench-agent",
             d["topic"], d["catalog"], d["summary"], d["content"], "2026-07-15",
             created, created, d["importance"], expires, deleted, "{}",
             fake_vector(vec_rng), 1,
@@ -159,11 +148,10 @@ def build_store(size: int) -> Path:
     for i in range(size - len(rows)):
         created += 86_400_000 // 6
         cluster_id, topic, summary, content = filler_text(rng)
-        scope, scope_id = pick_scope(rng)
         importance = pick_importance(rng)
         expires, deleted = lifecycle(rng, created, importance)
         rows.append((
-            f"bench-{size}-{i:07d}", BRAIN_ID, "bench-agent", scope, scope_id,
+            f"bench-{size}-{i:07d}", BRAIN_ID, "bench-agent",
             topic, "note", summary, content, "2026-07-15",
             created, created, importance, expires, deleted, "{}",
             fake_vector(vec_rng), 1,
@@ -171,11 +159,11 @@ def build_store(size: int) -> Path:
 
     with con:
         con.executemany(
-            "INSERT INTO memories(memory_id, brain_id, agent_id, scope, scope_id,"
+            "INSERT INTO memories(memory_id, brain_id, agent_id,"
             " topic, catalog, summary, content, timeline_day, created_at_ms,"
             " updated_at_ms, importance, expires_at_ms, deleted_at_ms,"
             " metadata_json, embedding, record_version)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             rows,
         )
         con.execute("INSERT INTO memory_fts(memory_fts) VALUES('optimize')")

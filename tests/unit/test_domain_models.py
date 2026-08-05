@@ -18,7 +18,6 @@ from another_brain.domain.models import (
 )
 from another_brain.errors import ValidationError
 from another_brain.services.embedding.model_manifest import MODEL_MANIFEST
-from another_brain.protocols import GLOBAL_SCOPE_ID, Scope
 
 UNIT = np.full(640, 1.0 / np.sqrt(640), dtype=np.float32)
 
@@ -28,8 +27,6 @@ def _record(**overrides) -> MemoryRecord:
         memory_id="mem-1",
         brain_id="default",
         agent_id="agent-a",
-        scope=Scope.USER,
-        scope_id="user-1",
         topic="sqlite-benchmark",
         catalog="engineering",
         summary="notes about sqlite",
@@ -54,14 +51,7 @@ def _record(**overrides) -> MemoryRecord:
 class TestMemoryRecord:
     def test_valid_record(self):
         record = _record()
-        assert record.scope is Scope.USER
         assert record.embedding.values.shape == (640,)
-
-    def test_scope_string_coerced_and_global_pinned(self):
-        record = _record(scope="global", scope_id=GLOBAL_SCOPE_ID)
-        assert record.scope is Scope.GLOBAL
-        with pytest.raises(ValidationError, match="canonicalizes"):
-            _record(scope=Scope.GLOBAL, scope_id="other")
 
     @pytest.mark.parametrize("field", ["memory_id", "brain_id", "agent_id", "topic", "catalog", "summary", "profile_id"])
     def test_non_empty_identity_and_text(self, field):
@@ -225,11 +215,10 @@ class TestRecentFilters:
 class TestSearchPreview:
     def test_valid_preview(self):
         preview = SearchPreview(
-            memory_id="mem-1", topic="t", catalog="c", summary="s", scope="user",
-            scope_id="u1", timeline_day="2026-08-04", created_at_ms=1,
+            memory_id="mem-1", topic="t", catalog="c", summary="s",
+            timeline_day="2026-08-04", created_at_ms=1,
             importance=3, expires_at_ms=2, has_content=True,
         )
-        assert preview.scope is Scope.USER
         assert preview.has_content is True
 
     def test_no_content_or_embedding_field(self):

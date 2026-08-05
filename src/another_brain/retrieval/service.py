@@ -24,7 +24,6 @@ from collections.abc import Callable, Sequence
 from another_brain.config import CANDIDATE_LIMIT, TOP_K
 from another_brain.domain.models import EmbeddingVector, RecentFilters, SearchPreview
 from another_brain.errors import StorageError
-from another_brain.protocols import Scope, ScopeKey
 from another_brain.retrieval.fusion import FusedResult, rrf_fuse
 from another_brain.retrieval.lexical import SQLiteLexicalRetriever
 from another_brain.retrieval.query import build_match_query
@@ -38,8 +37,6 @@ _PREVIEW_SELECT: tuple[tuple[str, str], ...] = (
     ("topic", "topic"),
     ("catalog", "catalog"),
     ("summary", "summary"),
-    ("scope", "scope"),
-    ("scope_id", "scope_id"),
     ("timeline_day", "timeline_day"),
     ("created_at_ms", "created_at_ms"),
     ("importance", "importance"),
@@ -95,7 +92,6 @@ class HybridMemoryRetriever:
         *,
         query_text: str,
         query_vector: EmbeddingVector,
-        scope: ScopeKey,
         filters: RecentFilters | None = None,
     ) -> list[FusedResult]:
         """Fused candidate list with branch evidence (test/parity surface)."""
@@ -106,7 +102,6 @@ class HybridMemoryRetriever:
             lexical = (
                 SQLiteLexicalRetriever(raw, brain_id=self._brain_id).candidates(
                     match_query=match_query,
-                    scope=scope,
                     filters=filters,
                     now_ms=now_ms,
                     limit=self._candidate_limit,
@@ -129,7 +124,6 @@ class HybridMemoryRetriever:
                 )
             vector = vector_retriever(raw, brain_id=self._brain_id).candidates(
                 query_vector=query_vector,
-                scope=scope,
                 filters=filters,
                 now_ms=now_ms,
                 limit=self._candidate_limit,
@@ -141,13 +135,11 @@ class HybridMemoryRetriever:
         *,
         query_text: str,
         query_vector: EmbeddingVector,
-        scope: ScopeKey,
         filters: RecentFilters | None = None,
     ) -> Sequence[SearchPreview]:
-        """Fused previews for one bounded query in one collection scope."""
+        """Fused previews for one bounded query over the bound brain."""
         fused = self.rank(
-            query_text=query_text, query_vector=query_vector, scope=scope,
-            filters=filters,
+            query_text=query_text, query_vector=query_vector, filters=filters,
         )
         if not fused:
             return []
@@ -163,7 +155,6 @@ class HybridMemoryRetriever:
         by_id = {}
         for row in rows:
             values = dict(zip(_PREVIEW_COLUMNS, row))
-            values["scope"] = Scope(values["scope"])
             by_id[values["memory_id"]] = SearchPreview(**values)
         # A row hard-deleted between the branch snapshot and this fetch is
         # skipped; the fused order is preserved for the rest.

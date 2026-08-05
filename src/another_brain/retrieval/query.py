@@ -18,17 +18,17 @@ Behavior locked by the retrieval contract:
 - duplicate terms are deduped (order-preserving) so adversarial repetition
   cannot inflate the MATCH string.
 
-Also home to :func:`scoped_live_where`, the single builder of the mandatory
-``brain/scope/live`` (+ optional ``RecentFilters``) WHERE fragment shared by
-both retrieval branches — identical filtered IDs are the parity contract
-between the sqlite-vec and NumPy vector adapters.
+Also home to :func:`live_where`, the single builder of the WHERE
+fragment shared by both retrieval branches — mandatory ``brain_id``/live
+predicates plus optional ``RecentFilters`` narrowing. Identical filtered
+IDs are the parity contract between the sqlite-vec and NumPy vector
+adapters.
 """
 from __future__ import annotations
 
 import unicodedata
 
 from another_brain.domain.models import RecentFilters
-from another_brain.protocols import ScopeKey
 
 
 def extract_terms(text: str) -> list[str]:
@@ -63,26 +63,22 @@ def build_match_query(text: str) -> str | None:
     return " OR ".join(f'"{term}"' for term in terms)
 
 
-def scoped_live_where(
+def live_where(
     *,
     brain_id: str,
-    scope: ScopeKey,
     filters: RecentFilters | None,
     now_ms: int,
 ) -> tuple[str, list[object]]:
-    """Mandatory brain/scope/live WHERE fragment plus optional narrowing.
+    """Mandatory brain/live WHERE fragment plus optional narrowing.
 
     Live means ``deleted_at_ms IS NULL AND expires_at_ms > now``; the filter
     applies before every branch limit so stale rows never starve candidates.
     """
-    where = [
-        "m.brain_id = ?",
-        "m.scope = ?",
-        "m.scope_id = ?",
-        "m.deleted_at_ms IS NULL",
-        "m.expires_at_ms > ?",
-    ]
-    params: list[object] = [brain_id, scope.scope.value, scope.scope_id, now_ms]
+    where = ["m.brain_id = ?"]
+    params: list[object] = [brain_id]
+    where.append("m.deleted_at_ms IS NULL")
+    where.append("m.expires_at_ms > ?")
+    params.append(now_ms)
     if filters is not None:
         if filters.topic is not None:
             where.append("m.topic = ?")

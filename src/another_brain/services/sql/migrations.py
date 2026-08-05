@@ -26,11 +26,7 @@ from filelock import FileLock
 from another_brain.config import SQLITE_PAGE_SIZE
 from another_brain.errors import MigrationError
 from another_brain.services.sql.connection import SCHEMA_LOCK_SUFFIX
-from another_brain.services.sql.schema import (
-    DDL_V1_STATEMENTS,
-    SCHEMA_VERSION,
-    checksum,
-)
+from another_brain.services.sql.schema import DDL_V1_STATEMENTS, SCHEMA_VERSION, checksum
 
 # version -> single statements; append-only (a new version adds a new entry).
 MIGRATIONS: dict[int, list[str]] = {SCHEMA_VERSION: DDL_V1_STATEMENTS}

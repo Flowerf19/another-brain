@@ -33,9 +33,8 @@ import numpy as np
 from another_brain.config import CANDIDATE_LIMIT, COSINE_FLOOR_MICRO
 from another_brain.domain.models import EmbeddingVector, RecentFilters
 from another_brain.errors import ValidationError
-from another_brain.protocols import ScopeKey
 from another_brain.retrieval.fusion import BranchCandidate
-from another_brain.retrieval.query import scoped_live_where
+from another_brain.retrieval.query import live_where
 
 _EMBEDDING_BYTES = 2560  # 640 x FLOAT32-LE (schema CHECK)
 
@@ -93,16 +92,13 @@ class _VectorBase:
 
     def _where(
         self,
-        scope: ScopeKey,
         filters: RecentFilters | None,
         now_ms: int,
         limit: int,
     ) -> tuple[str, list[object]]:
         if limit < 1:
             raise ValidationError(f"candidate limit must be >= 1, got {limit}")
-        return scoped_live_where(
-            brain_id=self._brain_id, scope=scope, filters=filters, now_ms=now_ms
-        )
+        return live_where(brain_id=self._brain_id, filters=filters, now_ms=now_ms)
 
 
 class SQLiteVecVectorRetriever(_VectorBase):
@@ -112,14 +108,13 @@ class SQLiteVecVectorRetriever(_VectorBase):
         self,
         *,
         query_vector: EmbeddingVector,
-        scope: ScopeKey,
         filters: RecentFilters | None = None,
         now_ms: int,
         limit: int = CANDIDATE_LIMIT,
     ) -> list[VectorCandidate]:
         query = np.asarray(query_vector.values, dtype="<f4")
         _validate_query(query_vector)
-        where, params = self._where(scope, filters, now_ms, limit)
+        where, params = self._where(filters, now_ms, limit)
         rows = self._con.execute(
             "SELECT m.memory_id, vec_distance_cosine(m.embedding, ?) AS distance"
             f" FROM memories m WHERE {where}",
@@ -140,22 +135,21 @@ class NumpyVectorRetriever(_VectorBase):
     Scores one row at a time on purpose. Stacking the BLOBs into a single
     ``(N, 640)`` matmul is ~1.26x faster on the judged 100k store (17.2 ms
     vs 21.6 ms) but allocates the whole candidate set at once: 43 MB there,
-    and 917 MB when one scope holds every live row — over the 500 MiB RSS
-    budget. This adapter is the fallback for platforms where the extension
-    will not load, so bounded memory outranks the 4 ms.
+    and 917 MB when every live row of the whole brain is a candidate — over
+    the 500 MiB RSS budget. This adapter is the fallback for platforms where
+    the extension will not load, so bounded memory outranks the 4 ms.
     """
 
     def candidates(
         self,
         *,
         query_vector: EmbeddingVector,
-        scope: ScopeKey,
         filters: RecentFilters | None = None,
         now_ms: int,
         limit: int = CANDIDATE_LIMIT,
     ) -> list[VectorCandidate]:
         query = _validate_query(query_vector)
-        where, params = self._where(scope, filters, now_ms, limit)
+        where, params = self._where(filters, now_ms, limit)
         rows = self._con.execute(
             f"SELECT m.memory_id, m.embedding FROM memories m WHERE {where}",
             params,

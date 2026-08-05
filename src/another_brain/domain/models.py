@@ -22,7 +22,6 @@ from typing import Any
 import numpy as np
 
 from another_brain.errors import ValidationError
-from another_brain.protocols import GLOBAL_SCOPE_ID, Scope
 
 _DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -51,13 +50,11 @@ def _require_non_empty(name: str, value: Any) -> None:
 
 @dataclass(frozen=True)
 class MemoryRecord:
-    """One ``memories`` row (identity + scope + text + timeline + vector)."""
+    """One ``memories`` row (identity + text + timeline + vector)."""
 
     memory_id: str
     brain_id: str
     agent_id: str
-    scope: Scope
-    scope_id: str
     topic: str
     catalog: str
     summary: str
@@ -79,16 +76,6 @@ class MemoryRecord:
         for name in ("memory_id", "brain_id", "agent_id", "topic", "catalog",
                      "summary", "profile_id"):
             _require_non_empty(name, getattr(self, name))
-        object.__setattr__(self, "scope", Scope(self.scope))
-        if not isinstance(self.scope_id, str) or not self.scope_id:
-            raise ValidationError(
-                f"scope_id must be a non-empty string, got {self.scope_id!r}"
-            )
-        if self.scope is Scope.GLOBAL and self.scope_id != GLOBAL_SCOPE_ID:
-            raise ValidationError(
-                f"scope=global canonicalizes scope_id to {GLOBAL_SCOPE_ID!r},"
-                f" got {self.scope_id!r}"
-            )
         if not _DAY_RE.fullmatch(self.timeline_day):
             raise ValidationError(
                 f"timeline_day must be YYYY-MM-DD, got {self.timeline_day!r}"
@@ -295,7 +282,7 @@ class RecentFilters:
 
     Every field is an AND-combined equality/range narrowing applied *before*
     any candidate or page limit, by the single builder
-    :func:`~another_brain.retrieval.query.scoped_live_where` (retrieval) and
+    :func:`~another_brain.retrieval.query.live_where` (retrieval) and
     ``recent`` (repository). ``timeline_day`` matches the stored diary day
     exactly rather than a recomputed ``created_at`` window, so a later
     timezone change cannot move a memory out of the day it was filed under.
@@ -343,8 +330,6 @@ class SearchPreview:
     topic: str
     catalog: str
     summary: str
-    scope: Scope
-    scope_id: str
     timeline_day: str
     created_at_ms: int
     importance: int
@@ -354,7 +339,6 @@ class SearchPreview:
     def __post_init__(self) -> None:
         for name in ("memory_id", "topic", "catalog", "summary"):
             _require_non_empty(name, getattr(self, name))
-        object.__setattr__(self, "scope", Scope(self.scope))
         if not _DAY_RE.fullmatch(self.timeline_day):
             raise ValidationError(
                 f"timeline_day must be YYYY-MM-DD, got {self.timeline_day!r}"

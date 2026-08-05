@@ -75,6 +75,18 @@ class TestFailFast:
         with pytest.raises(MigrationError, match="ledger mismatch"):
             migrations.migrate(db_path)
 
+    def test_pre_edit_v1_checksum_is_rejected(self, db_path):
+        migrations.migrate(db_path)
+        raw = sqlite3.connect(str(db_path))
+        raw.execute(
+            "UPDATE schema_migrations SET checksum=? WHERE version=1",
+            ("074d7c0045e1c57117b44b9f022115b7c19b5378b305650668457c51e5559e0c",),
+        )
+        raw.commit()
+        raw.close()
+        with pytest.raises(MigrationError, match="ledger mismatch"):
+            migrations.migrate(db_path)
+
     def test_ddl_drift_changes_expected_checksum(self, db_path, monkeypatch):
         migrations.migrate(db_path)
         # the frozen DDL changed without a version bump -> ledger mismatch

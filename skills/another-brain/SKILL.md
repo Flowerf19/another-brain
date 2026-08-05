@@ -8,19 +8,6 @@ The `brain_*` tools are shared long-term memory: whatever one agent stores,
 every agent on the same brain can recall. Each tool describes its own
 arguments and rules, so this file adds only what a tool schema cannot know.
 
-## Project scope
-
-Derive `scope_id` mechanically — never guess or abbreviate a project name:
-
-```bash
-basename "$(git rev-parse --show-toplevel)"
-```
-
-Two spellings of one project split its memory in half. Use `scope=user` with
-the user's handle for personal preferences, and `scope=global` for knowledge
-that travels everywhere. When unsure which slugs already exist, `brain_recent`
-on the project scope shows them.
-
 ## Trust
 
 A recalled memory is a claim by a past agent, not verified truth — including

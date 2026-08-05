@@ -41,7 +41,7 @@ import numpy as np
 
 from another_brain.domain.models import EmbeddingVector, MemoryRecord
 from another_brain.errors import BusyExhausted, DuplicateMemoryError
-from another_brain.protocols import MutationOutcome, Scope, ScopeKey
+from another_brain.protocols import MutationOutcome
 from another_brain.services.embedding.model_manifest import MODEL_MANIFEST
 from another_brain.services.sql.connection import SQLiteConnectionFactory
 from another_brain.services.sql.migrations import migrate
@@ -52,12 +52,11 @@ from another_brain.services.sql.ttl import ttl_ms_for
 
 BRAIN_ID = "conc-brain"
 AGENT_ID = "conc-agent"
-SCOPE = ScopeKey(Scope.PROJECT, "proj-alpha")
 VEC_MODE_ENV = "AB_CONC_VEC"
 
 _SEARCH_SQL = (
     "SELECT m.memory_id FROM memory_fts f CROSS JOIN memories m ON m.row_id = f.rowid"
-    " WHERE memory_fts MATCH ? AND m.brain_id = ? AND m.scope = ? AND m.scope_id = ?"
+    " WHERE memory_fts MATCH ? AND m.brain_id = ?"
     " AND m.deleted_at_ms IS NULL AND m.expires_at_ms > ?"
     " ORDER BY bm25(memory_fts, 5.0, 3.0, 1.0), m.memory_id ASC LIMIT 50"
 )
@@ -82,8 +81,6 @@ def _record(memory_id: str, *, now_ms: int) -> MemoryRecord:
         memory_id=memory_id,
         brain_id=BRAIN_ID,
         agent_id=AGENT_ID,
-        scope=SCOPE.scope,
-        scope_id=SCOPE.scope_id,
         topic="concurrency-hot-ids",
         catalog="workload",
         summary=f"workload payload {memory_id}",
@@ -162,13 +159,13 @@ def apply(store: Store, op: str, memory_id: str, rng) -> str:
     if op == "get":
         return "hit" if repo.get(memory_id) is not None else "not_found"
     if op == "recent":
-        repo.recent(SCOPE, limit=5)
+        repo.recent(limit=5)
         return "listed"
     if op == "search":
         with store.factory.connect(read_only=True) as con:
             con.connection.execute(
                 _SEARCH_SQL,
-                ('"payload"', BRAIN_ID, SCOPE.scope.value, SCOPE.scope_id, _now_ms()),
+                ('"payload"', BRAIN_ID, _now_ms()),
             ).fetchall()
         return "searched"
     raise ValueError(f"unknown op {op}")
@@ -250,7 +247,7 @@ def integrity_report(db_path: Path) -> dict:
             r[0]
             for r in raw.execute(
                 _SEARCH_SQL,
-                ('"payload"', BRAIN_ID, SCOPE.scope.value, SCOPE.scope_id, now),
+                ('"payload"', BRAIN_ID, now),
             )
         }
         profiles = raw.execute("SELECT COUNT(*) FROM embedding_profiles").fetchone()[0]

@@ -3,8 +3,10 @@
 Covers the locked bugfix-v1 cases (lexical-only survival, vector floor,
 live-filter starvation), canonical micro-cosine boundaries, ties, malformed
 vectors, Vietnamese diacritics, adversarial terms, fused promotion, branch
-evidence labels, scope isolation, and exact sqlite-vec/NumPy
-candidate/order/RRF parity within the 1e-6 raw-score tolerance.
+evidence labels, brain isolation, and exact sqlite-vec/NumPy
+candidate/order/RRF parity within the 1e-6 raw-score tolerance, plus
+whole-brain recall: search and both candidate branches see every stored row
+of the bound brain.
 
 The 24-case behavior partition of embedding-quality-v1 (gate part 2,
 deferred from GOAL-001) runs in
@@ -20,7 +22,6 @@ import numpy as np
 import pytest
 
 from another_brain.domain.models import EmbeddingVector, MemoryRecord, RecentFilters
-from another_brain.protocols import Scope, ScopeKey
 from another_brain.retrieval.fusion import rrf_fuse
 from another_brain.retrieval.service import HybridMemoryRetriever
 from another_brain.retrieval.vector import (
@@ -36,7 +37,6 @@ FIXTURE = json.loads(
 NOW_MS = FIXTURE["now_ms"]
 BRAIN_ID = "fixture-brain"
 AGENT_ID = "fixture-agent"
-SCOPE = ScopeKey(Scope.PROJECT, "proj-alpha")
 
 
 def lift(vector8: list[float]) -> EmbeddingVector:
@@ -60,11 +60,10 @@ E1 = lift([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
 
 def _record(mid: str, *, topic: str, summary: str, content: str,
             embedding: EmbeddingVector, created: int, expires: int,
-            deleted: int | None, scope: ScopeKey = SCOPE,
-            catalog: str = "note") -> MemoryRecord:
+            deleted: int | None, catalog: str = "note") -> MemoryRecord:
     return MemoryRecord(
         memory_id=mid, brain_id=BRAIN_ID, agent_id=AGENT_ID,
-        scope=scope.scope, scope_id=scope.scope_id, topic=topic,
+        topic=topic,
         catalog=catalog, summary=summary, content=content,
         timeline_day="2026-07-25", period_start_ms=None, period_end_ms=None,
         created_at_ms=created, updated_at_ms=created, importance=3,
@@ -101,7 +100,7 @@ def retriever(factory, **overrides) -> HybridMemoryRetriever:
 
 def test_content_identifier_survives_low_cosine(fixture_store):
     fused = retriever(fixture_store).rank(
-        query_text="ZXQ-8842", query_vector=E1, scope=SCOPE
+        query_text="ZXQ-8842", query_vector=E1
     )
     by_id = {r.memory_id: r for r in fused}
     assert "m-content-id" in by_id
@@ -113,7 +112,7 @@ def test_content_identifier_survives_low_cosine(fixture_store):
 
 def test_vector_only_below_floor_excluded(fixture_store):
     fused = retriever(fixture_store).rank(
-        query_text="kwojek zalquin", query_vector=E1, scope=SCOPE
+        query_text="kwojek zalquin", query_vector=E1
     )
     by_id = {r.memory_id: r for r in fused}
     assert "m-semantic-ok" in by_id
@@ -125,7 +124,6 @@ def test_vector_only_below_floor_excluded(fixture_store):
 def test_live_filter_before_branch_limits(fixture_store):
     fused = retriever(fixture_store, candidate_limit=2).rank(
         query_text="ZXQ-8842", query_vector=lift([0, 0, 1, 0, 0, 0, 0, 0]),
-        scope=SCOPE,
     )
     by_id = {r.memory_id: r for r in fused}
     assert "m-content-id" in by_id
@@ -136,26 +134,20 @@ def test_live_filter_before_branch_limits(fixture_store):
 
 def test_previews_carry_no_content_and_are_live(fixture_store):
     previews = retriever(fixture_store).search(
-        query_text="ZXQ-8842", query_vector=E1, scope=SCOPE
+        query_text="ZXQ-8842", query_vector=E1
     )
     assert previews
     for preview in previews:
         assert not hasattr(preview, "content")
         assert not hasattr(preview, "embedding")
         assert preview.expires_at_ms > NOW_MS
-        assert preview.scope is Scope.PROJECT
-        assert preview.scope_id == "proj-alpha"
 
 
-def test_scope_and_brain_isolation(fixture_store):
-    other_scope = ScopeKey(Scope.PROJECT, "proj-beta")
-    assert retriever(fixture_store).rank(
-        query_text="ZXQ-8842", query_vector=E1, scope=other_scope
-    ) == []
+def test_brain_isolation(fixture_store):
     other_brain = HybridMemoryRetriever(
         fixture_store, brain_id="other-brain", clock=lambda: NOW_MS
     )
-    assert other_brain.rank(query_text="ZXQ-8842", query_vector=E1, scope=SCOPE) == []
+    assert other_brain.rank(query_text="ZXQ-8842", query_vector=E1) == []
 
 
 # ---------------------------------------------------------------------------
@@ -185,7 +177,7 @@ def test_canonical_floor_boundaries(sql_factory, value, expected):
         expires=NOW_MS + 1000, deleted=None,
     ))
     hits = retriever(sql_factory).rank(
-        query_text="nomatch-zzz", query_vector=E1, scope=SCOPE
+        query_text="nomatch-zzz", query_vector=E1
     )
     assert ("boundary-doc" in {r.memory_id for r in hits}) is expected
 
@@ -206,7 +198,7 @@ def test_equal_score_ties_break_by_memory_id(sql_factory):
             deleted=None,
         ))
     fused = retriever(sql_factory).rank(
-        query_text="nomatch-zzz", query_vector=E1, scope=SCOPE
+        query_text="nomatch-zzz", query_vector=E1
     )
     assert [r.memory_id for r in fused] == ["tie-a", "tie-b", "tie-c"]
     assert all(r.vector_rank is not None for r in fused)
@@ -214,7 +206,7 @@ def test_equal_score_ties_break_by_memory_id(sql_factory):
 
 def test_fused_dual_branch_promotes_above_single_branch(fixture_store):
     fused = retriever(fixture_store).rank(
-        query_text="latency budget", query_vector=E1, scope=SCOPE
+        query_text="latency budget", query_vector=E1
     )
     by_id = {r.memory_id: r for r in fused}
     dual = by_id["m-semantic-ok"]
@@ -230,14 +222,14 @@ def test_fused_dual_branch_promotes_above_single_branch(fixture_store):
 def _insert_raw_blob(sql_factory, memory_id: str, blob: bytes) -> None:
     with sql_factory.connect() as con:
         con.connection.execute(
-            "INSERT INTO memories(memory_id, brain_id, agent_id, scope, scope_id,"
+            "INSERT INTO memories(memory_id, brain_id, agent_id,"
             " topic, catalog, summary, content, timeline_day, period_start_ms,"
             " period_end_ms, created_at_ms, updated_at_ms, importance,"
             " expires_at_ms, deleted_at_ms, metadata, profile_id, embedding,"
             " record_version)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
-                memory_id, BRAIN_ID, AGENT_ID, "project", "proj-alpha",
+                memory_id, BRAIN_ID, AGENT_ID,
                 "malformed-topic", "note", "malformed summary", "",
                 "2026-07-25", None, None, NOW_MS - 1000, NOW_MS - 1000, 3,
                 NOW_MS + 1000, None, "{}", "q4", blob, 1,
@@ -255,10 +247,10 @@ def test_malformed_vectors_rejected_by_both_adapters(sql_factory):
     with sql_factory.connect() as con:
         assert con.load_vec()
         vec_hits = SQLiteVecVectorRetriever(con.connection, brain_id=BRAIN_ID).candidates(
-            query_vector=E1, scope=SCOPE, now_ms=NOW_MS
+            query_vector=E1, now_ms=NOW_MS
         )
         np_hits = NumpyVectorRetriever(con.connection, brain_id=BRAIN_ID).candidates(
-            query_vector=E1, scope=SCOPE, now_ms=NOW_MS
+            query_vector=E1, now_ms=NOW_MS
         )
     for hits in (vec_hits, np_hits):
         assert "nan-doc" not in {h.memory_id for h in hits}
@@ -266,7 +258,7 @@ def test_malformed_vectors_rejected_by_both_adapters(sql_factory):
     # Hybrid search never crashes on corrupt blobs: the rows remain lexical-
     # only candidates (their vectors are rejected, vector_rank stays None).
     fused = retriever(sql_factory).rank(
-        query_text="malformed", query_vector=E1, scope=SCOPE
+        query_text="malformed", query_vector=E1
     )
     by_id = {r.memory_id: r for r in fused}
     assert by_id["nan-doc"].lexical_rank is not None
@@ -288,11 +280,11 @@ def test_vietnamese_diacritics_match_both_directions(sql_factory):
         expires=NOW_MS + 1000, deleted=None,
     ))
     no_diacritic = retriever(sql_factory).rank(
-        query_text="tuoi cay", query_vector=E1, scope=SCOPE
+        query_text="tuoi cay", query_vector=E1
     )
     assert "vi-doc" in {r.memory_id for r in no_diacritic}
     with_diacritics = retriever(sql_factory).rank(
-        query_text="tưới cây", query_vector=E1, scope=SCOPE
+        query_text="tưới cây", query_vector=E1
     )
     assert "vi-doc" in {r.memory_id for r in with_diacritics}
 
@@ -300,7 +292,7 @@ def test_vietnamese_diacritics_match_both_directions(sql_factory):
 def test_adversarial_duplicate_and_syntax_terms(fixture_store):
     fused = retriever(fixture_store).rank(
         query_text='ZXQ-8842 ZXQ-8842 zxq " OR NEAR/1 AND NOT',
-        query_vector=E1, scope=SCOPE,
+        query_vector=E1,
     )
     assert "m-content-id" in {r.memory_id for r in fused}
 
@@ -311,10 +303,62 @@ def test_adversarial_duplicate_and_syntax_terms(fixture_store):
 
 def test_filters_narrow_both_branches(fixture_store):
     fused = retriever(fixture_store).rank(
-        query_text="ZXQ-8842", query_vector=E1, scope=SCOPE,
+        query_text="ZXQ-8842", query_vector=E1,
         filters=RecentFilters(topic="run-followups"),
     )
     assert {r.memory_id for r in fused} == {"m-live-tail"}
+
+
+# ---------------------------------------------------------------------------
+# whole-brain recall (the only mode: every read spans the bound brain)
+
+
+def _store_whole_brain_rows(sql_factory) -> None:
+    """Three live rows with distinct topics; no partitioning exists."""
+    from another_brain.services.sql.repository import SQLiteMemoryRepository
+
+    repo = SQLiteMemoryRepository(sql_factory, brain_id=BRAIN_ID)
+    for i, topic in enumerate(("whole-brain-alpha", "whole-brain-beta",
+                               "whole-brain-gamma")):
+        repo.store(_record(
+            f"whole-{i:02d}", topic=topic, summary=f"whole brain row {i}",
+            content="", embedding=E1, created=NOW_MS - 1000 + i,
+            expires=NOW_MS + 1000, deleted=None,
+        ))
+
+
+def test_search_returns_matching_memories_across_the_whole_brain(sql_factory):
+    _store_whole_brain_rows(sql_factory)
+    previews = retriever(sql_factory).search(
+        query_text="whole-brain", query_vector=E1,
+    )
+    assert {p.memory_id for p in previews} == {"whole-00", "whole-01", "whole-02"}
+
+
+def test_lexical_candidates_cover_the_whole_brain(sql_factory):
+    from another_brain.retrieval.lexical import SQLiteLexicalRetriever
+    from another_brain.retrieval.query import build_match_query
+
+    _store_whole_brain_rows(sql_factory)
+    with sql_factory.connect() as con:
+        hits = SQLiteLexicalRetriever(con.connection, brain_id=BRAIN_ID).candidates(
+            match_query=build_match_query("whole-brain"), now_ms=NOW_MS,
+        )
+    assert {h.memory_id for h in hits} == {"whole-00", "whole-01", "whole-02"}
+
+
+def test_vector_candidates_cover_the_whole_brain(sql_factory):
+    _store_whole_brain_rows(sql_factory)
+    with sql_factory.connect() as con:
+        assert con.load_vec()
+        vec_hits = SQLiteVecVectorRetriever(
+            con.connection, brain_id=BRAIN_ID
+        ).candidates(query_vector=E1, now_ms=NOW_MS)
+        np_hits = NumpyVectorRetriever(
+            con.connection, brain_id=BRAIN_ID
+        ).candidates(query_vector=E1, now_ms=NOW_MS)
+    for hits in (vec_hits, np_hits):
+        assert {h.memory_id for h in hits} == {"whole-00", "whole-01", "whole-02"}
 
 
 # ---------------------------------------------------------------------------
@@ -352,10 +396,10 @@ def test_vector_adapter_parity(fixture_store):
     with fixture_store.connect() as con:
         assert con.load_vec()
         vec_hits = SQLiteVecVectorRetriever(con.connection, brain_id=BRAIN_ID).candidates(
-            query_vector=qv, scope=SCOPE, now_ms=NOW_MS
+            query_vector=qv, now_ms=NOW_MS
         )
         np_hits = NumpyVectorRetriever(con.connection, brain_id=BRAIN_ID).candidates(
-            query_vector=qv, scope=SCOPE, now_ms=NOW_MS
+            query_vector=qv, now_ms=NOW_MS
         )
 
     assert [(h.memory_id, h.cosine_key, h.rank) for h in vec_hits] == [
@@ -372,7 +416,7 @@ def test_vector_adapter_parity(fixture_store):
 
     with fixture_store.connect() as con:
         lexical = SQLiteLexicalRetriever(con.connection, brain_id=BRAIN_ID).candidates(
-            match_query=build_match_query("ZXQ-8842 random"), scope=SCOPE,
+            match_query=build_match_query("ZXQ-8842 random"),
             now_ms=NOW_MS,
         )
     assert rrf_fuse(lexical, vec_hits) == rrf_fuse(lexical, np_hits)
