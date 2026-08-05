@@ -5,7 +5,7 @@ Two adapters, one canonical contract:
 - ``SQLiteVecVectorRetriever`` — scalar ``vec_distance_cosine`` over the
   filtered regular BLOBs (no ANN index, no ``vec0``), used when the
   connection loaded sqlite-vec;
-- ``NumpyVectorRetriever`` — vectorized exact scan over the SAME filtered
+- ``NumpyVectorRetriever`` — streaming exact scan over the SAME filtered
   BLOBs, the compatibility fallback when the extension is unavailable.
 
 Both return finite FLOAT32 cosine converted to the canonical integer
@@ -135,7 +135,15 @@ class SQLiteVecVectorRetriever(_VectorBase):
 
 
 class NumpyVectorRetriever(_VectorBase):
-    """Vectorized exact cosine over the same filtered BLOBs (fallback)."""
+    """Streaming exact cosine over the same filtered BLOBs (fallback).
+
+    Scores one row at a time on purpose. Stacking the BLOBs into a single
+    ``(N, 640)`` matmul is ~1.26x faster on the judged 100k store (17.2 ms
+    vs 21.6 ms) but allocates the whole candidate set at once: 43 MB there,
+    and 917 MB when one scope holds every live row — over the 500 MiB RSS
+    budget. This adapter is the fallback for platforms where the extension
+    will not load, so bounded memory outranks the 4 ms.
+    """
 
     def candidates(
         self,

@@ -74,12 +74,15 @@ benchmarked despite TASK-006 requiring it. Hand-measured p95: 3.12 / 8.90 /
 branch at scale and dominates the 116.92 ms hybrid p95 at 100k, yet Success
 criterion 9 budgets only vector retrieval, so nothing gates it.
 
-**Open — `NumpyVectorRetriever` is not vectorized.** The module docstring,
-the class docstring, and TASK-059 all call it vectorized, but
-`vector.py:157-165` loops row by row with a per-row `.astype()` allocation.
-A batched matmul is the intended shape; the ~2x gap to sqlite-vec may be
-mostly this rather than C-vs-Python. Fallback parity matters because
-sqlite-vec is pre-1.0 and the release matrix includes Windows and ARM.
+**Resolved 2026-08-05 — `NumpyVectorRetriever` is streaming by design.** It
+was flagged as "not vectorized" against three descriptions that called it so;
+the descriptions were wrong, not the code. Batching the BLOBs into one
+`(N, 640)` matmul is 1.26x faster on the judged 100k store (17.19 vs
+21.64 ms) but allocates 103x the peak (43.16 vs 0.42 MB), reaching 916.67 MB
+when a single scope holds all 89223 live rows — past the 500 MiB budget.
+Identical results either way. Wording corrected in `vector.py` and in
+TASK-059; the trade is recorded at the class docstring so it is not
+"optimized" back into a budget violation.
 
 ## Plan bookkeeping drift (observed 2026-08-04, partly resolved 2026-08-05)
 

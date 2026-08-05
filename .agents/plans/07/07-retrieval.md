@@ -27,7 +27,18 @@ Module targets: `retrieval/query.py`, `lexical.py`, `vector.py`, `fusion.py`,
 | TASK-056 | Safe FTS5 query construction from Unicode terms without exposing MATCH syntax; punctuation-only input → no lexical branch; names/IDs/paths tokenized predictably. | ✅ | 2026-08-04 |
 | TASK-057 | `SQLiteLexicalRetriever`: BM25 weights 5:3:1, mandatory brain/scope/live filters before limit 50, order `bm25 ASC,memory_id ASC`, one-based ranks, no embedding dependency. | ✅ | 2026-08-04 |
 | TASK-058 | Scalar exact cosine over filtered regular BLOBs: reject malformed/non-finite, integer micro-cosine via Python half-even `round(score*1_000_000)`, floor 300000, rank by `cosine_key DESC,memory_id ASC`. | ✅ | 2026-08-04 |
-| TASK-059 | Forced/vectorized NumPy fallback with identical filtered IDs, FLOAT32 decode, canonical key/floor/order; fallback state exposed via doctor/health without semantic drift. | ✅ | 2026-08-04 |
+| TASK-059 | Forced/streaming NumPy fallback with identical filtered IDs, FLOAT32 decode, canonical key/floor/order; fallback state exposed via doctor/health without semantic drift. | ✅ | 2026-08-04 |
+> Approved revision 2026-08-05 — **"vectorized" is corrected to "streaming":
+> the fallback scores one row at a time by design.** The word implied a
+> batched `(N, 640)` matmul, and the code was flagged as not matching it.
+> Measured on the judged 100k store: batching is 1.26x faster (17.19 ms vs
+> 21.64 ms) for 103x the peak allocation (43.16 MB vs 0.42 MB), and 916.67 MB
+> when one scope holds all 89223 live rows — past the 500 MiB steady-RSS
+> budget in Success criterion 9. Results are identical either way (same IDs,
+> max cosine delta 8.3e-17). This adapter exists for platforms where the
+> pre-1.0 extension will not load, so bounded memory outranks the 4 ms. The
+> rationale is repeated at the class docstring so the trade is not silently
+> "optimized" back into a budget violation.
 | TASK-060 | Pure `rrf_fuse()`: equal branch weights, k=60, dedupe, branch evidence, fixed 50-candidate inputs, final top-5, locked tie-break (fused desc, branch count desc, best rank asc, `memory_id` asc). | ✅ | 2026-08-04 |
 | TASK-061 | `HybridMemoryRetriever`: independent branches, lexical-only results allowed, vector-only when no safe FTS terms, never a universal post-fusion cosine gate. | ✅ | 2026-08-04 |
 | TASK-062 | Ranking tests: lexical-only identifiers, semantic-only matches, fused promotion, VI diacritics, duplicate/adversarial terms, live-filter starvation, source labels, canonical floor boundaries (0.299998/0.300000/0.300002), ties, malformed vectors, exact sqlite-vec/NumPy candidate/order/RRF parity within `1e-6` raw tolerance — **plus the 24-case behavior partition of `embedding-quality-v1` as a gate (deferred from GOAL-001, approved revision 2026-08-04)**. | ✅ | 2026-08-04 |
