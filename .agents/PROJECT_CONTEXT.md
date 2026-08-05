@@ -212,7 +212,7 @@ src/another_brain/
   retrieval/               query, lexical, vector, fusion, service
   services/memory_service.py  use cases over the Protocols
   services/sql/             connection, migrations, schema, repository,
-                            ttl, audit, retry
+                            ttl, audit, health, retry
   services/embedding/       model_manifest, model_installer, provider,
                             payloads, budgets
 ```

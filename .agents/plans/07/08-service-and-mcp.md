@@ -56,7 +56,36 @@ before tool dispatch, never wildcard fallback.
 > Tests deferred to the final pass; verified by a temp-SQLite + fake-embedder
 > round trip covering remember/get/recent/search/reinforce/forget/audit/health,
 > global scope pinning, and the user-without-`scope_id` rejection.
-| TASK-065 | Preserve append-only diary, identity binding, previews/get separation, retention actions, by-ID brain isolation, audit privacy; replace Redis health/index behavior with SQLite schema/profile/integrity state. | | |
+| TASK-065 | Preserve append-only diary, identity binding, previews/get separation, retention actions, by-ID brain isolation, audit privacy; replace Redis health/index behavior with SQLite schema/profile/integrity state. | ✅ | 2026-08-05 |
+> Landed 2026-08-05. All 12 scenarios in the TASK-031 oracle export
+> (`tests/fixtures/legacy-baseline/behavior-v1.json`) replay green against the
+> clean `MemoryService` — identity binding, append-only writes, TTL by
+> importance, expired exclusion, reinforce re-arm, forget/restore/hard-delete
+> lifecycle, recent ordering, audit privacy, preview/get separation, health
+> shape, and both retrieval-behavior cases.
+>
+> Two scenarios pass by *differing* from the oracle, as TASK-008 records:
+> `recent-ordering` (legacy sorts `period_start DESC` with ties in index order;
+> clean locks `created_at DESC, memory_id ASC`) and
+> `legacy-cosine-gate-drops-content-match`, where the legacy universal cosine
+> gate returned `[]` and the clean branch returns the content match — the bug
+> this rebuild exists to fix.
+>
+> The health half needed new surface: `StorageState` + `StorageHealthProbe` in
+> `protocols.py`, implemented by `services/sql/health.py`. The Protocol is
+> backend-neutral by construction — no PRAGMA names, no file paths, no
+> extension identifiers beyond the `vector_backend` label retrieval already
+> exposes — so the service still imports no storage internals. `health()` now
+> degrades on schema mismatch, missing tables, a stored profile that does not
+> match the locked manifest (an incomplete re-embedding must not let
+> mixed-profile search start), or a failed integrity check. Integrity is
+> opt-in via `deep=True`: `PRAGMA integrity_check` walks the whole database,
+> so it belongs to `doctor`, not to a liveness answer. A database that cannot
+> be opened is *reported* unhealthy rather than raised — health is asked
+> precisely when storage is broken.
+>
+> Tests deferred to the final pass; the replay harness proving these 12 lands
+> with them.
 | TASK-066 | Register `brain_remember/search/recent/get/reinforce/forget/health/audit` on MCP SDK v2 `MCPServer` with locked names, argument contracts, by-ID signatures, response shapes. | | |
 | TASK-067 | Wire stdio default + opt-in HTTP under the loopback/transport-security policy: SQLite/model lifecycle, signals, exact host/origin allowlists, `TransportSecuritySettings(enable_dns_rebinding_protection=True)` with exact bound host/port, health that never forces model load. Verify the pinned SDK's transport security API without weakening policy. | | |
 | TASK-068 | Service/tool contracts with fake embedding + temp SQLite: every response shape, scoped collections, by-ID cross-brain/deleted/expired/grace, global normalization, content-only retrieval, HTTP negative binds/headers. | | |

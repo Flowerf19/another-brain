@@ -100,6 +100,39 @@ class EmbeddingHealth(Enum):
     ERROR = "error"
 
 
+@dataclass(frozen=True)
+class StorageState:
+    """Storage-side health facts, backend-neutral by construction.
+
+    Deliberately says nothing about SQLite: no PRAGMA names, no file paths,
+    no extension identifiers beyond the ``vector_backend`` label retrieval
+    already exposes. ``integrity_ok`` is ``None`` when the check was not run,
+    which is the normal answer — a full integrity check is a doctor-time
+    operation, not something a health call should pay for.
+    """
+
+    schema_version: int
+    schema_ok: bool
+    profile_id: str | None
+    profile_matches_manifest: bool
+    vector_backend: str
+    integrity_ok: bool | None = None
+    detail: str | None = None
+
+
+@runtime_checkable
+class StorageHealthProbe(Protocol):
+    """Read-only storage introspection for ``health``/``doctor``.
+
+    Implementations must be pure reads and must never load the embedding
+    model.
+    """
+
+    def state(self, *, deep: bool = False) -> StorageState:
+        """Current storage state; ``deep`` opts into the integrity check."""
+        ...
+
+
 @runtime_checkable
 class MemoryRepository(Protocol):
     """Append-only memory persistence bound to one ``brain_id``.

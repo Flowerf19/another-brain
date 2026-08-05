@@ -50,6 +50,7 @@ from another_brain.protocols import (
     MutationOutcome,
     Scope,
     ScopeKey,
+    StorageHealthProbe,
 )
 from another_brain.services.embedding.budgets import TokenBudgetValidator
 from another_brain.services.embedding.model_manifest import MODEL_MANIFEST
@@ -84,6 +85,7 @@ class MemoryService:
         audit: AuditRepository,
         embedder: EmbeddingProvider,
         budgets: TokenBudgetValidator,
+        storage: StorageHealthProbe,
         config: AppConfig,
         clock: Callable[[], int] = _now_ms,
     ) -> None:
@@ -92,6 +94,7 @@ class MemoryService:
         self._audit = audit
         self._embedder = embedder
         self._budgets = budgets
+        self._storage = storage
         self._config = config
         self._clock = clock
 
@@ -264,14 +267,27 @@ class MemoryService:
 
     # -- health --------------------------------------------------------------
 
-    def health(self, *, agent_id: str) -> dict[str, Any]:
+    def health(self, *, agent_id: str, deep: bool = False) -> dict[str, Any]:
         """Service state without side effects — never forces a model load.
 
         The embedding model loads lazily, so ``not_loaded`` is healthy; only a
-        recorded load failure degrades the service.
+        recorded load failure degrades the service. Storage contributes schema,
+        profile, and extension state. ``deep`` opts into the integrity check,
+        which walks the whole database and belongs to ``doctor`` rather than to
+        a liveness answer.
+
+        A profile that does not match the locked manifest is degraded, not
+        broken: rows written under another profile mean a re-embedding
+        migration is incomplete, and mixed-profile search must not start.
         """
         embedding_state = self._embedder.health()
-        degraded = embedding_state is EmbeddingHealth.ERROR
+        storage = self._storage.state(deep=deep)
+        degraded = (
+            embedding_state is EmbeddingHealth.ERROR
+            or not storage.schema_ok
+            or not storage.profile_matches_manifest
+            or storage.integrity_ok is False
+        )
         return {
             "status": "degraded" if degraded else "ok",
             "brain_id": self.brain_id,
@@ -280,6 +296,15 @@ class MemoryService:
             "embedding_profile": MODEL_MANIFEST.profile,
             "embedding_state": embedding_state.value,
             "embedding_dimensions": MODEL_MANIFEST.dimensions,
+            "storage": {
+                "schema_version": storage.schema_version,
+                "schema_ok": storage.schema_ok,
+                "profile_id": storage.profile_id,
+                "profile_matches_manifest": storage.profile_matches_manifest,
+                "vector_backend": storage.vector_backend,
+                "integrity_ok": storage.integrity_ok,
+                "detail": storage.detail,
+            },
         }
 
     # -- helpers -------------------------------------------------------------
