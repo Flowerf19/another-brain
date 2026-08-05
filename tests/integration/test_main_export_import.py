@@ -1,6 +1,6 @@
 """TASK-073 integration: the REAL legacy exporter artifact imports intact.
 
-``main-export-v1.jsonl`` is the pinned artifact produced by the legacy Redis
+``main-export-v1.jsonl`` is the pinned artifact produced by the legacy
 exporter (maint/jsonl-exporter, commits 04dfbd5 seeder / af935fd exporter):
 5 memory + 12 audit lines. Every fact is READ from the fixture at test time —
 nothing is hardcoded except the pinned SHA-256. The importer runs with
