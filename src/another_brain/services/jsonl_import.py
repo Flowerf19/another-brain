@@ -1,6 +1,10 @@
-"""JSONL v1 envelope parsing/validation (TASK-071, contract
-.agents/contracts/another-brain-jsonl-v1.md). Import orchestration lands
-with TASK-072.
+"""JSONL v1 envelope parsing/validation and import orchestration (TASK-071/072,
+contract .agents/contracts/another-brain-jsonl-v1.md).
+
+Import counters: ``imported`` = rows inserted this run; ``skipped`` =
+expired-memory skips plus same-key/same-fields duplicates; identity or field
+conflicts raise :class:`JsonlImportConflictError` after marking the run
+``failed``.
 """
 from __future__ import annotations
 
@@ -275,3 +279,440 @@ def parse_envelope(path: Path) -> Envelope:
         exported_at_ms=manifest["exported_at_ms"],
         export_id=manifest["export_id"],
     )
+
+
+# ---------------------------------------------------------------------------
+# Import orchestration (TASK-072)
+# ---------------------------------------------------------------------------
+
+import sqlite3
+import time
+from collections.abc import Callable
+from functools import lru_cache
+
+from another_brain.config import AppConfig
+from another_brain.domain.timeline import timeline_day_for
+from another_brain.errors import StorageError
+from another_brain.protocols import EmbeddingProvider
+from another_brain.services.embedding.model_manifest import MODEL_MANIFEST
+from another_brain.services.sql.profile import register_profile
+from another_brain.services.sql.retry import busy_retry
+
+_MEMORY_INSERT_COLUMNS = (
+    "memory_id", "brain_id", "agent_id", "topic",
+    "catalog", "summary", "content", "timeline_day", "period_start_ms",
+    "period_end_ms", "created_at_ms", "updated_at_ms", "importance",
+    "expires_at_ms", "deleted_at_ms", "metadata", "profile_id",
+    "embedding", "record_version",
+)
+_MEMORY_PRESERVED = tuple(
+    key for key in MEMORY_PAYLOAD_KEYS if key != "remaining_ttl_ms"
+)
+_AUDIT_INSERT_COLUMNS = (
+    "event_id", "brain_id", "memory_id", "agent_id", "action",
+    "event_at_ms", "timeline_day", "detail_json",
+)
+
+
+def _now_ms() -> int:
+    return int(time.time() * 1000)
+
+
+def _repo_json(obj: object) -> str:
+    """JSON text exactly as the repositories serialize their TEXT columns."""
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"))
+
+
+@lru_cache(maxsize=1)
+def _timeline_timezone() -> str:
+    return AppConfig.from_env().timeline_timezone
+
+
+def _timeline_day(at_ms: int) -> str:
+    return timeline_day_for(at_ms, _timeline_timezone())
+
+
+class JsonlImportConflictError(StorageError):
+    """Same idempotency key with differing preserved fields, or a run/artifact identity clash."""
+
+
+@dataclass(frozen=True)
+class ImportReport:
+    export_id: str
+    artifact_sha256: str
+    status: str  # "completed" | "noop" (conflicts raise, never return)
+    imported_count: int
+    skipped_count: int
+    last_committed_seq: int
+    detail: str
+
+
+class JsonlImporter:
+    """Import orchestration: no-op/conflict/resume gate, batched writes.
+
+    Embedding happens outside transactions (batches embed their documents
+    upfront); each batch is one ``BEGIN IMMEDIATE`` write that inserts rows,
+    advances ``last_committed_seq`` and persists counters atomically.
+    """
+
+    def __init__(
+        self,
+        factory,
+        *,
+        embedder: EmbeddingProvider,
+        clock: Callable[[], int] = _now_ms,
+        batch_size: int = 128,
+        after_batch_commit=None,
+    ) -> None:
+        self._factory = factory
+        self._embedder = embedder
+        self._clock = clock
+        if batch_size < 1:
+            raise ValueError(f"batch_size must be >= 1, got {batch_size}")
+        self._batch_size = batch_size
+        self._after_batch_commit = after_batch_commit
+
+    # -- conflict helpers -----------------------------------------------------
+
+    def _mark_failed(self) -> None:
+        with self._factory.connect() as con:
+            raw = con.connection
+
+            def _tx() -> None:
+                raw.execute("BEGIN IMMEDIATE")
+                try:
+                    raw.execute(
+                        "UPDATE import_runs SET status = 'failed',"
+                        " failed_count = failed_count + 1,"
+                        " completed_at_ms = ? WHERE export_id = ?",
+                        (self._clock(), self._export_id),
+                    )
+                    raw.commit()
+                except Exception:
+                    raw.rollback()
+                    raise
+
+            busy_retry(_tx)
+
+    @staticmethod
+    def _memory_values(payload: dict[str, Any], embedding_blob: bytes) -> tuple:
+        return tuple(payload[key] for key in _MEMORY_INSERT_COLUMNS[:-4]) + (
+            _repo_json(payload["metadata"]),
+            MODEL_MANIFEST.profile,
+            embedding_blob,
+            payload["record_version"],
+        )
+
+    @staticmethod
+    def _audit_values(payload: dict[str, Any]) -> tuple:
+        return (
+            payload["event_id"], payload["brain_id"], payload["memory_id"],
+            payload["agent_id"], payload["action"], payload["event_at_ms"],
+            _timeline_day(payload["event_at_ms"]),
+            _repo_json(payload["detail"]),
+        )
+
+    @staticmethod
+    def _same_fields(existing: dict, payload: dict[str, Any]) -> bool:
+        for key in _MEMORY_PRESERVED:
+            if key == "metadata":
+                if existing[key] != _repo_json(payload[key]):
+                    return False
+            elif existing[key] != payload[key]:
+                return False
+        return True
+
+    def _memory_insert_sql(self) -> str:
+        cols = ", ".join(_MEMORY_INSERT_COLUMNS)
+        ph = ", ".join("?" for _ in _MEMORY_INSERT_COLUMNS)
+        return f"INSERT INTO memories({cols}) VALUES ({ph})"
+
+    def _audit_insert_sql(self) -> str:
+        cols = ", ".join(_AUDIT_INSERT_COLUMNS)
+        ph = ", ".join("?" for _ in _AUDIT_INSERT_COLUMNS)
+        return f"INSERT INTO audit_events({cols}) VALUES ({ph})"
+
+    def _memories_existing(self, raw: sqlite3.Connection) -> dict[tuple[str, str], dict]:
+        if not self._keys_in_flight:
+            return {}
+        cols = ", ".join(_MEMORY_PRESERVED)
+        rows = raw.execute(
+            f"SELECT {cols} FROM memories"
+            " WHERE (brain_id, memory_id) IN (%s)"
+            % ", ".join(["(?, ?)"] * len(self._keys_in_flight)),
+            [v for key in self._keys_in_flight for v in key],
+        ).fetchall()
+        found: dict[tuple[str, str], dict] = {}
+        for row in rows:
+            values = dict(zip(_MEMORY_PRESERVED, row))
+            found[(values["brain_id"], values["memory_id"])] = values
+        return found
+
+    def _audit_existing(self, raw: sqlite3.Connection) -> dict[str, dict]:
+        if not self._audit_events:
+            return {}
+        rows = raw.execute(
+            "SELECT event_id, action, event_at_ms, detail_json FROM audit_events"
+            " WHERE event_id IN (%s)" % ", ".join(["?"] * len(self._audit_events)),
+            self._audit_events,
+        ).fetchall()
+        return {r[0]: {"action": r[1], "event_at_ms": r[2], "detail": r[3]} for r in rows}
+
+    # -- entry point ------------------------------------------------------------
+
+    def import_path(self, path: Path) -> ImportReport:
+        """Import one validated JSONL v1 envelope (no-op/conflict/resume gate)."""
+        envelope = parse_envelope(path)
+        register_profile(self._factory)
+        run = self._read_run(envelope.export_id, envelope.artifact_sha256)
+        if run is not None:
+            return run
+        if self._run_started_ms is None:
+            started = self._clock()
+            self._start_run(envelope, started)
+        else:
+            started = self._run_started_ms  # resume: keep the original start
+        report = self._import_data(envelope, started)
+        self._complete_run(envelope)
+        return report
+
+    def _read_run(
+        self, export_id: str, artifact_sha256: str
+    ) -> ImportReport | None:
+        with self._factory.connect(read_only=True) as con:
+            rows = con.connection.execute(
+                "SELECT export_id, artifact_sha256, status, last_committed_seq,"
+                " imported_count, skipped_count, failed_count, started_at_ms,"
+                " completed_at_ms FROM import_runs"
+            ).fetchall()
+        by_id = {r[0]: r for r in rows}
+        by_artifact = {r[1]: r for r in rows}
+        row = by_id.get(export_id)
+        if row is not None:
+            if row[1] == artifact_sha256 and row[2] == "completed":
+                return ImportReport(
+                    export_id=export_id,
+                    artifact_sha256=artifact_sha256,
+                    status="noop",
+                    imported_count=row[4],
+                    skipped_count=row[5],
+                    last_committed_seq=row[3],
+                    detail="",
+                )
+            if row[1] != artifact_sha256:
+                raise JsonlImportConflictError(
+                    f"export_id {export_id!r} already imported under artifact"
+                    f" sha256 {row[1][:12]}… (this file is {artifact_sha256[:12]}…)"
+                )
+            # Same artifact under a running/failed row: resume below.
+            self._export_id = export_id
+            self._artifact_sha256 = artifact_sha256
+            self._run_started_ms = row[7]
+            self._last_committed_seq = row[3]
+            self._imported = row[4]
+            self._skipped = row[5]
+            return None
+        if artifact_sha256 in by_artifact:
+            other = by_artifact[artifact_sha256]
+            raise JsonlImportConflictError(
+                f"artifact sha256 {artifact_sha256[:12]}… already imported under"
+                f" export_id {other[0]!r}"
+            )
+        self._export_id = export_id
+        self._artifact_sha256 = artifact_sha256
+        self._run_started_ms = None
+        self._last_committed_seq = 0
+        self._imported = 0
+        self._skipped = 0
+        return None
+
+    def _start_run(self, envelope: Envelope, started: int) -> None:
+        with self._factory.connect() as con:
+            raw = con.connection
+
+            def _tx() -> None:
+                raw.execute("BEGIN IMMEDIATE")
+                try:
+                    raw.execute(
+                        "INSERT INTO import_runs(export_id, artifact_sha256,"
+                        " format_version, status, last_committed_seq,"
+                        " imported_count, skipped_count, failed_count,"
+                        " started_at_ms) VALUES (?,?,?,?,?,?,?,?,?)",
+                        (envelope.export_id, envelope.artifact_sha256, 1,
+                         "running", 0, 0, 0, 0, started),
+                    )
+                    raw.commit()
+                except Exception:
+                    raw.rollback()
+                    raise
+
+            busy_retry(_tx)
+        self._run_started_ms = started
+
+    # -- batching ---------------------------------------------------------------
+
+    def _import_data(self, envelope: Envelope, started: int) -> ImportReport:
+        start = self._last_committed_seq
+        for end in range(
+            start + self._batch_size, len(envelope.data_lines) + 1, self._batch_size
+        ):
+            self._process_batch(envelope, started, start, end)
+            start = end
+        if start < len(envelope.data_lines):
+            self._process_batch(
+                envelope, started, start, len(envelope.data_lines)
+            )
+        return ImportReport(
+            export_id=envelope.export_id,
+            artifact_sha256=envelope.artifact_sha256,
+            status="completed",
+            imported_count=self._imported,
+            skipped_count=self._skipped,
+            last_committed_seq=envelope.trailer["last_seq"],
+            detail="",
+        )
+
+    def _process_batch(
+        self, envelope: Envelope, started: int, start: int, end: int
+    ) -> None:
+        batch = envelope.data_lines[start:end]
+        memory_lines = [line for line in batch if line[1] == "memory"]
+        audit_lines = [line for line in batch if line[1] == "audit"]
+        self._keys_in_flight = [
+            (line[2]["brain_id"], line[2]["memory_id"]) for line in memory_lines
+        ]
+        self._audit_events = [line[2]["event_id"] for line in audit_lines]
+
+        for line in memory_lines:
+            if line[2]["expires_at_ms"] <= started:
+                self._skipped += 1
+        blobs = {}
+        for line in memory_lines:
+            if line[2]["expires_at_ms"] > started:
+                vec = self._embedder.embed_document(
+                    topic=line[2]["topic"], summary=line[2]["summary"]
+                )
+                blobs[line[0]] = vec.values.astype("<f4", copy=False).tobytes()
+
+        with self._factory.connect() as con:
+            raw = con.connection
+
+            def _tx() -> tuple[int, int]:
+                raw.execute("BEGIN IMMEDIATE")
+                try:
+                    deltas = self._write_batch(
+                        envelope, started, memory_lines, audit_lines, blobs, raw, end
+                    )
+                    raw.commit()
+                    return deltas
+                except Exception:
+                    raw.rollback()
+                    raise
+
+            try:
+                delta_imported, delta_skipped = busy_retry(_tx)  # type: ignore[misc]
+            except JsonlImportConflictError as exc:
+                self._process_conflict(exc)
+        self._imported += delta_imported
+        self._skipped += delta_skipped
+        if self._after_batch_commit is not None:
+            self._after_batch_commit(end)
+
+    def _process_conflict(self, exc: JsonlImportConflictError) -> None:
+        """Mark the run failed once the batch lock is released, then re-raise."""
+        self._mark_failed()
+        raise exc
+
+    def _write_batch(
+        self,
+        envelope: Envelope,
+        started: int,
+        memory_lines: list,
+        audit_lines: list,
+        blobs: dict[int, bytes],
+        raw: sqlite3.Connection,
+        end: int,
+    ) -> tuple[int, int]:
+        memory_insert = self._memory_insert_sql()
+        audit_insert = self._audit_insert_sql()
+        existing_mem = self._memories_existing(raw)
+        existing_aud = self._audit_existing(raw)
+        seen_mem: dict[tuple[str, str], dict] = {}
+        seen_aud: dict[str, dict] = {}
+        delta_imported = 0
+        delta_skipped = 0
+        for seq, kind, payload in memory_lines:
+            key = (payload["brain_id"], payload["memory_id"])
+            if payload["expires_at_ms"] <= started:
+                continue  # counted as skipped up front, never written
+            found = existing_mem.get(key)
+            if found is None:
+                found = seen_mem.get(key)
+            if found is None:
+                raw.execute(
+                    memory_insert, self._memory_values(payload, blobs[seq])
+                )
+                seen_mem[key] = {
+                    **payload, "metadata": _repo_json(payload["metadata"])
+                }
+                delta_imported += 1
+                continue
+            same = self._same_fields(found, payload)
+            if same:
+                delta_skipped += 1
+                continue
+            raise JsonlImportConflictError(
+                f"memory {key[1]!r} for brain {key[0]!r} exists with differing"
+                " preserved fields (idempotency key "
+                f"memory:{key[0]}:{key[1]})"
+            )
+        for seq, kind, payload in audit_lines:
+            event_id = payload["event_id"]
+            found = existing_aud.get(event_id)
+            if found is None:
+                found = seen_aud.get(event_id)
+            if found is None:
+                raw.execute(audit_insert, self._audit_values(payload))
+                seen_aud[event_id] = {
+                    **payload, "detail": _repo_json(payload["detail"])
+                }
+                delta_imported += 1
+                continue
+            same = (
+                found["action"] == payload["action"]
+                and found["event_at_ms"] == payload["event_at_ms"]
+                and found["detail"] == _repo_json(payload["detail"])
+            )
+            if same:
+                delta_skipped += 1
+                continue
+            raise JsonlImportConflictError(
+                f"audit event {event_id!r} exists with differing fields"
+            )
+        imported_total = self._imported + delta_imported
+        skipped_total = self._skipped + delta_skipped
+        raw.execute(
+            "UPDATE import_runs SET last_committed_seq = ?,"
+            " imported_count = ?, skipped_count = ? WHERE export_id = ?",
+            (end, imported_total, skipped_total, envelope.export_id),
+        )
+        return delta_imported, delta_skipped
+
+    def _complete_run(self, envelope: Envelope) -> None:
+        with self._factory.connect() as con:
+            raw = con.connection
+
+            def _tx() -> None:
+                raw.execute("BEGIN IMMEDIATE")
+                try:
+                    raw.execute(
+                        "UPDATE import_runs SET status = 'completed',"
+                        " completed_at_ms = ? WHERE export_id = ?",
+                        (self._clock(), envelope.export_id),
+                    )
+                    raw.commit()
+                except Exception:
+                    raw.rollback()
+                    raise
+
+            busy_retry(_tx)
