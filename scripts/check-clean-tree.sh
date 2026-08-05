@@ -38,6 +38,10 @@ fi
 echo "== TASK-081: zero Redis/Docker/Torch references in the clean tree =="
 # Scan code, tests, scripts, product docs, pyproject, and workflows.
 # .agents/ is intentionally excluded (plans + superseded history live there).
+# tests/fixtures/legacy-baseline/ is excluded for the same reason: the TASK-031
+# oracle export is a *record of* the legacy stack, not legacy code running here.
+# It names Redis/Docker/Torch because that is what was measured; scrubbing those
+# names would destroy the evidence. Data only — no importable module lives there.
 PATTERN='redis|docker|torch|sentence[_-]transformers|fastmcp|compose'
 # Allowed: explicit negations of legacy families, and the import-guard tuples
 # in tests that assert those modules never load at startup.
@@ -46,6 +50,7 @@ HITS="$(grep -rEni "$PATTERN" \
     src/ tests/ scripts/ docs/ skills/ README.md pyproject.toml .github/ 2>/dev/null \
     | grep -v __pycache__ \
     | grep -v 'scripts/check-clean-tree.sh' \
+    | grep -v '^tests/fixtures/legacy-baseline/' \
     | grep -Ev "$ALLOW" || true)"
 if [ -n "$HITS" ]; then
     echo "FAIL: forbidden references found:"

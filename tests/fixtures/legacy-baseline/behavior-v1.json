@@ -1,0 +1,220 @@
+{
+ "fixture": "legacy-baseline",
+ "version": 1,
+ "generated_at": "2026-08-04T13:51:51Z",
+ "oracle": {
+  "commit": "edc0e573a10bb8ea9148c9830cf19fe15f757972",
+  "stack": "Redis 8.8 (docker) + FT.HYBRID; fake 8-dim embeddings; grace 3600s; top_k 5; RRF k 60; cosine gate 0.30",
+  "baseline_tests": "unit 190 passed; integration 11 passed + 3 skipped (REDIS_TEST_URL=redis://localhost:1906)"
+ },
+ "clock": {
+  "base_ts": 1752200000.0,
+  "tz": "UTC"
+ },
+ "id_aliases": {
+  "7679ab9b-ec5c-4b23-8a83-bf70fd20872c": "m1",
+  "64936e74-d8a2-414c-883a-b00434add934": "m2",
+  "8e035443-32ff-4008-838e-27fe518a44ba": "m3"
+ },
+ "scenarios": [
+  {
+   "id": "identity-binding",
+   "given": "one memory m1 in oracle-brain; by-ID ops from other-brain",
+   "ops": [
+    "get",
+    "reinforce",
+    "forget",
+    "restore",
+    "hard_delete"
+   ],
+   "legacy": {
+    "get": "not_found",
+    "reinforce": "not_found",
+    "forget": "not_found",
+    "restore": "not_found",
+    "hard_delete": "not_found"
+   },
+   "expect_clean_equivalent": "all cross-brain by-ID ops return the shared not_found shape",
+   "visible_in_own_brain": true
+  },
+  {
+   "id": "append-only-writes",
+   "given": "two remember calls with identical topic/summary",
+   "legacy": {
+    "distinct_ids": true,
+    "both_in_recent": true
+   },
+   "expect_clean_equivalent": "duplicate remember is never an overwrite; both entries live"
+  },
+  {
+   "id": "ttl-importance",
+   "given": "five memories, importance 5..1, created at BASE",
+   "legacy": {
+    "ttl_days_by_importance": {
+     "5": 365.0,
+     "4": 180.0,
+     "3": 90.0,
+     "2": 30.0,
+     "1": 7.0
+    }
+   },
+   "expect_clean_equivalent": "365/180/90/30/7 days for importance 5..1"
+  },
+  {
+   "id": "expired-excluded",
+   "given": "memory whose TTL has passed (Redis eviction)",
+   "legacy": {
+    "get": "not_found",
+    "in_recent": false
+   },
+   "expect_clean_equivalent": "expired rows never surface from get/recent"
+  },
+  {
+   "id": "reinforce-rearms",
+   "given": "importance-1 memory (7d TTL) reinforced 3 days later",
+   "legacy": {
+    "initial_ttl_days": 7.0,
+    "status": "applied",
+    "ttl_days_after_reinforce": 7.0
+   },
+   "expect_clean_equivalent": "reinforce re-arms the full importance TTL from now"
+  },
+  {
+   "id": "soft-delete-restore-grace",
+   "given": "importance-5 memory forgotten, restored, forgotten, hard-deleted",
+   "legacy": {
+    "forget_status": "applied",
+    "grace_expiry_seconds": 3600.0,
+    "get_after_forget": "not_found",
+    "in_recent_after_forget": false,
+    "restore_status": "applied",
+    "get_after_restore": "hit",
+    "forget_again": "applied",
+    "hard_delete": "applied",
+    "restore_after_hard_delete": "not_found",
+    "initial_ttl_days": 365.0
+   },
+   "expect_clean_equivalent": "forget clamps expiry to grace (never extends), hides from live reads; restore re-arms from importance; hard-delete is final"
+  },
+  {
+   "id": "recent-ordering",
+   "given": "three memories, two sharing one created timestamp",
+   "legacy": {
+    "order": [
+     "m1",
+     "m2",
+     "m3"
+    ],
+    "sort_key": "period_start DESC (Redis SORTBY); ties by index order, no memory_id tie-break"
+   },
+   "expect_clean_equivalent": "created_at DESC, memory_id ASC (locked deterministic tie-break)",
+   "note": "legacy has no stable tie-break for equal created timestamps; the clean contract adds memory_id ASC"
+  },
+  {
+   "id": "audit-privacy",
+   "given": "mutations above (remember/reinforce/forget/restore/hard_delete)",
+   "legacy": {
+    "event_count": 17,
+    "actions": [
+     "forget",
+     "hard_delete",
+     "remember",
+     "restore"
+    ],
+    "forbidden_keys_present": [],
+    "event_fields": [
+     "action",
+     "agent_id",
+     "brain_id",
+     "detail",
+     "event_id",
+     "memory_id",
+     "ts"
+    ],
+    "audit_survives_hard_delete": true
+   },
+   "expect_clean_equivalent": "audit carries structural facts only, survives hard-delete, 90-day retention"
+  },
+  {
+   "id": "mcp-preview-shapes",
+   "given": "one memory with content+metadata; search/recent previews vs brain_get",
+   "legacy": {
+    "search_preview_keys": [
+     "catalog",
+     "has_content",
+     "importance",
+     "memory_id",
+     "relevance_score",
+     "score_source",
+     "summary",
+     "timeline_day",
+     "topic"
+    ],
+    "search_preview_has_content": true,
+    "search_preview_score_source": "fused",
+    "recent_preview_keys": [
+     "catalog",
+     "has_content",
+     "importance",
+     "memory_id",
+     "summary",
+     "timeline_day",
+     "topic"
+    ],
+    "get_keys": [
+     "catalog",
+     "content",
+     "expires_at",
+     "has_content",
+     "importance",
+     "memory_id",
+     "metadata",
+     "summary",
+     "timeline_day",
+     "topic"
+    ],
+    "previews_never_carry_content": true
+   },
+   "expect_clean_equivalent": "previews omit content/metadata; brain_get returns full detail"
+  },
+  {
+   "id": "health-shape",
+   "given": "healthy stack, fake embedder not yet loaded",
+   "legacy": {
+    "keys": [
+     "agent_id",
+     "brain_id",
+     "embedding_dim",
+     "embedding_error",
+     "embedding_model",
+     "embedding_ready",
+     "index",
+     "redis",
+     "status"
+    ],
+    "status": "ok",
+    "not_loaded_is_healthy": true
+   },
+   "expect_clean_equivalent": "health never forces a model load; reports status/brain/agent/embedding state"
+  },
+  {
+   "id": "legacy-cosine-gate-drops-content-match",
+   "given": "identifier exists only in content; doc vector orthogonal to query",
+   "legacy": {
+    "result_ids": [],
+    "content_match_returned": false
+   },
+   "expect_clean_equivalent": "FIXED in clean branch: lexical-only candidates need no cosine floor; the content match IS returned",
+   "note": "this is the intentional ranking difference TASK-008 records"
+  },
+  {
+   "id": "punctuation-query-knn-only",
+   "given": "punctuation-only query (no BM25-safe terms)",
+   "legacy": {
+    "result_count": 5,
+    "all_knn_sourced": true
+   },
+   "expect_clean_equivalent": "no lexical branch; vector-only retrieval, never an error"
+  }
+ ]
+}
