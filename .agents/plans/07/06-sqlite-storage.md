@@ -29,9 +29,23 @@ Module targets: `storage/connection.py`, `schema.py`, `repository.py`,
 > SearchPreview with locked validation, and `schema.py` now carries the full
 > v1 DDL (six tables, CHECK constraints incl. `CHECK(length(embedding)=2560)`,
 > FTS5 external-content + triggers, seven indexes, `checksum()` for TASK-049).
-> TASK-048 remains open for the migration-runner integration.
 
-| TASK-048 | Schema v1 exactly per master plan: `schema_migrations`, `embedding_profiles`, `memories` (all locked CHECKs incl. `UNIQUE(brain_id,memory_id)`, `CHECK(length(embedding)=2560)`), external-content `memory_fts(topic,summary,content)` with insert/update/delete triggers, `import_runs`, `audit_events` (no memory FK), and the required indexes/orderings. | | |
+| TASK-048 | Schema v1 exactly per master plan: `schema_migrations`, `embedding_profiles`, `memories` (all locked CHECKs incl. `UNIQUE(brain_id,memory_id)`, `CHECK(length(embedding)=2560)`), external-content `memory_fts(topic,summary,content)` with insert/update/delete triggers, `import_runs`, `audit_events` (no memory FK), and the required indexes/orderings. | ✅ | 2026-08-05 |
+> Verified 2026-08-05. The row sat blank because the TASK-047 note above said
+> it "remains open for the migration-runner integration" — but TASK-049
+> landed that runner and the note was never cleared. Re-checked against the
+> master-plan spec by executing the DDL, not by reading it: six tables (plus
+> FTS5 shadows), three triggers, and all seven required indexes present —
+> `UNIQUE(brain_id,memory_id)`, scoped recent/topic/catalog carrying deletion
+> and expiry, `memories_expiry`, `memories_deleted`, and
+> `audit_events(brain_id,timeline_day,event_at DESC,event_id ASC)`. Every
+> table's column set matches exactly (no missing, no extra); `audit_events`
+> has no foreign key, `memories` has exactly the profile FK, and the FTS5
+> tokenizer is `unicode61 remove_diacritics 2`. All 18 locked constraints
+> reject as specified — scope domain, canonical global `scope_id`, importance
+> 1..5, non-empty identity/text, JSON-object metadata, 2560-byte BLOB,
+> `updated_at>=created_at`, ordered period, positive `record_version`,
+> profile FK, and the by-ID uniqueness.
 | TASK-049 | Migration runner: checksum validation, `PRAGMA user_version`, exclusive schema transaction, concurrent-creator safety, crash rollback, fail-fast on unknown/newer versions. | ✅ | 2026-08-04 |
 | TASK-050 | Append-only store/get/recent: normalized scope tuple; by-ID get on `(bound brain_id, memory_id)`; recent ordering `created_at DESC,memory_id ASC`; strict JSON metadata; row+FTS commit atomically. | ✅ | 2026-08-04 |
 | TASK-051 | Durable TTL: persist `expires_at` from importance (5..1 → 365/180/90/30/7 days); every live read excludes expired/deleted before limits; bounded startup/opportunistic purge; never renew on read. | ✅ | 2026-08-04 |

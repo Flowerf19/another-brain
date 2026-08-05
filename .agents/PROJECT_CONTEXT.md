@@ -91,22 +91,21 @@ Identical results either way. Wording corrected in `vector.py` and in
 TASK-059; the trade is recorded at the class docstring so it is not
 "optimized" back into a budget violation.
 
-## Plan bookkeeping drift (observed 2026-08-04, partly resolved 2026-08-05)
+## Plan bookkeeping drift (observed 2026-08-04, resolved 2026-08-05)
 
-Uncommitted work adds `catalog`, `timeline_day`, and `has_content` to
-`SearchPreview`, plus `domain/timeline.py` and two new `RecentFilters`
-fields. The stale unit test was fixed (suite green: 399 passed, 25 skipped).
-The production change looks deliberate — `timeline_day` is persisted at write
-time rather than recomputed from `created_at`, so a timezone change cannot
-move a memory out of its filed day — but **no plan task claims it**; assign
-it to a task or record a revision before GOAL-013 builds on it.
+Both stale rows are closed. **TASK-048** was blank only because the TASK-047
+progress note said it waited on the migration runner — TASK-049 landed that
+runner and the note was never cleared. Re-verified by executing the DDL:
+column sets match the spec exactly, all seven required indexes exist,
+`audit_events` is FK-free, and all 18 locked constraints reject as specified.
+**TASK-006** is closed by the lexical benchmark above; 07.04 is `done` again.
 
-07.06 TASK-048 is still blank while the sub-plan reads `status: done`.
-Schema v1 is in fact present and tested (six tables, FTS5 external content +
-three triggers, six indexes; `test_schema.py` and `test_migrations.py` green,
-35 passed) and TASK-049, the runner the row says it waits on, is ticked. The
-row looks stale rather than genuinely open — confirm against the master
-plan's required-index list before ticking.
+The uncommitted `SearchPreview` / `domain/timeline.py` work is now assigned to
+**TASK-064** (scope note in 07.08). `timeline_day_for()` has no caller yet:
+the repository persists `record.timeline_day` and both read paths filter on
+it, so the missing link is the service deriving it at write time from
+`AppConfig.timeline_timezone` — and the audit write path must use the same
+helper so the two cannot disagree about which day a mutation belongs to.
 
 ## Product boundary
 
