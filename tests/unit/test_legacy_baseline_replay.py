@@ -2,7 +2,7 @@
 export against the clean ``MemoryService``.
 
 Every scenario in ``tests/fixtures/legacy-baseline/behavior-v1.json`` was
-captured from ``main@edc0e57`` (Redis 8.8 + FT.HYBRID, fake 8-dim vectors).
+captured from ``main@edc0e57`` (the legacy stack, fake 8-dim vectors).
 Each replay asserts the locked *clean* equivalent, not bug compatibility.
 Two scenarios pass by differing from the oracle, as TASK-008 records:
 
@@ -12,7 +12,7 @@ Two scenarios pass by differing from the oracle, as TASK-008 records:
   gate returned ``[]``; the clean branch returns the content match — the bug
   this rebuild exists to fix.
 
-The oracle's 3600 s grace window is Redis-stack-specific; the clean contract
+The oracle's 3600 s grace window is legacy-stack-specific; the clean contract
 locks the 30-day grace clamp (master plan, lifecycle decision 10).
 """
 from __future__ import annotations
