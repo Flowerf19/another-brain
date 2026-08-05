@@ -211,6 +211,7 @@ src/another_brain/
   domain/timeline.py        epoch ms -> YYYY-MM-DD diary day
   retrieval/               query, lexical, vector, fusion, service
   services/memory_service.py  use cases over the Protocols
+  mcp/tools.py              the eight brain_* tools (thin adapter)
   services/sql/             connection, migrations, schema, repository,
                             ttl, audit, health, retry
   services/embedding/       model_manifest, model_installer, provider,
@@ -224,7 +225,12 @@ another-brain = another_brain.cli:main
 ```
 
 The server surface uses Python MCP SDK `mcp>=2.0,<2.1` `MCPServer`; the legacy
-pre-2.0 in-SDK `FastMCP` API is not part of the target package. A clean client
+pre-2.0 in-SDK `FastMCP` API is not part of the target package. Two v2 details
+worth knowing before touching `mcp/tools.py`: `MCPServer` is imported from
+`mcp.server` (not the `mcp` top level), and the handshake client name is
+`ctx.session.client_params.client_info.name` — snake_case, with `clientInfo`
+surviving only as a serialization alias, so the v1 spelling silently falls back
+to the default agent id. A clean client
 needs no Another Brain skill for correctness: initialize instructions,
 self-contained tool/field descriptions, validation, and actionable errors carry
 the contract. The target skill is only a thin optional activation/project/trust

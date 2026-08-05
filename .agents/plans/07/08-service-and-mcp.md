@@ -86,7 +86,32 @@ before tool dispatch, never wildcard fallback.
 >
 > Tests deferred to the final pass; the replay harness proving these 12 lands
 > with them.
-| TASK-066 | Register `brain_remember/search/recent/get/reinforce/forget/health/audit` on MCP SDK v2 `MCPServer` with locked names, argument contracts, by-ID signatures, response shapes. | | |
+| TASK-066 | Register `brain_remember/search/recent/get/reinforce/forget/health/audit` on MCP SDK v2 `MCPServer` with locked names, argument contracts, by-ID signatures, response shapes. | ✅ | 2026-08-05 |
+> Landed 2026-08-05 as `mcp/tools.py`. All eight locked names register and
+> list; every tool carries a description; `brain_id`/`agent_id` appear in no
+> input schema, so a caller can neither address another brain nor claim
+> another identity. By-ID tools keep the `memory_id`-only signature and return
+> the shared `not_found` shape.
+>
+> **Two SDK v2 API differences found by verifying against the installed
+> package rather than the plan's wording.** `MCPServer` is imported from
+> `mcp.server`, not from `mcp` top level. And the handshake field is
+> `client_params.client_info`, not `.clientInfo` — v2 exposes the snake_case
+> attribute and keeps the wire name only as a serialization alias. The legacy
+> spelling silently yields `AttributeError`, so every call would have been
+> attributed to the fallback agent id; caught because the check asserted the
+> *expected* client name instead of merely that a name came back.
+>
+> Previews carry no relevance score: rank is list order, so no storage-vendor
+> score encoding crosses the tool boundary. That is a deliberate departure
+> from the oracle, whose preview included `relevance_score`/`score_source`.
+>
+> Verified with an in-memory `Client(server)` session — a real request context,
+> unlike calling `server.call_tool()` directly, which has none. Round trip
+> covered remember → search → get → recent → health → reinforce → audit →
+> forget, plus unknown-id `not_found`, audit carrying no memory text, and
+> validation errors reaching the client as `is_error=True` with actionable
+> actual/allowed text (the TASK-091 no-skill requirement).
 | TASK-067 | Wire stdio default + opt-in HTTP under the loopback/transport-security policy: SQLite/model lifecycle, signals, exact host/origin allowlists, `TransportSecuritySettings(enable_dns_rebinding_protection=True)` with exact bound host/port, health that never forces model load. Verify the pinned SDK's transport security API without weakening policy. | | |
 | TASK-068 | Service/tool contracts with fake embedding + temp SQLite: every response shape, scoped collections, by-ID cross-brain/deleted/expired/grace, global normalization, content-only retrieval, HTTP negative binds/headers. | | |
 | TASK-069 | End-to-end subprocess test using the installed console script and isolated data/model home: initialize, remember, search, get, reinforce, forget, restart, verify persistence/expiry. | | |

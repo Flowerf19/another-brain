@@ -106,6 +106,10 @@ class MemoryService:
     def timezone(self) -> str:
         return self._config.timeline_timezone
 
+    def today(self) -> str:
+        """The current diary day in the configured timezone."""
+        return self._day(self._clock())
+
     # -- write ---------------------------------------------------------------
 
     def remember(
