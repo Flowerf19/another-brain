@@ -25,7 +25,16 @@ Redis exporter code.
 > Landed 2026-08-06 in three reviewed pieces: envelope validation (`src/another_brain/services/jsonl_import.py` first half — canonical-byte equality, key sets, seq/hash/order, rolling hash, ±1000 ms TTL verifier; 17 unit tests), `JsonlImporter` orchestration (see TASK-072 note), and `_cmd_import_jsonl` (report to stdout in model-status style; envelope/conflict → stderr + EXIT_ERROR; missing model → EXIT_UNAVAILABLE like serve; integration test drives the real console script on valid-basic plus fail-fast on an invalid envelope with nothing written).
 | TASK-072 | `import_runs` batch checkpoints: each batch atomically inserts + advances `last_committed_seq`; same key/same fields = skipped, same key/differing fields = conflict rolls back and aborts; completed `export_id` + same artifact hash = whole-import no-op, different hash = rejected; resume converges to identical state/counters with an imported/skipped/failed report. | ✅ | 2026-08-06 |
 > Landed 2026-08-06. Batches embed outside transactions, then one BEGIN IMMEDIATE inserts rows + advances last_committed_seq + counters; expired-skip is inclusive and counted up front; dedupe covers store rows and in-file repeats; conflict marks the run failed (failed_count persisted — caught in review) and raises. Seven integration tests prove: crash at EVERY batch boundary converges to byte-identical state/counters, whole-import no-op, conflict leaves no partial batch, both identity clashes reject, expired memories keep their audit facts. Counters defined in the module docstring: imported = inserted rows, skipped = expired + same-fields duplicates, failed = aborting conflicts.
-| TASK-073 | Import fixtures produced by the external exporter; compare every non-embedding field, lifecycle result, lexical result, and expected re-embedded vector profile. | | |
+| TASK-073 | Import fixtures produced by the external exporter; compare every non-embedding field, lifecycle result, lexical result, and expected re-embedded vector profile. | ✅ | 2026-08-06 |
+> Landed 2026-08-06 as `tests/integration/test_main_export_import.py` (6
+> tests) against the pinned artifact (`main-export-v1.jsonl`, SHA-256
+> guard fails loudly on regeneration). Proven: field-for-field
+> preservation with absolute expiry; soft-deleted row invisible to
+> get/recent/search while the hard-deleted row (33333333-…) keeps its
+> remember+hard_delete audit events FK-free; lexical search finds
+> imported content and nothing from the forgotten row; all blobs
+> re-embedded under the q4 input-version-2 profile (artifact carries no
+> embedding bytes); import_runs identity + counters (17/0/0).
 | TASK-074 | Complete CLI/app/MCP/health/permanent tests on SQLite only; verify no backend selection or legacy runtime path re-entered the clean branch. | ✅ | 2026-08-06 |
 > Landed 2026-08-06. `recent` (preview lines only, --limit 1..100) and
 > `admin restore|hard-delete` (audit attributed to cli-admin, honest
