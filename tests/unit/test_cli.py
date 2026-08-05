@@ -23,7 +23,6 @@ class TestParsingAndExitCodes:
             ["recent"],
             ["admin", "restore", "mem-1"],
             ["admin", "hard-delete", "mem-1"],
-            ["import-jsonl", "/tmp/export.jsonl"],
         ],
     )
     def test_valid_commands_typed_unavailable(self, argv, capsys):
@@ -31,6 +30,13 @@ class TestParsingAndExitCodes:
         captured = capsys.readouterr()
         assert captured.out == ""  # stdout stays protocol-clean
         assert "not yet available" in captured.err
+
+    def test_import_jsonl_missing_file_is_typed_error(self, capsys):
+        """TASK-071: the command landed; a missing artifact is a storage error."""
+        assert cli.main(["import-jsonl", "/nonexistent/export.jsonl"]) == cli.EXIT_ERROR
+        captured = capsys.readouterr()
+        assert captured.out == ""  # errors go to stderr only
+        assert "envelope" in captured.err
 
     def test_version(self, capsys):
         with pytest.raises(SystemExit) as exc:

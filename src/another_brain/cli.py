@@ -7,9 +7,10 @@ precedence CLI ``--host/--port`` > ``MCP_HTTP_HOST``/``MCP_HTTP_PORT`` >
 ``127.0.0.1:1905``, numeric loopback only (validated by
 :mod:`another_brain.config`).
 
-Subsystems land in later phases (import GOAL-014). Until then the
-corresponding commands validate their arguments, then exit
-``EXIT_UNAVAILABLE`` with a typed not-yet-available message on stderr.
+Subsystems land in later phases (doctor GOAL-016, recent GOAL-013, admin
+GOAL-011/013). Until then the corresponding commands validate their
+arguments, then exit ``EXIT_UNAVAILABLE`` with a typed not-yet-available
+message on stderr.
 """
 from __future__ import annotations
 
@@ -125,7 +126,7 @@ def _dispatch(args: argparse.Namespace, config: AppConfig) -> int:
         if args.admin_command == "hard-delete":
             raise _NotAvailable("admin hard-delete", "GOAL-011/013")
     if args.command == "import-jsonl":
-        raise _NotAvailable("import-jsonl", "GOAL-014")
+        return _cmd_import_jsonl(args, config)
     return EXIT_USAGE
 
 
@@ -177,6 +178,71 @@ def _cmd_model_pull(config: AppConfig) -> int:
     print(file=sys.stderr)  # close the progress line
     print(f"model installed: {path}")
     return EXIT_OK
+
+
+def _cmd_import_jsonl(args: argparse.Namespace, config: AppConfig) -> int:
+    """Import one JSONL v1 artifact into the configured data dir (TASK-071).
+
+    Exit codes: ``EXIT_OK`` on a completed/noop import; ``EXIT_ERROR`` for a
+    rejected envelope (:class:`JsonlEnvelopeError`) or an identity/field
+    conflict (:class:`JsonlImportConflictError`) — the import failed, which
+    ``EXIT_ERROR`` already names, so no new constant is warranted;
+    ``EXIT_UNAVAILABLE`` for a missing model, mirroring ``serve``.
+
+    The report goes to stdout (the status style of ``model status``);
+    progress/diagnostics go to stderr.
+    """
+    import time
+    from pathlib import Path
+
+    from another_brain.services.embedding.model_installer import profile_dir
+    from another_brain.services.embedding.provider import ONNXEmbeddingProvider
+    from another_brain.services.jsonl_import import (
+        ImportReport,
+        JsonlEnvelopeError,
+        JsonlImportConflictError,
+        JsonlImporter,
+    )
+    from another_brain.services.sql.connection import SQLiteConnectionFactory
+    from another_brain.services.sql.migrations import migrate
+
+    config.ensure_directories()
+    factory = SQLiteConnectionFactory(config.database_path)
+    factory.bootstrap()
+    migrate(config.database_path)
+    importer = JsonlImporter(
+        factory,
+        embedder=ONNXEmbeddingProvider(profile_dir(config.model_cache_dir)),
+        clock=lambda: int(time.time() * 1000),
+    )
+    try:
+        report = importer.import_path(Path(args.path))
+    except (JsonlEnvelopeError, FileNotFoundError) as exc:
+        _err(f"invalid JSONL v1 envelope: {exc}")
+        return EXIT_ERROR
+    except JsonlImportConflictError as exc:
+        _err(f"import conflict: {exc}")
+        return EXIT_ERROR
+    except ModelNotInstalledError as exc:
+        _err(str(exc))
+        return EXIT_UNAVAILABLE
+    _print_import_report(report)
+    return EXIT_OK
+
+
+def _print_import_report(report: ImportReport) -> None:
+    """Human-readable import report on stdout (status style, like model status)."""
+    short = report.export_id[:8]
+    if report.status == "noop":
+        print(
+            f"import {short}: status noop — already imported; persisted counters"
+            f" imported {report.imported_count}, skipped {report.skipped_count}"
+        )
+        return
+    print(
+        f"import {short}: status completed — imported {report.imported_count},"
+        f" skipped {report.skipped_count} (artifact {report.artifact_sha256[:12]}…)"
+    )
 
 
 def _cmd_model_status(config: AppConfig) -> int:
