@@ -26,7 +26,17 @@ Redis exporter code.
 | TASK-072 | `import_runs` batch checkpoints: each batch atomically inserts + advances `last_committed_seq`; same key/same fields = skipped, same key/differing fields = conflict rolls back and aborts; completed `export_id` + same artifact hash = whole-import no-op, different hash = rejected; resume converges to identical state/counters with an imported/skipped/failed report. | ✅ | 2026-08-06 |
 > Landed 2026-08-06. Batches embed outside transactions, then one BEGIN IMMEDIATE inserts rows + advances last_committed_seq + counters; expired-skip is inclusive and counted up front; dedupe covers store rows and in-file repeats; conflict marks the run failed (failed_count persisted — caught in review) and raises. Seven integration tests prove: crash at EVERY batch boundary converges to byte-identical state/counters, whole-import no-op, conflict leaves no partial batch, both identity clashes reject, expired memories keep their audit facts. Counters defined in the module docstring: imported = inserted rows, skipped = expired + same-fields duplicates, failed = aborting conflicts.
 | TASK-073 | Import fixtures produced by the external exporter; compare every non-embedding field, lifecycle result, lexical result, and expected re-embedded vector profile. | | |
-| TASK-074 | Complete CLI/app/MCP/health/permanent tests on SQLite only; verify no backend selection or legacy runtime path re-entered the clean branch. | | |
+| TASK-074 | Complete CLI/app/MCP/health/permanent tests on SQLite only; verify no backend selection or legacy runtime path re-entered the clean branch. | ✅ | 2026-08-06 |
+> Landed 2026-08-06. `recent` (preview lines only, --limit 1..100) and
+> `admin restore|hard-delete` (audit attributed to cli-admin, honest
+> not_found on stderr) are wired through `_open_store` — build_runtime's
+> storage path with a fail-loud `_NullBudgets`, because these commands
+> never embed and requiring the tokenizer to LIST memories is wrong UX.
+> Fast no-model integration tests cover seed/print/restore/hard-delete.
+> Verify half: `scripts/check-clean-tree.sh` passes (forbidden families
+> absent from the 72-package graph, runtime deps match the locked set,
+> zero legacy references) after rewording one replay docstring that named
+> the legacy stack in tests/.
 | TASK-075 | Cutover gate: validated external artifact, clean wheel, full permanent/import/judged-retrieval suites, accepted concurrency workload, restart E2E, doctor, isolated-profile comparison — all green without Redis or Docker installed. Import into an isolated fresh profile first; switch harnesses only after parity passes; keep legacy data read-only as rollback backup. | | |
 
 ## Test Plan
