@@ -1,5 +1,5 @@
 ---
-status: draft
+status: done
 created: 2026-08-04
 last_updated: 2026-08-04
 parent: .agents/plans/07-multiplatform-embedded-runtime.md
@@ -46,7 +46,18 @@ Redis exporter code.
 > absent from the 72-package graph, runtime deps match the locked set,
 > zero legacy references) after rewording one replay docstring that named
 > the legacy stack in tests/.
-| TASK-075 | Cutover gate: validated external artifact, clean wheel, full permanent/import/judged-retrieval suites, accepted concurrency workload, restart E2E, doctor, isolated-profile comparison — all green without Redis or Docker installed. Import into an isolated fresh profile first; switch harnesses only after parity passes; keep legacy data read-only as rollback backup. | | |
+| TASK-075 | Cutover gate: validated external artifact, clean wheel, full permanent/import/judged-retrieval suites, accepted concurrency workload, restart E2E, doctor, isolated-profile comparison — all green without Redis or Docker installed. Import into an isolated fresh profile first; switch harnesses only after parity passes; keep legacy data read-only as rollback backup. | ✅ (rehearsal half; production cutover is the maintenance-window action) | 2026-08-06 |
+> Rehearsal landed 2026-08-06 as `tests/integration/test_cutover_rehearsal.py`:
+> isolated fresh profile imports the pinned artifact (17/0), integrity +
+> foreign-key checks clean, stdio session verifies search/get/audit and
+> bound-brain isolation, restart preserves state, source artifact hash
+> untouched (rollback posture). Gate evidence 2026-08-06: full suite 538
+> passed (includes the accepted concurrency workload + judged retrieval
+> gates + restart E2E), `check-wheel-install.sh` PASS,
+> `check-clean-tree.sh` PASS. Deliberately NOT done here: the full
+> `doctor` command (TASK-085, GOAL-016) and the production harness
+> switch — the latter is the user's maintenance-window action with legacy
+> data kept read-only as rollback backup.
 
 ## Test Plan
 
