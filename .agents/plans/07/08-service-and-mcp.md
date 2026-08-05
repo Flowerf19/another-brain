@@ -1,5 +1,5 @@
 ---
-status: draft
+status: done
 created: 2026-08-04
 last_updated: 2026-08-05
 parent: .agents/plans/07-multiplatform-embedded-runtime.md
@@ -160,7 +160,18 @@ before tool dispatch, never wildcard fallback.
 > unchanged).
 
 | TASK-068 | Service/tool contracts with fake embedding + temp SQLite: every response shape, collection operations in the bound brain, by-ID cross-brain/deleted/expired/grace, content-only retrieval, HTTP negative binds/headers. | | |
-| TASK-069 | End-to-end subprocess test using the installed console script and isolated data/model home: initialize, remember, search, get, reinforce, forget, restart, verify persistence/expiry. | | |
+| TASK-069 | End-to-end subprocess test using the installed console script and isolated data/model home: initialize, remember, search, get, reinforce, forget, restart, verify persistence/expiry. | ✅ | 2026-08-05 |
+> Landed 2026-08-05 as `tests/integration/test_e2e_stdio.py` (slow). Two real
+> subprocess sessions via `mcp.client.stdio.stdio_client` over an isolated
+> `BRAIN_DATA_DIR` + the pinned q4 model from the shared cache. Verified for
+> real (model pulled locally): instructions on initialize, the eight locked
+> tools, lazy `not_loaded` health, importance-1 expiry at created+7d,
+> append-only twin ids, restart persistence — the forgotten id gone from
+> get/search/recent while the audit day keeps remember/reinforce/forget
+> attributed to the handshake client. The in-process clock seam is
+> unreachable from a subprocess, so expiry is asserted against the TTL table
+> from the tool responses, and search-after-forget asserts the forgotten id
+> is absent (the twin legitimately still matches).
 | TASK-091 | Make the skill optional: concise server instructions + self-contained descriptions for all eight tools and every public field; hard rules stay in server validation with actionable actual/allowed errors; test initialize/tools-list metadata and the full no-skill flow; reduce `skills/another-brain/SKILL.md` to a 100–200-word activation/project-scope/trust-loop adapter with no duplicated contracts. | ✅ | 2026-08-05 |
 > Landed 2026-08-05. Server instructions (136 words) ship on `MCPServer`;
 > SKILL.md dropped 756 → 168 body words, keeping only what a tool schema
