@@ -56,7 +56,7 @@ SCOPE = ScopeKey(Scope.PROJECT, "proj-alpha")
 VEC_MODE_ENV = "AB_CONC_VEC"
 
 _SEARCH_SQL = (
-    "SELECT m.memory_id FROM memory_fts f JOIN memories m ON m.row_id = f.rowid"
+    "SELECT m.memory_id FROM memory_fts f CROSS JOIN memories m ON m.row_id = f.rowid"
     " WHERE memory_fts MATCH ? AND m.brain_id = ? AND m.scope = ? AND m.scope_id = ?"
     " AND m.deleted_at_ms IS NULL AND m.expires_at_ms > ?"
     " ORDER BY bm25(memory_fts, 5.0, 3.0, 1.0), m.memory_id ASC LIMIT 50"
