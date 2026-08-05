@@ -730,7 +730,7 @@ Execute after package foundation in GOAL-009.
 | TASK-043 | Make model installation idempotent and crash-safe: one lock per manifest, stale temp cleanup, hash before rename, and no partially installed profile visible to another process. | ✅ | 2026-08-04 |
 | TASK-044 | Keep one lazy ONNX session per MCP process, serialize first load, and close references on shutdown; document measured per-process memory rather than introducing a hidden embedding daemon in the MVP. | ✅ | 2026-08-04 |
 | TASK-045 | Unit-test tokenizer counts and payload bytes at every boundary, Vietnamese/English input, query/document asymmetry, output norm, corrupt/missing external data, hash mismatch, interrupted download, and concurrent installers. | ✅ | 2026-08-04 |
-| TASK-046 | Expose model profile/load state through health and `model status` without loading the model merely to answer status. | ⏳ (status wired; load state pending provider) | 2026-08-04 |
+| TASK-046 | Expose model profile/load state through health and `model status` without loading the model merely to answer status. **Closed 2026-08-05: health carries load state (not_loaded/ready/error, never forces a load), `model status` carries profile/install state as a pure read; a load-state line in `model status` would be noise — a fresh process is definitionally not_loaded. Detail in 07.05.** | ✅ | 2026-08-05 |
 
 ### GOAL-011: Implement SQLite schema, repository, lifecycle, and audit
 

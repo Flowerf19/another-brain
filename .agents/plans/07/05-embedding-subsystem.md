@@ -35,7 +35,19 @@ manifest module — nowhere else.
 | TASK-028 | Update `brain_remember` description, MCP instructions, schema docs, tests for stable reusable topics (target 3–8, hard max 12 tokens; no catalog duplication/workflow labels/keyword stuffing). | ✅ | 2026-08-04 |
 | TASK-019 | Turn GOAL-001 q4 assertions into permanent slow tests; Torch/ST stay evaluation-only, absent from wheel and final lockfile. | ✅ | 2026-08-04 |
 | TASK-045 | Unit-test boundaries: token counts at every limit ±1, VI/EN input, query/document asymmetry, output norm, corrupt/missing external data, hash mismatch, interrupted download, concurrent installers. | ✅ | 2026-08-04 |
-| TASK-046 | Expose profile/load state via health and `model status` without loading the model to answer status. | ⏳ (status wired; load state pending provider) | 2026-08-04 |
+| TASK-046 | Expose profile/load state via health and `model status` without loading the model to answer status. | ✅ | 2026-08-05 |
+> Closed 2026-08-05. Both halves verified against the wired provider:
+> `health()` reports `embedding_profile` + `embedding_state`
+> (not_loaded/ready/error) from `provider.health()`, which never triggers a
+> load (memory_service.py, services/embedding/provider.py), and
+> `model status` (cli.py) prints the profile, revision, directory, and
+> per-file install state from `verify()` — a pure read. Load state is
+> deliberately NOT a `model status` line: it is a per-process runtime fact,
+> and a fresh CLI process is definitionally `not_loaded`, so printing it
+> there would be noise; the locked "profile/load state" pair is fully
+> answerable between health (load) and `model status` (profile/install).
+> Permanent coverage: test_memory_service.py and test_mcp_tools.py health
+> shapes (TASK-068).
 
 ## Test Plan
 
