@@ -45,10 +45,10 @@ if not module.is_relative_to(pathlib.Path(sys.prefix).resolve()):
 print(f"ok: {module}")
 PY
 
-echo "== bare command: typed unavailable, stdout clean =="
+echo "== bare command: typed missing-model error, stdout clean =="
 OUT="$("$BIN" 2>"$WORK/stderr" || echo "exit=$?")"
 [ "$OUT" = "exit=3" ] || { echo "FAIL: bare command expected exit 3, got $OUT"; exit 1; }
-grep -q "not yet available" "$WORK/stderr" || { echo "FAIL: missing typed error on stderr"; exit 1; }
+grep -q "model pull" "$WORK/stderr" || { echo "FAIL: missing model-not-installed error on stderr"; exit 1; }
 
 echo "== sdist/wheel contents: no legacy flat src modules =="
 "$WORK/venv/bin/python" - "$WHEEL" <<'PY'

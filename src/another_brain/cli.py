@@ -7,10 +7,9 @@ precedence CLI ``--host/--port`` > ``MCP_HTTP_HOST``/``MCP_HTTP_PORT`` >
 ``127.0.0.1:1905``, numeric loopback only (validated by
 :mod:`another_brain.config`).
 
-Subsystems land in later phases (embedding GOAL-010, storage GOAL-011,
-service/MCP GOAL-013, import GOAL-014). Until then the corresponding commands
-validate their arguments, then exit ``EXIT_UNAVAILABLE`` with a typed
-not-yet-available message on stderr.
+Subsystems land in later phases (import GOAL-014). Until then the
+corresponding commands validate their arguments, then exit
+``EXIT_UNAVAILABLE`` with a typed not-yet-available message on stderr.
 """
 from __future__ import annotations
 
@@ -19,7 +18,12 @@ import sys
 from collections.abc import Sequence
 
 from another_brain.config import AppConfig, parse_loopback_host, parse_port
-from another_brain.errors import ConfigError, ModelInstallError
+from another_brain.errors import (
+    ConfigError,
+    ModelInstallError,
+    ModelNotInstalledError,
+    StorageError,
+)
 
 PROG = "another-brain"
 VERSION = "0.11.0"
@@ -103,12 +107,9 @@ def _resolve_http_bind(args: argparse.Namespace, config: AppConfig) -> tuple[str
 
 def _dispatch(args: argparse.Namespace, config: AppConfig) -> int:
     if args.command is None:
-        raise _NotAvailable("stdio server", "GOAL-013")
+        return _cmd_serve(argparse.Namespace(http=False, host=None, port=None), config)
     if args.command == "serve":
-        if args.http:
-            host, port = _resolve_http_bind(args, config)
-            _err(f"loopback HTTP bind validated: {host}:{port}")
-        raise _NotAvailable("serve", "GOAL-013")
+        return _cmd_serve(args, config)
     if args.command == "model":
         if args.model_command == "pull":
             return _cmd_model_pull(config)
@@ -139,6 +140,26 @@ def main(argv: Sequence[str] | None = None) -> int:
     except ConfigError as exc:
         _err(f"configuration error: {exc}")
         return EXIT_CONFIG
+
+
+def _cmd_serve(args: argparse.Namespace, config: AppConfig) -> int:
+    """Start the MCP server; stdio unless ``--http`` opts in (TASK-067)."""
+    from another_brain.mcp.server import serve_http, serve_stdio
+
+    try:
+        if args.http:
+            host, port = _resolve_http_bind(args, config)
+            _err(f"serving MCP on http://{host}:{port}/mcp")
+            serve_http(config, host=host, port=port)
+        else:
+            serve_stdio(config)
+    except ModelNotInstalledError as exc:
+        _err(str(exc))
+        return EXIT_UNAVAILABLE
+    except StorageError as exc:
+        _err(f"storage error: {exc}")
+        return EXIT_ERROR
+    return EXIT_OK
 
 
 def _cmd_model_pull(config: AppConfig) -> int:

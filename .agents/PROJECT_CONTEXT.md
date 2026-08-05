@@ -13,8 +13,9 @@ parameters), and retrieval (GOAL-012 TASK-056..063 plus the GOAL-002
 oracle comparison TASK-031/008: safe FTS5 query builder, weighted BM25
 lexical, exact cosine vector with sqlite-vec + NumPy fallback, pure RRF,
 hybrid orchestrator, and the judged 1k/10k/50k/100k evidence suite).
-`model pull` / `model status` are real commands; the MCP server
-(GOAL-013), JSONL import (GOAL-014), and the release gate (GOAL-016) are
+`model pull` / `model status` are real commands and the MCP server
+(GOAL-013 TASK-064..067) now serves over stdio and opt-in loopback HTTP;
+JSONL import (GOAL-014) and the release gate (GOAL-016) are
 still pending — their CLI commands exit with
 typed not-yet-available errors pointing at their GOAL. The tree contains only the
 final `src/another_brain/` package — no Redis/Docker/Torch code, tests,
@@ -212,11 +213,22 @@ src/another_brain/
   retrieval/               query, lexical, vector, fusion, service
   services/memory_service.py  use cases over the Protocols
   mcp/tools.py              the eight brain_* tools (thin adapter)
+  mcp/server.py             runtime assembly, stdio + loopback HTTP
   services/sql/             connection, migrations, schema, repository,
-                            ttl, audit, health, retry
+                            ttl, audit, health, profile, retry
   services/embedding/       model_manifest, model_installer, provider,
                             payloads, budgets
 ```
+
+Startup splits eager storage from lazy model: a broken database fails at
+launch, but the ONNX session loads on first embed because `brain_health` must
+answer without it and a per-session stdio process must not pay seconds and
+hundreds of MiB for sessions that never search. The tokenizer is the one
+eager piece — budgets gate every embed, so an uninstalled profile is caught at
+startup with the `model pull` message. `services/sql/profile.py` registers the
+`embedding_profiles` row at open (nothing else did, and `memories.profile_id`
+is a FK into it) and refuses rather than overwrites a stored profile that
+disagrees with the manifest.
 
 Console entry point:
 
@@ -225,12 +237,17 @@ another-brain = another_brain.cli:main
 ```
 
 The server surface uses Python MCP SDK `mcp>=2.0,<2.1` `MCPServer`; the legacy
-pre-2.0 in-SDK `FastMCP` API is not part of the target package. Two v2 details
-worth knowing before touching `mcp/tools.py`: `MCPServer` is imported from
-`mcp.server` (not the `mcp` top level), and the handshake client name is
+pre-2.0 in-SDK `FastMCP` API is not part of the target package. Three v2
+details worth knowing before touching `mcp/`: `MCPServer` is imported from
+`mcp.server` (not the `mcp` top level); the handshake client name is
 `ctx.session.client_params.client_info.name` — snake_case, with `clientInfo`
 surviving only as a serialization alias, so the v1 spelling silently falls back
-to the default agent id. A clean client
+to the default agent id; and the same rename hits client-side result objects
+(`server_info`, `is_error`), which matters when writing harnesses. **The SDK's
+automatic loopback transport security is weaker than the locked policy**: it
+allows the `localhost` name and any port (`127.0.0.1:*`). Explicit
+`TransportSecuritySettings` pinned to the exact bound authority is therefore
+required, never optional. A clean client
 needs no Another Brain skill for correctness: initialize instructions,
 self-contained tool/field descriptions, validation, and actionable errors carry
 the contract. The target skill is only a thin optional activation/project/trust

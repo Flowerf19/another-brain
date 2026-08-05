@@ -1,7 +1,7 @@
 """TASK-040: CLI parsing, exit codes, stderr discipline, and HTTP bind
-precedence. Subsystems are not implemented yet, so every runtime command must
-exit EXIT_UNAVAILABLE with a typed message on stderr (stdout stays clean for
-future MCP frames)."""
+precedence. Commands whose subsystems are still unimplemented must exit
+EXIT_UNAVAILABLE with a typed message on stderr (stdout stays clean for
+MCP frames)."""
 import pytest
 
 from another_brain import cli
@@ -19,8 +19,6 @@ class TestParsingAndExitCodes:
     @pytest.mark.parametrize(
         "argv",
         [
-            [],                                  # bare = stdio server
-            ["serve"],
             ["doctor"],
             ["recent"],
             ["admin", "restore", "mem-1"],

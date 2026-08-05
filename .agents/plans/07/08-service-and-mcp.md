@@ -112,7 +112,53 @@ before tool dispatch, never wildcard fallback.
 > forget, plus unknown-id `not_found`, audit carrying no memory text, and
 > validation errors reaching the client as `is_error=True` with actionable
 > actual/allowed text (the TASK-091 no-skill requirement).
-| TASK-067 | Wire stdio default + opt-in HTTP under the loopback/transport-security policy: SQLite/model lifecycle, signals, exact host/origin allowlists, `TransportSecuritySettings(enable_dns_rebinding_protection=True)` with exact bound host/port, health that never forces model load. Verify the pinned SDK's transport security API without weakening policy. | | |
+| TASK-067 | Wire stdio default + opt-in HTTP under the loopback/transport-security policy: SQLite/model lifecycle, signals, exact host/origin allowlists, `TransportSecuritySettings(enable_dns_rebinding_protection=True)` with exact bound host/port, health that never forces model load. Verify the pinned SDK's transport security API without weakening policy. | ✅ | 2026-08-05 |
+> Landed 2026-08-05 as `mcp/server.py` (runtime assembly + both transports)
+> and `services/sql/profile.py`; `cli.py` now serves instead of raising
+> not-yet-available.
+>
+> **The SDK's loopback default is weaker than the locked policy.**
+> `streamable_http_app` auto-enables DNS-rebinding protection when the bound
+> host looks like loopback, but with `allowed_hosts=["127.0.0.1:*",
+> "localhost:*", "[::1]:*"]`. Two gaps: `localhost` is a *name*, and a name is
+> exactly what a rebinding attack controls; and `:*` accepts any port, so a
+> different local service's Host header passes. Passing our own settings is
+> therefore mandatory, not decorative — the allowlist is the exact bound
+> authority (`127.0.0.1:1905`, `[::1]:1905` bracketed as it appears in a Host
+> header) with no wildcard. Verified against the real middleware: correct Host
+> 200; `localhost:PORT`, `evil.com`, and the right host on the wrong port all
+> 421; hostile and `localhost` Origins 403 — all before tool dispatch.
+>
+> **Nothing registered the `embedding_profiles` row.** `memories.profile_id`
+> is a FK into that table and the migration runner deliberately seeds no rows
+> (it owns frozen DDL, not runtime facts), so every write would have failed the
+> FK on a fresh database — only fixtures and benchmarks had ever inserted one.
+> `register_profile()` fills the gap at service open, which is also the "and
+> profile" half of the locked normal-open contract this sub-plan's Assumptions
+> left to TASK-067. A stored profile that disagrees with the manifest is
+> *refused*, not overwritten: silently re-pointing it would strand rows
+> embedded under the old contract behind a claim that they match.
+>
+> Model loading stays lazy while storage opens eagerly — a broken database
+> should fail at launch, but a stdio server spawned per session must not pay
+> seconds and hundreds of MiB for sessions that never search. The tokenizer is
+> the one exception (a few MB of vocabulary, no ONNX graph): budgets are
+> checked before every embed, so an uninstalled profile surfaces at startup
+> with the same actionable `model pull` message.
+>
+> Tests deferred to the final pass. Verified over real transports with a fake
+> embedder: a stdio subprocess round trip (remember → search → get → recent →
+> reinforce → audit → forget, preview/content separation, audit carrying no
+> memory text and attributing the real handshake client, actionable validation
+> errors) and a real loopback HTTP bind for the header matrix above. Also
+> confirmed stdout stays byte-empty in stdio mode and health answers `ok` with
+> `embedding_state: not_loaded`.
+>
+> Two stale assertions fell out and were corrected, not weakened: `serve` and
+> the bare command no longer print "not yet available", and the wheel gate's
+> fresh-install stderr check now asserts the `model pull` message (exit 3 is
+> unchanged).
+
 | TASK-068 | Service/tool contracts with fake embedding + temp SQLite: every response shape, scoped collections, by-ID cross-brain/deleted/expired/grace, global normalization, content-only retrieval, HTTP negative binds/headers. | | |
 | TASK-069 | End-to-end subprocess test using the installed console script and isolated data/model home: initialize, remember, search, get, reinforce, forget, restart, verify persistence/expiry. | | |
 | TASK-091 | Make the skill optional: concise server instructions + self-contained descriptions for all eight tools and every public field; hard rules stay in server validation with actionable actual/allowed errors; test initialize/tools-list metadata and the full no-skill flow; reduce `skills/another-brain/SKILL.md` to a 100–200-word activation/project-scope/trust-loop adapter with no duplicated contracts. | | |
@@ -135,4 +181,6 @@ before tool dispatch, never wildcard fallback.
   against the `embedding_profiles` row. This is the "and profile" half of the
   locked normal-open contract (master plan, connection behavior 2) that
   `verify_schema()` deliberately does not own — `verify_schema()` cannot know
-  the expected active profile; wire it in TASK-067.
+  the expected active profile. **Wired in TASK-067 as
+  `services/sql/profile.py`, which also registers the row: nothing had, and
+  `memories.profile_id` is a FK into that table.**
