@@ -66,13 +66,20 @@ both are now approved revisions recorded in `.agents/plans/07/07-retrieval.md`:
 TASK-008: the clean branch beats the legacy oracle on every aggregate
 (Recall@5 0.9783 vs 0.9000, MRR 0.9958 vs 0.9205, nDCG@10 0.8824 vs 0.7983).
 
-**Open — TASK-006 lexical benchmark.** `run_suite.py` times `vector_branch`
-and `hybrid_search` only; the weighted-FTS5 branch has never been
-benchmarked despite TASK-006 requiring it. Hand-measured p95: 3.12 / 8.90 /
+**Closed 2026-08-05 — TASK-006 lexical benchmark.** `run_suite.py` measured
+only `vector_branch` and `hybrid_search`; the weighted-FTS5 branch now ships
+as a first-class `lexical_branch` series, measured once per store (BM25 has
+no embedding dependency, so it is identical under both vector backends).
+**It is the slowest branch at scale and nothing gates it**: p95 3.12 / 8.90 /
 35.06 / 71.68 ms across the four stores, versus sqlite-vec 1.85 / 2.98 /
-7.75 / 13.53 and NumPy 3.22 / 5.32 / 13.03 / 26.90. Lexical is the slowest
-branch at scale and dominates the 116.92 ms hybrid p95 at 100k, yet Success
-criterion 9 budgets only vector retrieval, so nothing gates it.
+7.75 / 13.53 and NumPy 3.22 / 5.32 / 13.03 / 26.90. At 100k, BM25 is 5.3x
+the vector branch and dominates the 116.92 ms hybrid p95, yet Success
+criterion 9 budgets vector retrieval only. Left unbudgeted deliberately —
+SC-9 is locked, so adding one is a plan revision; raised for TASK-087. Its
+cost tracks rows surviving the scope/live filter, not total store size.
+The wired-in series is proven at full protocol on the 10k store
+(`retsuite-20260805T041805Z`, pooled n=5000); the other three sizes are
+still hand measurements pending a full reference-machine sweep.
 
 **Resolved 2026-08-05 — `NumpyVectorRetriever` is streaming by design.** It
 was flagged as "not vectorized" against three descriptions that called it so;

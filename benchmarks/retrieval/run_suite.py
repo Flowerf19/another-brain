@@ -8,13 +8,18 @@ manifest") against the deterministic stores from ``build_stores.py``:
 - latency: per (size, mode): 5 deterministic repetitions of
   100 warmups + 1,000 measured invocations drawn reproducibly (with
   repetition) from the judged queries; pooled + per-run p50/p95/p99 for the
-  vector branch and the full hybrid search;
+  vector branch and the full hybrid search. The weighted-FTS5 lexical branch
+  is measured once per size under the same protocol — it carries no
+  embedding dependency, so it is identical under both vector backends;
 - parity: exact candidate IDs/keys/ranks and RRF output between the
   sqlite-vec and NumPy adapters on every judged query, raw-score tolerance
   1e-6;
 - size: checkpointed DB bytes;
 - thresholds: locked vector-retrieval budgets (10k p95 ≤ 25 ms,
-  50k ≤ 75 ms, 100k ≤ 150 ms) enforced on the pooled p95.
+  50k ≤ 75 ms, 100k ≤ 150 ms) enforced on the pooled p95. The lexical
+  branch is measured and reported but has no locked budget — Success
+  criterion 9 covers vector retrieval only, even though BM25 is the
+  slower branch at scale.
 
 Emits one evidence manifest plus a raw-samples sidecar under
 ``benchmarks/evidence/`` and a markdown report under ``benchmarks/reports/``.
@@ -51,6 +56,8 @@ from benchmarks.retrieval.build_stores import (  # noqa: E402
 from another_brain.config import AppConfig  # noqa: E402
 from another_brain.domain.models import EmbeddingVector  # noqa: E402
 from another_brain.protocols import Scope, ScopeKey  # noqa: E402
+from another_brain.retrieval.lexical import SQLiteLexicalRetriever  # noqa: E402
+from another_brain.retrieval.query import build_match_query  # noqa: E402
 from another_brain.retrieval.service import HybridMemoryRetriever  # noqa: E402
 from another_brain.services.embedding.model_installer import (  # noqa: E402
     is_installed, profile_dir,
@@ -147,6 +154,37 @@ def run_size(size: int, corpus: dict, qvecs: np.ndarray, *, quick: bool) -> dict
     q_by_id = {q["query_id"]: i for i, q in enumerate(queries)}
 
     result: dict = {"size": size, "db_bytes": path.stat().st_size, "modes": {}}
+
+    # ---- lexical branch: measured once per store ---------------------------
+    # BM25 has no embedding dependency, so it is identical under both vector
+    # backends. Success criterion 9 budgets only vector retrieval, so this
+    # series is reported without a threshold — but it is the slowest branch at
+    # scale and dominates hybrid latency, so it must be visible in evidence.
+    warmups, measured, reps = (10, 50, 1) if quick else (100, 1000, 5)
+    lexical_runs = []
+    for rep in range(reps):
+        rng = random.Random(SEED + size + rep)
+        draws = [rng.choice(queries) for _ in range(warmups + measured)]
+        samples: list[float] = []
+        for i, query in enumerate(draws):
+            match_query = build_match_query(query["text"])
+            start = time.perf_counter()
+            with factory.connect(read_only=True) as con:
+                if match_query is not None:
+                    SQLiteLexicalRetriever(con.connection, brain_id=BRAIN_ID).candidates(
+                        match_query=match_query, scope=scope, now_ms=NOW_MS,
+                    )
+            elapsed_ms = (time.perf_counter() - start) * 1000
+            if i >= warmups:
+                samples.append(elapsed_ms)
+        lexical_runs.append(samples)
+    pooled_lexical = [s for run in lexical_runs for s in run]
+    result["lexical_branch"] = {
+        "pooled": summarize(pooled_lexical),
+        "per_run": [summarize(run) for run in lexical_runs],
+    }
+    result["lexical_raw_samples"] = lexical_runs
+
     for mode in MODES:
         retriever = HybridMemoryRetriever(
             factory, brain_id=BRAIN_ID, clock=lambda: NOW_MS,
@@ -164,7 +202,6 @@ def run_size(size: int, corpus: dict, qvecs: np.ndarray, *, quick: bool) -> dict
         quality = quality_metrics(corpus, ranked)
 
         # ---- latency: 5 reps x (warmups + measured), seeded draws ---------
-        warmups, measured, reps = (10, 50, 1) if quick else (100, 1000, 5)
         vector_runs, hybrid_runs = [], []
         for rep in range(reps):
             rng = random.Random(SEED + size + rep)
@@ -363,7 +400,10 @@ def main() -> int:
             "quality_window": "fused top-10 (Recall@5/MRR on the first five)",
         },
         "stores": [
-            {k: v for k, v in r.items() if k != "modes"} | {"modes": {
+            {
+                k: v for k, v in r.items()
+                if k not in ("modes", "lexical_raw_samples")
+            } | {"modes": {
                 mode: {k: v for k, v in data.items() if k != "raw_samples"}
                 for mode, data in r["modes"].items()
             }}
@@ -384,6 +424,9 @@ def main() -> int:
         "raw_samples": {
             f"{r['size']}:{mode}": data["raw_samples"] for r in results
             for mode, data in r["modes"].items()
+        } | {
+            f"{r['size']}:lexical": {"lexical_branch_ms": r["lexical_raw_samples"]}
+            for r in results
         },
     }))
 
@@ -401,6 +444,11 @@ def main() -> int:
                 f" {lv['p50_ms']:.2f}/{lv['p95_ms']:.2f}/{lv['p99_ms']:.2f} ms"
                 f" | hybrid p95 {lh['p95_ms']:.2f} ms"
             )
+        ll = r["lexical_branch"]["pooled"]
+        lines.append(
+            f"- fts5-lexical (backend-independent, unbudgeted): p50/p95/p99"
+            f" {ll['p50_ms']:.2f}/{ll['p95_ms']:.2f}/{ll['p99_ms']:.2f} ms"
+        )
         lines.append(f"- parity: raw<=1e-6 {r['parity']['raw_within_tolerance']}"
                      f" (max {r['parity']['max_raw_score_diff']:.2e}),"
                      f" exact-canonical {r['parity']['exact_candidate_key_rank_match']}"
