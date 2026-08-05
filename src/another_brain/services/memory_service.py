@@ -369,7 +369,13 @@ class MemoryService:
 
 def _validated_metadata(metadata: Mapping[str, Any] | None) -> dict[str, Any]:
     """A JSON object with no NaN/Infinity — strict MCP clients reject those."""
-    values = dict(metadata or {})
+    if metadata is None:
+        return {}
+    if not isinstance(metadata, Mapping):
+        raise ValidationError(
+            f"metadata must be a JSON object, got {type(metadata).__name__}"
+        )
+    values = dict(metadata)
     try:
         json.dumps(values, ensure_ascii=False, allow_nan=False)
     except (TypeError, ValueError):
