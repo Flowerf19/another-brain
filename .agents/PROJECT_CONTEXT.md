@@ -250,9 +250,13 @@ allows the `localhost` name and any port (`127.0.0.1:*`). Explicit
 required, never optional. A clean client
 needs no Another Brain skill for correctness: initialize instructions,
 self-contained tool/field descriptions, validation, and actionable errors carry
-the contract. The target skill is only a thin optional activation/project/trust
-adapter; the checked-in longer legacy skill remains until TASK-091 lands
-atomically with those descriptions.
+the contract — verified as a property (17 contract facts reachable from the
+server surface alone). Per-argument text must use
+`Annotated[..., Field(description=...)]`: the SDK builds each input schema from
+the signature, so docstring prose reaches the tool description but never the
+field. The skill is now a thin 168-word adapter (TASK-091) holding only what a
+schema cannot know — the mechanical `scope_id` derivation and the
+claims-not-truth stance.
 
 Canonical install path:
 

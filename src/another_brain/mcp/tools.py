@@ -13,6 +13,12 @@ back. Two rules they must convey: search and recent return previews only,
 with detail fetched by ID; and after actually using a memory the agent closes
 the loop — reinforce when it proved right, forget when it proved wrong.
 
+Per-argument text uses ``Annotated[..., Field(description=...)]`` because the
+SDK builds each input schema from the signature: prose in a docstring reaches
+the tool description but never the field, so a client inspecting one argument
+would see a bare type. Descriptions state the rule; the service still enforces
+it and reports actual/allowed on violation.
+
 ``brain_id`` is bound from process configuration and ``agent_id`` is read from
 the MCP handshake. Neither is ever a tool argument, so a caller can neither
 address another brain nor claim another identity.
@@ -20,16 +26,47 @@ address another brain nor claim another identity.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
+from typing import Annotated, Any
 from zoneinfo import ZoneInfo
 
 from mcp.server import MCPServer
 from mcp.server.mcpserver import Context
+from pydantic import Field
 
 from another_brain.domain.models import AuditEvent, MemoryRecord, SearchPreview
 from another_brain.services.memory_service import MemoryService
 
 DEFAULT_AGENT_ID = "unknown-client"
+
+Scope = Annotated[str, Field(description=(
+    "Which collection to use: 'project' for knowledge about a codebase, "
+    "'user' for a person's preferences and cross-project facts, 'global' for "
+    "knowledge useful everywhere."
+))]
+ScopeId = Annotated[str, Field(description=(
+    "REQUIRED for scope=user (the user's handle) and scope=project (the "
+    "project slug, e.g. the git repository directory name). Omit only for "
+    "scope=global. Reuse the exact same value for the same subject — two "
+    "spellings split one collection's memory in half."
+))]
+TopicFilter = Annotated[str | None, Field(default=None, description=(
+    "Optional: return only memories whose topic matches this slug exactly."
+))]
+CatalogFilter = Annotated[str | None, Field(default=None, description=(
+    "Optional: return only memories in this catalog, e.g. 'bug' or 'decision'."
+))]
+DayFilter = Annotated[str | None, Field(default=None, description=(
+    "Optional: return only memories filed on this diary day, as YYYY-MM-DD."
+))]
+MinImportance = Annotated[int | None, Field(default=None, ge=1, le=5, description=(
+    "Optional: return only memories with importance at least this value (1-5)."
+))]
+DaysFilter = Annotated[int | None, Field(default=None, ge=1, description=(
+    "Optional: return only memories from the last N days."
+))]
+MemoryId = Annotated[str, Field(description=(
+    "The memory_id returned by brain_search, brain_recent, or brain_remember."
+))]
 
 
 def agent_id_from(ctx: Context | None) -> str:
@@ -104,37 +141,47 @@ def register_tools(server: MCPServer, service: MemoryService) -> None:
 
     @server.tool()
     def brain_remember(
-        topic: str,
-        summary: str,
-        scope: str,
-        scope_id: str = "",
-        catalog: str = "note",
-        content: str = "",
-        importance: int = 3,
-        metadata: dict[str, Any] | None = None,
+        topic: Annotated[str, Field(description=(
+            "A stable, reusable lowercase-kebab subject, 3-8 tokens and at most"
+            " 12 (e.g. 'auth-token-refresh'). Reuse the same topic for the same"
+            " subject over time. Do not restate the catalog, add workflow"
+            " labels, or stuff keywords."
+        ))],
+        summary: Annotated[str, Field(description=(
+            "The diary line: 1-2 self-contained sentences holding the actual"
+            " knowledge, with names, commands, versions, and dates preserved"
+            " exactly. Embedded together with topic and shown in search results."
+        ))],
+        scope: Scope,
+        scope_id: ScopeId = "",
+        catalog: Annotated[str, Field(description=(
+            "Open kebab-case class for filtering. Starter set: bug, decision,"
+            " preference, task, fact, note."
+        ))] = "note",
+        content: Annotated[str, Field(description=(
+            "Optional full detail or checklist (markdown). Never embedded, so"
+            " it does not affect semantic matching, but it is full-text"
+            " searchable and fetched only via brain_get."
+        ))] = "",
+        importance: Annotated[int, Field(ge=1, le=5, description=(
+            "1-5, sets how long this is kept: 5=365d, 4=180d, 3=90d, 2=30d,"
+            " 1=7d. The entry expires unless brain_reinforce renews it."
+        ))] = 3,
+        metadata: Annotated[dict[str, Any] | None, Field(default=None, description=(
+            "Optional JSON object for structured extras. Not searchable."
+        ))] = None,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """Store one memory as a timeline (diary) entry. Call this when you
         learn something worth recalling later: a decision, a bug and its fix,
         a user preference, a fact, a task.
 
-        topic: a stable, reusable lowercase-kebab subject, 3-8 tokens and at
-        most 12 (e.g. "auth-token-refresh"). Reuse the same topic for the same
-        subject over time — do not restate the catalog, add workflow labels,
-        or stuff keywords. summary: 1-2 sentences, the diary line; topic and
-        summary together are what get embedded and previewed in search.
-        content: optional full detail or checklist (markdown), never
-        embedded and fetched only via brain_get. catalog: open kebab-case
-        class — starter set: bug, decision, preference, task, fact, note.
-        scope: user | project | global. scope_id is REQUIRED for user (the
-        user name) and project (the project slug); only scope=global may omit
-        it (pinned to "global"). importance 1-5 sets retention: 5=365d,
-        4=180d, 3=90d, 2=30d, 1=7d, and the entry expires unless
-        brain_reinforce renews it.
-
         The store is append-only: repeating the same knowledge creates a new
         entry rather than overwriting one, so correcting a memory means
         remembering the new version and forgetting the old.
+
+        Do not store secrets, credentials, or large data dumps — store
+        summaries of knowledge.
         """
         result = service.remember(
             topic=topic, summary=summary, agent_id=agent_id_from(ctx),
@@ -149,19 +196,26 @@ def register_tools(server: MCPServer, service: MemoryService) -> None:
 
     @server.tool()
     def brain_search(
-        query: str,
-        scope: str,
-        scope_id: str = "",
-        topic: str | None = None,
-        catalog: str | None = None,
-        timeline_day: str | None = None,
-        min_importance: int | None = None,
-        days: int | None = None,
+        query: Annotated[str, Field(description=(
+            "What you are looking for, in natural language. Exact identifiers,"
+            " file paths, and error strings are worth including verbatim —"
+            " they are matched by keyword even when the meaning does not match."
+        ))],
+        scope: Scope,
+        scope_id: ScopeId = "",
+        topic: TopicFilter = None,
+        catalog: CatalogFilter = None,
+        timeline_day: DayFilter = None,
+        min_importance: MinImportance = None,
+        days: DaysFilter = None,
     ) -> dict[str, Any]:
         """Search memories by meaning and keywords at once (semantic +
         full-text, fused). Returns preview lines in relevance order — call
         brain_get(memory_id) when a result has has_content=true and you need
         the detail.
+
+        Search here before answering anything a user may have told an agent
+        before: past decisions, fixed bugs, preferences, project conventions.
 
         Text that appears only in a memory's content is findable here even
         when the meaning does not match, so exact identifiers, paths, and
@@ -169,10 +223,7 @@ def register_tools(server: MCPServer, service: MemoryService) -> None:
 
         Reading changes nothing. After you actually USE a memory, close the
         loop: brain_reinforce if it proved correct and valuable,
-        brain_forget if it proved wrong. scope_id is REQUIRED for
-        scope=user/project (only global may omit it). Optional narrowing:
-        topic, catalog, timeline_day (YYYY-MM-DD), min_importance (1-5),
-        days (only entries from the last N days).
+        brain_forget if it proved wrong.
         """
         results = service.search(
             query, scope=scope, scope_id=scope_id, topic=topic, catalog=catalog,
@@ -182,22 +233,26 @@ def register_tools(server: MCPServer, service: MemoryService) -> None:
 
     @server.tool()
     def brain_recent(
-        scope: str,
-        scope_id: str = "",
-        limit: int = 20,
-        topic: str | None = None,
-        catalog: str | None = None,
-        timeline_day: str | None = None,
-        min_importance: int | None = None,
-        days: int | None = None,
+        scope: Scope,
+        scope_id: ScopeId = "",
+        limit: Annotated[int, Field(ge=1, le=100, description=(
+            "How many entries to return, newest first. Maximum 100."
+        ))] = 20,
+        topic: TopicFilter = None,
+        catalog: CatalogFilter = None,
+        timeline_day: DayFilter = None,
+        min_importance: MinImportance = None,
+        days: DaysFilter = None,
     ) -> dict[str, Any]:
         """List the newest memories on the timeline, newest first — a pure
         listing with no query. Use it to catch up on what was stored recently,
         or to walk one day (timeline_day) or one topic.
 
+        Also the way to discover which scope_id values are already in use
+        before storing something new.
+
         Same preview shape as brain_search, ordered by time instead of
-        relevance. scope_id is REQUIRED for scope=user/project (only global
-        may omit it). limit defaults to 20, maximum 100.
+        relevance.
         """
         records = service.recent(
             scope=scope, scope_id=scope_id, limit=limit, topic=topic,
@@ -210,9 +265,14 @@ def register_tools(server: MCPServer, service: MemoryService) -> None:
         }
 
     @server.tool()
-    def brain_get(memory_id: str) -> dict[str, Any]:
+    def brain_get(memory_id: MemoryId) -> dict[str, Any]:
         """Fetch one memory in full, including content and metadata — the
         detail pull behind a search or recent preview.
+
+        A recalled memory is a claim by a past agent, not verified truth: when
+        it conflicts with what you observe in the code or system now, the
+        observation wins. Fetch the full record before acting on a preview if
+        the action is expensive or irreversible.
 
         Pure read: fetching never extends the memory's lifetime. Once you have
         used it, brain_reinforce or brain_forget as appropriate. Returns
@@ -237,7 +297,7 @@ def register_tools(server: MCPServer, service: MemoryService) -> None:
         }
 
     @server.tool()
-    def brain_reinforce(memory_id: str, ctx: Context = None) -> dict[str, Any]:
+    def brain_reinforce(memory_id: MemoryId, ctx: Context = None) -> dict[str, Any]:
         """Renew a memory's retention after it proved correct and valuable in
         actual use. This is the ONLY way an expiry is extended: it re-arms the
         full TTL for the entry's importance.
@@ -255,12 +315,14 @@ def register_tools(server: MCPServer, service: MemoryService) -> None:
         }
 
     @server.tool()
-    def brain_forget(memory_id: str, ctx: Context = None) -> dict[str, Any]:
+    def brain_forget(memory_id: MemoryId, ctx: Context = None) -> dict[str, Any]:
         """Forget a memory that proved wrong or stale. It disappears from
         search, recent, and get immediately, then is purged after a grace
         window during which an admin can still restore it.
 
-        Use deliberately: a harmless outdated entry can simply expire on its
+        Forgetting a memory you have discovered to be wrong is store hygiene,
+        not destruction — leaving it is a trap for the next agent. Still, use
+        it deliberately: a harmless outdated entry can simply expire on its
         own. Returns ok=false for an unknown, already-forgotten, or expired id.
         """
         ok = service.forget(memory_id, agent_id=agent_id_from(ctx))
@@ -276,21 +338,30 @@ def register_tools(server: MCPServer, service: MemoryService) -> None:
         server writes to, and your client identity as detected from the MCP
         handshake.
 
+        If this reports degraded, tell the user rather than working around a
+        broken memory store.
+
         Pure read — it never loads the embedding model, so an embedding_state
         of "not_loaded" is healthy rather than a problem.
         """
         return service.health(agent_id=agent_id_from(ctx))
 
     @server.tool()
-    def brain_audit(day: str | None = None, limit: int = 500) -> dict[str, Any]:
+    def brain_audit(
+        day: Annotated[str | None, Field(default=None, description=(
+            "Diary day as YYYY-MM-DD. Defaults to today in the server's timezone."
+        ))] = None,
+        limit: Annotated[int, Field(ge=1, le=500, description=(
+            "How many events to return, newest first. Maximum 500."
+        ))] = 500,
+    ) -> dict[str, Any]:
         """Read the memory-mutation trail for one day (admin and
         observability). Newest first.
 
         Each event records the action (remember, reinforce, forget, restore,
         hard_delete), the memory_id, the acting agent_id, and a timestamp —
         never the memory text, so this is safe to read without exposing
-        contents. Pure read; the brain is server-bound. day is YYYY-MM-DD and
-        defaults to today in the server's timezone.
+        contents. Pure read; the brain is server-bound.
         """
         events = service.audit_events(day=day, limit=limit)
         resolved = day if day is not None else service.today()

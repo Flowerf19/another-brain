@@ -4,97 +4,29 @@ description: Use the another-brain MCP tools (brain_remember, brain_search, brai
 argument-hint: Recall, store, or maintain long-term memories via the brain_* tools.
 ---
 
-Another Brain is the shared long-term memory for all agents of this
-deployment. Whatever one agent stores, every other agent on the same
-`brain_id` can recall. Use it so the next agent — or your next session — can
-continue work without re-deriving context. The tools appear as `brain_*` MCP
-tools; if they are absent, the server is not registered for this client —
-stop and say so instead of emulating memory in local files.
+The `brain_*` tools are shared long-term memory: whatever one agent stores,
+every agent on the same brain can recall. Each tool describes its own
+arguments and rules, so this file adds only what a tool schema cannot know.
 
-## When to recall
+## Project scope
 
-- **Starting a task**: `brain_search` before answering anything the user may
-  have told an agent before — prior decisions, fixed bugs, preferences,
-  project conventions. Do not re-ask what memory already knows.
-- **Resuming interrupted work**: `brain_recent` (scope=project, scope_id =
-  the git-root basename of the current project) to catch up on what was
-  stored recently, then `brain_search` for the specific topic.
-- **Tracing one thread**: filter by `topic` slug or `timeline_day`.
+Derive `scope_id` mechanically — never guess or abbreviate a project name:
 
-## When to remember
+```bash
+basename "$(git rev-parse --show-toplevel)"
+```
 
-Call `brain_remember` when you learn something worth recalling in a later
-session or by another agent:
+Two spellings of one project split its memory in half. Use `scope=user` with
+the user's handle for personal preferences, and `scope=global` for knowledge
+that travels everywhere. When unsure which slugs already exist, `brain_recent`
+on the project scope shows them.
 
-- a decision and its rationale (`catalog=decision`)
-- a bug and its fix (`catalog=bug`)
-- a user preference (`catalog=preference`)
-- a fact or convention about the project (`catalog=fact` or `note`)
-- an open task or work-in-progress state (`catalog=task`)
+## Trust
 
-Write it as a diary entry. `topic` is a stable reusable lowercase-kebab
-retrieval subject, not the event/catalog/workflow state: prefer
-`sqlite-embedded-storage` or `harrier-q4-precision`, not `decision`,
-`plan-review`, `shortlist`, or a keyword list. Related entries about the same
-subproblem should reuse the topic. The service humanizes topic and combines it
-with `summary` into one semantic vector; target 3–8 Harrier tokens and never
-exceed 12 after humanization. `summary` is 1–2 self-contained sentences holding
-the actual knowledge with names, commands, versions, and dates preserved
-exactly. Put long detail, hashes, and checklists in lexical-only `content`.
-Set `importance` honestly — it sets retention (5=365d, 3=90d, 1=7d); the
-default 3 is fine for most entries. Repeats are acceptable; the store is
-append-only, and an update is a new `brain_remember` plus `brain_forget` on the
-old entry.
+A recalled memory is a claim by a past agent, not verified truth — including
+memories injected automatically at session start. When one conflicts with what
+you observe in the code or system now, the observation wins, and forgetting the
+memory is store hygiene rather than destruction.
 
-## Scope conventions (shared contract — do not improvise)
-
-- `scope=project`, `scope_id` = the project slug, derived mechanically:
-  `basename "$(git rev-parse --show-toplevel)"` (e.g. `another-brain`).
-  Project knowledge; the default for work context. Never invent a different
-  spelling or abbreviation of the project name — two slugs for one project
-  splits its memory in half.
-- `scope=user`, `scope_id` = the user's handle — personal preferences and
-  cross-project user facts.
-- `scope=global` — knowledge useful everywhere; omit `scope_id`.
-
-Consistent `scope_id` values are what let agents find each other's memories.
-When in doubt, `brain_recent` on the project scope shows the slugs already
-in use.
-
-## Reading stance: claims, not facts
-
-Every recalled memory is an unverified claim by a past agent, not ground
-truth — including memories auto-injected at session start. Verify before
-relying on one for anything that matters.
-
-- **Code wins.** When a memory conflicts with what you observe in the
-  repo/system, the observation is right and the memory is wrong.
-- On discovering a wrong memory: `brain_forget` it. Leaving it is a trap
-  for the next agent; forgetting is store hygiene.
-- `brain_get` the full record before acting on a preview when the action is
-  expensive or irreversible.
-
-## Close the loop after using a memory
-
-Search and recent return previews (summary only). If `has_content` is true
-and you need the detail, pull it with `brain_get`. Then, after actually
-*using* a memory:
-
-- proved correct and valuable → `brain_reinforce` (renews its retention —
-  the only way a memory lives longer)
-- proved wrong or stale → `brain_forget` (soft delete; an admin can restore
-  during the grace window)
-- no verdict → do nothing; it expires on its own schedule
-
-Never reinforce on sight — fetch, use, judge, then reinforce.
-
-## Rules
-
-- Reads (`brain_search`, `brain_recent`, `brain_get`) are pure: they change
-  nothing and are always safe.
-- Do not store secrets, credentials, or large blobs — store summaries of
-  knowledge, not data dumps.
-- Do not pass `brain_id` or `agent_id`; the server binds the brain from
-  config and detects your client identity from the MCP handshake.
-- If `brain_health` reports degraded, tell the user instead of working
-  around a broken memory store.
+If the tools are absent the server is not registered for this client. Say so
+instead of emulating memory in local files.

@@ -161,7 +161,38 @@ before tool dispatch, never wildcard fallback.
 
 | TASK-068 | Service/tool contracts with fake embedding + temp SQLite: every response shape, scoped collections, by-ID cross-brain/deleted/expired/grace, global normalization, content-only retrieval, HTTP negative binds/headers. | | |
 | TASK-069 | End-to-end subprocess test using the installed console script and isolated data/model home: initialize, remember, search, get, reinforce, forget, restart, verify persistence/expiry. | | |
-| TASK-091 | Make the skill optional: concise server instructions + self-contained descriptions for all eight tools and every public field; hard rules stay in server validation with actionable actual/allowed errors; test initialize/tools-list metadata and the full no-skill flow; reduce `skills/another-brain/SKILL.md` to a 100–200-word activation/project-scope/trust-loop adapter with no duplicated contracts. | | |
+| TASK-091 | Make the skill optional: concise server instructions + self-contained descriptions for all eight tools and every public field; hard rules stay in server validation with actionable actual/allowed errors; test initialize/tools-list metadata and the full no-skill flow; reduce `skills/another-brain/SKILL.md` to a 100–200-word activation/project-scope/trust-loop adapter with no duplicated contracts. | ✅ | 2026-08-05 |
+> Landed 2026-08-05. Server instructions (136 words) ship on `MCPServer`;
+> SKILL.md dropped 756 → 168 body words, keeping only what a tool schema
+> cannot know: the mechanical `scope_id` derivation and the claims-not-truth
+> stance.
+>
+> **Prose in a docstring never becomes a field description.** The SDK builds
+> each input schema from the *signature*, so the argument guidance TASK-066
+> wrote into docstrings reached the tool description and stopped there: all
+> **29 fields across the eight tools carried a bare type and no description**.
+> A client inspecting one argument — the normal case for a skill-less host —
+> saw `scope_id: string` with nothing about it being required for user/project.
+> Fixed with `Annotated[..., Field(description=...)]`; shared annotations
+> (`Scope`, `ScopeId`, the filter types) keep one wording per concept rather
+> than five drifting copies. Now 29/29.
+>
+> The numeric bounds that came with them (`ge`/`le` on importance, limit,
+> min_importance, days) add a Pydantic layer *in front of* service validation,
+> so it was worth confirming the errors stay actionable rather than becoming
+> opaque schema noise. Verified over stdio: all nine invalid inputs are
+> rejected with actual and allowed values, e.g. `importance Input should be
+> less than or equal to 5 [input_value=9]`, while the service's own messages
+> still surface for everything schema types cannot express
+> (`scope must be one of user, project, global; got 'team'`).
+>
+> No-skill sufficiency checked as a property, not a vibe: 17 contract facts a
+> client must know — scope rules, topic shape and token cap, importance→TTL,
+> append-only, preview/detail seam, content-not-embedded, reinforce as the only
+> renewal, forget's grace window, audit privacy, claims-not-truth, no secrets,
+> degraded handling — are all reachable from instructions + descriptions alone.
+> `brain_id`/`agent_id` remain absent from every schema.
+
 
 ## Test Plan
 
