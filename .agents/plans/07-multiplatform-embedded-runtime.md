@@ -861,7 +861,7 @@ flowchart LR
 
 | ID | Task | Done | Date |
 |----|------|------|------|
-| TASK-070 | In a pinned `main` maintenance worktree only, implement/release the JSONL v1 streaming exporter; quiesce writers, temp-write, self-validate, atomically publish, and record commit/version/invocation/artifact hash. Clean `v0.11.0` consumes only the artifact. | | |
+| TASK-070 | In a pinned `main` maintenance worktree only, implement/release the JSONL v1 streaming exporter; quiesce writers, temp-write, self-validate, atomically publish, and record commit/version/invocation/artifact hash. Clean `v0.11.0` consumes only the artifact. **Landed 2026-08-06: `maint/jsonl-exporter` commits `04dfbd5` (seeder) + `af935fd` (exporter); validated artifact `tests/fixtures/jsonl-v1/main-export-v1.jsonl`, SHA-256 `abb4d40c…8bca0a`. Detail in 07.09.** | ✅ | 2026-08-06 |
 | TASK-071 | Implement clean `import-jsonl` with canonical envelope/hash/profile validation, absolute-expiry semantics, audit preservation, q4 topic+summary re-embedding outside transactions, and skip-already-expired behavior. | | |
 | TASK-072 | Implement `import_runs` batch checkpoints and the locked no-op/conflict/resume rules; interruption at every batch boundary must converge to identical state/counters and produce an imported/skipped/failed report. | | |
 | TASK-073 | Import migration fixtures produced by the external `main` worktree/export release and compare every non-embedding field, lifecycle result, lexical result, and expected re-embedded vector profile. | | |
