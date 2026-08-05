@@ -291,12 +291,22 @@ class EmbeddingProfile:
 
 @dataclass(frozen=True)
 class RecentFilters:
-    """Optional narrowing for ``recent``/``search`` (live rows only)."""
+    """Optional narrowing for ``recent``/``search`` (live rows only).
+
+    Every field is an AND-combined equality/range narrowing applied *before*
+    any candidate or page limit, by the single builder
+    :func:`~another_brain.retrieval.query.scoped_live_where` (retrieval) and
+    ``recent`` (repository). ``timeline_day`` matches the stored diary day
+    exactly rather than a recomputed ``created_at`` window, so a later
+    timezone change cannot move a memory out of the day it was filed under.
+    """
 
     topic: str | None = None
     catalog: str | None = None
     since_ms: int | None = None
     until_ms: int | None = None
+    timeline_day: str | None = None
+    min_importance: int | None = None
 
     def __post_init__(self) -> None:
         if self.topic is not None and not self.topic.strip():
@@ -308,22 +318,45 @@ class RecentFilters:
                 raise ValidationError(
                     f"since_ms {self.since_ms} > until_ms {self.until_ms}"
                 )
+        if self.timeline_day is not None and not _DAY_RE.fullmatch(self.timeline_day):
+            raise ValidationError(
+                f"timeline_day filter must be YYYY-MM-DD, got {self.timeline_day!r}"
+            )
+        if self.min_importance is not None and not 1 <= self.min_importance <= 5:
+            raise ValidationError(
+                f"min_importance must be in 1..5, got {self.min_importance}"
+            )
 
 
 @dataclass(frozen=True)
 class SearchPreview:
-    """One fused search result; never carries ``content`` or the embedding."""
+    """One fused search result; never carries ``content`` or the embedding.
+
+    ``has_content`` is the preview/detail seam: it tells a client whether
+    ``brain_get`` has anything more to give without shipping the body — the
+    preview stays a decision line, the detail pull stays an explicit by-ID
+    call. There is no relevance score here: the fused rank is expressed by
+    list order, and no storage-vendor score encoding crosses this boundary.
+    """
 
     memory_id: str
     topic: str
+    catalog: str
     summary: str
     scope: Scope
     scope_id: str
+    timeline_day: str
     created_at_ms: int
     importance: int
     expires_at_ms: int
+    has_content: bool
 
     def __post_init__(self) -> None:
-        for name in ("memory_id", "topic", "summary"):
+        for name in ("memory_id", "topic", "catalog", "summary"):
             _require_non_empty(name, getattr(self, name))
         object.__setattr__(self, "scope", Scope(self.scope))
+        if not _DAY_RE.fullmatch(self.timeline_day):
+            raise ValidationError(
+                f"timeline_day must be YYYY-MM-DD, got {self.timeline_day!r}"
+            )
+        object.__setattr__(self, "has_content", bool(self.has_content))

@@ -225,10 +225,12 @@ class TestRecentFilters:
 class TestSearchPreview:
     def test_valid_preview(self):
         preview = SearchPreview(
-            memory_id="mem-1", topic="t", summary="s", scope="user",
-            scope_id="u1", created_at_ms=1, importance=3, expires_at_ms=2,
+            memory_id="mem-1", topic="t", catalog="c", summary="s", scope="user",
+            scope_id="u1", timeline_day="2026-08-04", created_at_ms=1,
+            importance=3, expires_at_ms=2, has_content=True,
         )
         assert preview.scope is Scope.USER
+        assert preview.has_content is True
 
     def test_no_content_or_embedding_field(self):
         # contract: previews never carry content or the embedding

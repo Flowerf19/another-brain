@@ -297,6 +297,12 @@ class SQLiteMemoryRepository:
         if filters.until_ms is not None:
             where.append("created_at_ms <= ?")
             params.append(filters.until_ms)
+        if filters.timeline_day is not None:
+            where.append("timeline_day = ?")
+            params.append(filters.timeline_day)
+        if filters.min_importance is not None:
+            where.append("importance >= ?")
+            params.append(filters.min_importance)
         params.append(limit)
         sql = (
             f"SELECT {_SELECT_COLUMNS} FROM memories"

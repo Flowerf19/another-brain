@@ -96,4 +96,10 @@ def scoped_live_where(
         if filters.until_ms is not None:
             where.append("m.created_at_ms <= ?")
             params.append(filters.until_ms)
+        if filters.timeline_day is not None:
+            where.append("m.timeline_day = ?")
+            params.append(filters.timeline_day)
+        if filters.min_importance is not None:
+            where.append("m.importance >= ?")
+            params.append(filters.min_importance)
     return " AND ".join(where), params
