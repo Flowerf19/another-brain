@@ -16,20 +16,37 @@ def _isolated_env(monkeypatch, tmp_path):
 
 
 class TestParsingAndExitCodes:
-    @pytest.mark.parametrize(
-        "argv",
-        [
-            ["doctor"],
-            ["recent"],
-            ["admin", "restore", "mem-1"],
-            ["admin", "hard-delete", "mem-1"],
-        ],
-    )
+    @pytest.mark.parametrize("argv", [["doctor"]])
     def test_valid_commands_typed_unavailable(self, argv, capsys):
         assert cli.main(argv) == cli.EXIT_UNAVAILABLE
         captured = capsys.readouterr()
         assert captured.out == ""  # stdout stays protocol-clean
         assert "not yet available" in captured.err
+
+    def test_recent_empty_store_prints_no_memories(self, capsys):
+        """TASK-074: recent is live against a fresh store; no model needed."""
+        assert cli.main(["recent"]) == cli.EXIT_OK
+        out = capsys.readouterr().out
+        assert "no memories" in out
+
+    def test_recent_rejects_out_of_range_limit(self, capsys):
+        with pytest.raises(SystemExit) as exc:
+            cli.main(["recent", "--limit", "0"])
+        assert exc.value.code == 2
+        assert "between 1 and 100" in capsys.readouterr().err
+
+    def test_admin_restore_unknown_id_is_typed_error(self, capsys):
+        """TASK-074: not_found is honest — stderr message, EXIT_ERROR."""
+        assert cli.main(["admin", "restore", "unknown-id"]) == cli.EXIT_ERROR
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert "not_found" in captured.err
+
+    def test_admin_hard_delete_unknown_id_is_typed_error(self, capsys):
+        assert cli.main(["admin", "hard-delete", "unknown-id"]) == cli.EXIT_ERROR
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert "not_found" in captured.err
 
     def test_import_jsonl_missing_file_is_typed_error(self, capsys):
         """TASK-071: the command landed; a missing artifact is a storage error."""

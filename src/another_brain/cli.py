@@ -7,16 +7,19 @@ precedence CLI ``--host/--port`` > ``MCP_HTTP_HOST``/``MCP_HTTP_PORT`` >
 ``127.0.0.1:1905``, numeric loopback only (validated by
 :mod:`another_brain.config`).
 
-Subsystems land in later phases (doctor GOAL-016, recent GOAL-013, admin
-GOAL-011/013). Until then the corresponding commands validate their
-arguments, then exit ``EXIT_UNAVAILABLE`` with a typed not-yet-available
-message on stderr.
+``doctor`` still lands in a later phase (GOAL-016); until then it validates
+its arguments, then exits ``EXIT_UNAVAILABLE`` with a typed not-yet-available
+message on stderr. ``recent`` and ``admin`` are live and need no embedding
+model: they open the store with a no-op budget validator (token budgets only
+matter on the write/search path), so listing or administering memories works
+without a model download.
 """
 from __future__ import annotations
 
 import argparse
 import sys
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from another_brain.config import AppConfig, parse_loopback_host, parse_port
 from another_brain.errors import (
@@ -25,6 +28,10 @@ from another_brain.errors import (
     ModelNotInstalledError,
     StorageError,
 )
+
+if TYPE_CHECKING:
+    from another_brain.domain.models import MemoryRecord
+    from another_brain.services.memory_service import MemoryService
 
 PROG = "another-brain"
 VERSION = "0.11.0"
@@ -73,7 +80,14 @@ def _build_parser() -> argparse.ArgumentParser:
     model_sub.add_parser("status", help="show install/load state without loading the model")
 
     sub.add_parser("doctor", help="verify install, model, and database health")
-    sub.add_parser("recent", help="print recent memories (uses the configured data dir)")
+    recent = sub.add_parser("recent", help="print recent memories (uses the configured data dir)")
+    recent.add_argument(
+        "--limit",
+        type=_recent_limit,
+        default=20,
+        metavar="N",
+        help="max rows to print (1..100, default 20)",
+    )
 
     admin = sub.add_parser("admin", help="administrative lifecycle operations")
     admin_sub = admin.add_subparsers(dest="admin_command")
@@ -89,6 +103,19 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _err(message: str) -> None:
     print(f"{PROG}: {message}", file=sys.stderr)
+
+
+def _recent_limit(value: str) -> int:
+    """argparse type for ``recent --limit``: an integer in 1..100."""
+    try:
+        limit = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"--limit must be an integer, got {value!r}"
+        ) from None
+    if not 1 <= limit <= 100:  # RECENT_LIMIT_MAX (services.memory_service)
+        raise argparse.ArgumentTypeError("--limit must be between 1 and 100")
+    return limit
 
 
 def _progress(name: str, done: int, total: int | None) -> None:
@@ -119,12 +146,12 @@ def _dispatch(args: argparse.Namespace, config: AppConfig) -> int:
     if args.command == "doctor":
         raise _NotAvailable("doctor", "GOAL-016")
     if args.command == "recent":
-        raise _NotAvailable("recent", "GOAL-013")
+        return _cmd_recent(args, config)
     if args.command == "admin":
         if args.admin_command == "restore":
-            raise _NotAvailable("admin restore", "GOAL-011/013")
+            return _cmd_admin_restore(args, config)
         if args.admin_command == "hard-delete":
-            raise _NotAvailable("admin hard-delete", "GOAL-011/013")
+            return _cmd_admin_hard_delete(args, config)
     if args.command == "import-jsonl":
         return _cmd_import_jsonl(args, config)
     return EXIT_USAGE
@@ -243,6 +270,115 @@ def _print_import_report(report: ImportReport) -> None:
         f"import {short}: status completed — imported {report.imported_count},"
         f" skipped {report.skipped_count} (artifact {report.artifact_sha256[:12]}…)"
     )
+
+
+class _NullBudgets:
+    """Budget-validator stand-in for commands that never validate input text.
+
+    ``recent``, ``admin restore``, and ``admin hard-delete`` never embed and
+    never write new text, so the tokenizer-backed validator (which needs the
+    ``tokenizer.json`` file and fails when the model is uninstalled) would be
+    dead weight: requiring a ~few-MB tokenizer download just to LIST memories
+    is wrong UX. These methods raise so routing a real budget check here
+    fails loudly instead of being silently skipped.
+    """
+
+    def validate_remember(self, *, topic: str, summary: str, content: str) -> None:
+        raise RuntimeError("not usable from this command")
+
+    def validate_query(self, query: str) -> None:
+        raise RuntimeError("not usable from this command")
+
+
+def _open_store(config: AppConfig) -> "MemoryService":
+    """Open the store like :func:`another_brain.mcp.server.build_runtime`.
+
+    Same storage path (bootstrap, migrate, register_profile) and the same
+    lazy :class:`ONNXEmbeddingProvider` — but the budgets are
+    :class:`_NullBudgets`: these commands never embed, so the tokenizer load
+    (and its uninstalled-model error) must not stand in the way.
+    """
+    from another_brain.retrieval.service import HybridMemoryRetriever
+    from another_brain.services.embedding.model_installer import profile_dir
+    from another_brain.services.embedding.provider import ONNXEmbeddingProvider
+    from another_brain.services.memory_service import MemoryService
+    from another_brain.services.sql.audit import SQLiteAuditRepository
+    from another_brain.services.sql.connection import SQLiteConnectionFactory
+    from another_brain.services.sql.health import SQLiteHealthProbe
+    from another_brain.services.sql.migrations import migrate
+    from another_brain.services.sql.profile import register_profile
+    from another_brain.services.sql.repository import SQLiteMemoryRepository
+
+    config.ensure_directories()
+    factory = SQLiteConnectionFactory(config.database_path)
+    factory.bootstrap()
+    migrate(config.database_path)
+    register_profile(factory)
+    return MemoryService(
+        repository=SQLiteMemoryRepository(factory, brain_id=config.brain_id),
+        retriever=HybridMemoryRetriever(factory, brain_id=config.brain_id),
+        audit=SQLiteAuditRepository(factory, brain_id=config.brain_id),
+        embedder=ONNXEmbeddingProvider(profile_dir(config.model_cache_dir)),
+        budgets=_NullBudgets(),
+        storage=SQLiteHealthProbe(factory),
+        config=config,
+    )
+
+
+def _cmd_recent(args: argparse.Namespace, config: AppConfig) -> int:
+    """Print the bound brain newest-first on stdout; never loads the model."""
+    records = _open_store(config).recent(limit=args.limit)
+    if not records:
+        print("no memories in this brain yet")
+        return EXIT_OK
+    for record in records:
+        print(_recent_line(record))
+    return EXIT_OK
+
+
+def _recent_line(record: "MemoryRecord") -> str:
+    """One recent line: diary day, id, topic, catalog, importance, summary.
+
+    ``content`` never leaves the store — the line is a decision surface,
+    not a detail dump. The summary is collapsed to a single line and
+    truncated at 120 characters.
+    """
+    summary = " ".join(record.summary.split())
+    if len(summary) > 120:
+        summary = summary[:117] + "..."
+    return (
+        f"{record.timeline_day}  {record.memory_id}  "
+        f"[{record.catalog}]  importance={record.importance}  "
+        f"{record.topic}: {summary}"
+    )
+
+
+def _cmd_admin_restore(args: argparse.Namespace, config: AppConfig) -> int:
+    """Undo a forget inside its grace window; prints the re-armed expiry.
+
+    ``not_found`` (unknown/cross-brain/live/out-of-grace) is an honest
+    stderr message with ``EXIT_ERROR``, mirroring ``import-jsonl``.
+    """
+    from datetime import datetime, timezone
+
+    record = _open_store(config).restore(args.memory_id, agent_id="cli-admin")
+    if record is None:
+        _err(f"memory {args.memory_id!r}: not_found")
+        return EXIT_ERROR
+    iso = datetime.fromtimestamp(
+        record.expires_at_ms / 1000, tz=timezone.utc
+    ).isoformat()
+    print(f"restored {record.memory_id}: expires {iso}")
+    return EXIT_OK
+
+
+def _cmd_admin_hard_delete(args: argparse.Namespace, config: AppConfig) -> int:
+    """Permanently remove a memory; the audit trail survives."""
+    if not _open_store(config).hard_delete(args.memory_id, agent_id="cli-admin"):
+        _err(f"memory {args.memory_id!r}: not_found")
+        return EXIT_ERROR
+    print(f"hard-deleted {args.memory_id}")
+    return EXIT_OK
 
 
 def _cmd_model_status(config: AppConfig) -> int:
