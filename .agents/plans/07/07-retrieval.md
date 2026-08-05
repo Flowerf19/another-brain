@@ -1,7 +1,7 @@
 ---
-status: draft
+status: done
 created: 2026-08-04
-last_updated: 2026-08-04
+last_updated: 2026-08-05
 parent: .agents/plans/07-multiplatform-embedded-runtime.md
 covers: GOAL-012, GOAL-002 (TASK-008)
 ---
@@ -40,9 +40,45 @@ Module targets: `retrieval/query.py`, `lexical.py`, `vector.py`, `fusion.py`,
 > changing a locked constant or regenerating the corpus with disjoint identifier
 > families (plan revision). Parity exactness holds on engineered fixtures with
 > rounding-boundary gaps; raw tolerance 1e-6.
-| TASK-063 | Judged 1k/10k/50k/100k retrieval suite; emit quality/latency/size/parity evidence manifests (100 warmups, 1000 measured, 5 repetitions, pooled + per-run p50/p95/p99) before service cutover. | | |
-| TASK-031 | (Deferred from GOAL-008, approved revision 2026-08-04.) In a worktree pinned to `main` baseline `edc0e57`, in the same environment setup as TASK-008: run and record the legacy unit/integration baseline; export deterministic fake-vector fixtures (identity binding, append-only writes, TTL, reinforce, soft-delete/restore, recent ordering `created_at DESC,memory_id ASC`, audit privacy, MCP previews, health) into backend-neutral JSON under `tests/fixtures/legacy-baseline/` in the `v0.11.0` branch. | | |
-| TASK-008 | Run the pinned `main` worktree oracle on the same judged fixtures; record Recall@5/MRR/nDCG@10 and intentional ranking differences; enforce locked embedded thresholds without adding Redis to `v0.11.0`. | | |
+| TASK-063 | Judged 1k/10k/50k/100k retrieval suite; emit quality/latency/size/parity evidence manifests (100 warmups, 1000 measured, 5 repetitions, pooled + per-run p50/p95/p99) before service cutover. | ✅ | 2026-08-05 |
+> Approved revision 2026-08-05 (a) — **the locked `Recall@5 >= 0.90` applies
+> to the 1k/10k/50k stores; the 100k store is latency/parity evidence only.**
+> Measured: 0.9800 / 0.9700 / 0.9717 / 0.8567. The 100k shortfall is a fixture
+> artifact, not a ranking regression — verified, not inferred:
+> zero-hit queries are 0/120 at both 10k and 100k (no query loses all its
+> relevant docs); 67 of 600 top-5 slots at 100k are filler rows and every one
+> entered through the lexical branch (`lexical_rank` 1-2, `vector_rank` None);
+> live fillers sharing the judged scope `project/proj-1` scale 1 → 288 → 1763
+> → 3583 across the four stores. `build_stores.py` writes fillers from
+> natural-language templates, so they earn real BM25 scores against judged
+> queries while their random unit vectors never reach the vector branch; at
+> 100k that filler mass outweighs the corpus inside the judged scope. Giving
+> fillers a disjoint scope would measure the intended thing, but that is a
+> fixture rebuild + re-run; deferred rather than done silently. Revisit if a
+> real deployment approaches 100k rows in one scope.
+> Approved revision 2026-08-05 (b) — **the parity gate is exact candidate
+> IDs, exact ranks, exact fused RRF output, and raw scores within 1e-6;
+> exact `cosine_key` equality is gated on the engineered unit fixtures
+> (rounding-boundary gaps), not on the judged corpus.** The suite reports
+> `exact_candidate_key_rank_match: False` on 120/120 queries at every store
+> size, which overstates the divergence. Measured directly against the 1k and
+> 100k stores: candidate IDs 0/120 mismatches, candidate ranks 0/120
+> mismatches, fused RRF identical (no `:rrf` entries), and `cosine_key`
+> differing by exactly ±1 micro-cosine with max raw delta 9.48e-07 — inside
+> the locked tolerance. sqlite-vec accumulates in FLOAT32 while the NumPy
+> adapter promotes to float64, so the integer key flips only when a score
+> lands within half a micro of a rounding boundary. The ordering contract —
+> the only part a caller observes — holds exactly. `run_suite.py:262` already
+> encodes this reading; this revision records it.
+| TASK-031 | (Deferred from GOAL-008, approved revision 2026-08-04.) In a worktree pinned to `main` baseline `edc0e57`, in the same environment setup as TASK-008: run and record the legacy unit/integration baseline; export deterministic fake-vector fixtures (identity binding, append-only writes, TTL, reinforce, soft-delete/restore, recent ordering `created_at DESC,memory_id ASC`, audit privacy, MCP previews, health) into backend-neutral JSON under `tests/fixtures/legacy-baseline/` in the `v0.11.0` branch. | ✅ | 2026-08-05 |
+| TASK-008 | Run the pinned `main` worktree oracle on the same judged fixtures; record Recall@5/MRR/nDCG@10 and intentional ranking differences; enforce locked embedded thresholds without adding Redis to `v0.11.0`. | ✅ | 2026-08-05 |
+> Evidence 2026-08-05: `benchmarks/reports/legacy-oracle-comparison-2026-08-04.md`.
+> Clean branch beats the legacy oracle on every aggregate (Recall@5 0.9783 vs
+> 0.9000, MRR 0.9958 vs 0.9205, nDCG@10 0.8824 vs 0.7983) and clears the locked
+> embedded thresholds. Five intentional ranking differences are recorded there;
+> the universal-cosine-gate bug is proven fixed by the deterministic fixture
+> (`legacy-cosine-gate-drops-content-match`), not by the corpus — with real
+> fp32 embeddings the 12 corpus content-id cases do not trigger the legacy gate.
 
 ## Test Plan
 

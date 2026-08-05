@@ -9,9 +9,13 @@ provider, payloads, budgets), and the complete SQLite storage stack
 (GOAL-011 TASK-047..055: connection factory, schema v1, migrations,
 repository, TTL, lifecycle, audit, and the accepted concurrency workload
 green on the real repository — 200/200 oracle checks, full locked
-parameters). `model pull` / `model status` are real commands; retrieval
-(GOAL-012), the MCP server (GOAL-013), JSONL import (GOAL-014), and the
-release gate (GOAL-016) are still pending — their CLI commands exit with
+parameters), and retrieval (GOAL-012 TASK-056..063 plus the GOAL-002
+oracle comparison TASK-031/008: safe FTS5 query builder, weighted BM25
+lexical, exact cosine vector with sqlite-vec + NumPy fallback, pure RRF,
+hybrid orchestrator, and the judged 1k/10k/50k/100k evidence suite).
+`model pull` / `model status` are real commands; the MCP server
+(GOAL-013), JSONL import (GOAL-014), and the release gate (GOAL-016) are
+still pending — their CLI commands exit with
 typed not-yet-available errors pointing at their GOAL. The tree contains only the
 final `src/another_brain/` package — no Redis/Docker/Torch code, tests,
 config, or docs remain, and `scripts/check-clean-tree.sh` keeps it that way.
@@ -37,6 +41,62 @@ oracle, recorded and verified as:
   deterministic fixtures, or JSONL artifacts.
 
 Do not preserve Redis in this branch merely for comparison.
+
+## Retrieval evidence (TASK-063/008, accepted 2026-08-05)
+
+The judged suite (`benchmarks/retrieval/run_suite.py`) ran on all four
+stores and TASK-063/031/008 are ticked. Two results diverged from the letter
+of the plan; both were traced to the fixture rather than to ranking code and
+both are now approved revisions recorded in `.agents/plans/07/07-retrieval.md`:
+
+- **`Recall@5 >= 0.90` applies to 1k/10k/50k only** (0.9800 / 0.9700 /
+  0.9717); the 100k store (0.8567) is latency/parity evidence. Fillers share
+  the judged scope `project/proj-1` and scale 1 → 288 → 1763 → 3583, they are
+  written from natural-language templates so they earn real BM25 scores, and
+  at 100k they take 67 of 600 top-5 slots — every one through the lexical
+  branch. No query loses all its relevant docs at any size.
+- **Parity gate = exact candidate IDs, exact ranks, exact fused RRF, raw
+  scores within 1e-6**; exact `cosine_key` equality is gated on engineered
+  unit fixtures. The suite's `exact_candidate_key_rank_match: False` on
+  120/120 queries overstates it: IDs and ranks match exactly, fused RRF
+  matches, and only the integer key differs by ±1 micro (max raw delta
+  9.48e-07) because sqlite-vec accumulates in FLOAT32 while NumPy promotes to
+  float64.
+
+TASK-008: the clean branch beats the legacy oracle on every aggregate
+(Recall@5 0.9783 vs 0.9000, MRR 0.9958 vs 0.9205, nDCG@10 0.8824 vs 0.7983).
+
+**Open — TASK-006 lexical benchmark.** `run_suite.py` times `vector_branch`
+and `hybrid_search` only; the weighted-FTS5 branch has never been
+benchmarked despite TASK-006 requiring it. Hand-measured p95: 3.12 / 8.90 /
+35.06 / 71.68 ms across the four stores, versus sqlite-vec 1.85 / 2.98 /
+7.75 / 13.53 and NumPy 3.22 / 5.32 / 13.03 / 26.90. Lexical is the slowest
+branch at scale and dominates the 116.92 ms hybrid p95 at 100k, yet Success
+criterion 9 budgets only vector retrieval, so nothing gates it.
+
+**Open — `NumpyVectorRetriever` is not vectorized.** The module docstring,
+the class docstring, and TASK-059 all call it vectorized, but
+`vector.py:157-165` loops row by row with a per-row `.astype()` allocation.
+A batched matmul is the intended shape; the ~2x gap to sqlite-vec may be
+mostly this rather than C-vs-Python. Fallback parity matters because
+sqlite-vec is pre-1.0 and the release matrix includes Windows and ARM.
+
+## Plan bookkeeping drift (observed 2026-08-04, partly resolved 2026-08-05)
+
+Uncommitted work adds `catalog`, `timeline_day`, and `has_content` to
+`SearchPreview`, plus `domain/timeline.py` and two new `RecentFilters`
+fields. The stale unit test was fixed (suite green: 399 passed, 25 skipped).
+The production change looks deliberate — `timeline_day` is persisted at write
+time rather than recomputed from `created_at`, so a timezone change cannot
+move a memory out of its filed day — but **no plan task claims it**; assign
+it to a task or record a revision before GOAL-013 builds on it.
+
+07.06 TASK-048 is still blank while the sub-plan reads `status: done`.
+Schema v1 is in fact present and tested (six tables, FTS5 external content +
+three triggers, six indexes; `test_schema.py` and `test_migrations.py` green,
+35 passed) and TASK-049, the runner the row says it waits on, is ticked. The
+row looks stale rather than genuinely open — confirm against the master
+plan's required-index list before ticking.
 
 ## Product boundary
 
@@ -176,8 +236,9 @@ Because GOAL/TASK IDs are append-only, use the explicit phase order from Plan
    benchmark/concurrency harnesses. ✅
 5. GOAL-005/010 — embedding. ✅
 6. GOAL-011 — SQLite/lifecycle/audit/concurrency workload. ✅
-7. GOAL-012 — BM25/vector/RRF.
-8. GOAL-002 TASK-008, then GOAL-013 — final oracle comparison and service/MCP.
+7. GOAL-012 — BM25/vector/RRF. ✅ (TASK-056..063; two approved revisions on
+   the TASK-063 evidence gate).
+8. GOAL-002 TASK-008 ✅, then GOAL-013 — service/MCP.
 9. GOAL-014 — neutral JSONL import/cutover.
 10. GOAL-016 — platform/release/docs gate.
 

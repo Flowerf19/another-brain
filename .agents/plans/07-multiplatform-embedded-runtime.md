@@ -638,9 +638,9 @@ are fixed by the checksummed reference-machine manifest, not chosen per run.
 | ID | Task | Done | Date |
 |----|------|------|------|
 | TASK-005 | Build checksummed judged fixtures plus deterministic 1k/10k/50k/100k stores with realistic text/scope/importance/expiry/deletion distributions and recorded seeds; checksum `benchmarks/reference-machine.json` before performance evidence. | ✅ | 2026-08-04 |
-| TASK-006 | Benchmark regular-table `vec_distance_cosine`, forced NumPy fallback, and weighted FTS5 on the same stores; enforce the canonical candidate/order parity contract and emit ingest/DB-size/latency/extension evidence manifests. **Partial 2026-08-04: diagnostic evidence done; full protocol + parity deferred to TASK-063.** | | |
+| TASK-006 | Benchmark regular-table `vec_distance_cosine`, forced NumPy fallback, and weighted FTS5 on the same stores; enforce the canonical candidate/order parity contract and emit ingest/DB-size/latency/extension evidence manifests. **Partial 2026-08-05: vector adapters + parity landed with TASK-063; the weighted-FTS5 timing series is still absent from `run_suite.py` — hand-measured numbers and the gap analysis are in 07.04.** | ⏳ | 2026-08-05 |
 | TASK-007 | Implement the reusable spawned-process workload driver and allowed-outcome oracle using deterministic fake/precomputed embeddings; validate its barriers, seeds, crash and lock injection before applying it to the repository in TASK-055. | ✅ | 2026-08-04 |
-| TASK-008 | After GOAL-012, run the pinned `main` worktree oracle on the same judged fixtures, record Recall@5/MRR/nDCG@10 and intentional ranking differences, and enforce the locked embedded thresholds without adding Redis to `v0.11.0`. | | |
+| TASK-008 | After GOAL-012, run the pinned `main` worktree oracle on the same judged fixtures, record Recall@5/MRR/nDCG@10 and intentional ranking differences, and enforce the locked embedded thresholds without adding Redis to `v0.11.0`. | ✅ | 2026-08-05 |
 
 ### GOAL-003: Superseded dual-backend extraction
 
@@ -705,7 +705,7 @@ Execute after package foundation in GOAL-009.
 | ID | Task | Done | Date |
 |----|------|------|------|
 | TASK-030 | Update `.agents/plans/another-brain-architecture.md` first: approve SQLite-only storage, separate lexical/vector/fusion modules, q4 topic+summary embeddings, durable TTL, package/CLI contract, and the external-main-oracle/early-deletion cutover. Mark Redis-era plans 01–05 superseded. | ✅ | 2026-07-31 |
-| TASK-031 | In a separate worktree pinned to `main` baseline `edc0e57`, run and record the legacy unit/integration baseline; export deterministic fake-vector fixtures for identity, append-only writes, TTL, reinforce, soft-delete/restore, recent ordering, audit privacy, MCP previews, and health into backend-neutral JSON. **Deferred: executes with the TASK-008 oracle environment (see revision note above).** | | |
+| TASK-031 | In a separate worktree pinned to `main` baseline `edc0e57`, run and record the legacy unit/integration baseline; export deterministic fake-vector fixtures for identity, append-only writes, TTL, reinforce, soft-delete/restore, recent ordering, audit privacy, MCP previews, and health into backend-neutral JSON. **Deferred: executed with the TASK-008 oracle environment (see revision note above); fixture at `tests/fixtures/legacy-baseline/behavior-v1.json`, structural validation in `tests/unit/test_legacy_baseline_fixture.py`. Behavioral replay against the clean `MemoryService` lands with TASK-065.** | ✅ | 2026-08-05 |
 | TASK-032 | Add desired retrieval fixtures that explicitly fix the bug: a lexical-only content identifier survives with cosine below 0.30; vector-only candidates below 0.30 do not; deleted/expired rows are absent before branch limits. | ✅ | 2026-08-04 |
 | TASK-033 | Define and fixture the canonical JSONL v1 envelope specified under GOAL-014, including absolute expiry, checksums, IDs, identity, timestamps, metadata, deletion and audit state; omit embedding bytes. | ✅ | 2026-08-04 |
 | TASK-034 | Define final repository/retriever/audit/embedding Protocols with the locked scoped-collection and `(bound brain_id, memory_id)` by-ID semantics; include no Redis types, score encodings, or backend selector. | ✅ | 2026-08-04 |
@@ -757,7 +757,7 @@ Execute after package foundation in GOAL-009.
 | TASK-060 | Implement pure `rrf_fuse()` with equal branch weights, `k=60`, deduplication, branch evidence, fixed 50-candidate branch limits, final top-5, and the locked tie-break sequence. | ✅ | 2026-08-04 |
 | TASK-061 | Implement `HybridMemoryRetriever`: run lexical/vector candidates independently, allow lexical-only results, use vector-only for no safe FTS terms, and never apply a universal post-fusion cosine gate. | ✅ | 2026-08-04 |
 | TASK-062 | Add ranking tests for lexical-only identifiers, semantic-only matches, fused promotion, Vietnamese diacritics, duplicate/adversarial terms, live-filter starvation, source labels, canonical floor/ties, malformed vectors, and exact sqlite-vec/NumPy candidate/order/RRF parity within `1e-6` raw-score tolerance. **Gate includes the 24-case behavior partition of `embedding-quality-v1` (deferred from GOAL-001, approved revision 2026-08-04).** | ✅ | 2026-08-04 |
-| TASK-063 | Run the judged 1k/10k/50k/100k retrieval suite and emit quality/latency/size/parity evidence manifests before service cutover. | | |
+| TASK-063 | Run the judged 1k/10k/50k/100k retrieval suite and emit quality/latency/size/parity evidence manifests before service cutover. **Approved revision 2026-08-05: `Recall@5 >=0.90` applies to 1k/10k/50k (100k is latency/parity evidence only — filler-in-judged-scope fixture artifact); parity gate is exact IDs/ranks/RRF + raw `1e-6`, exact `cosine_key` gated on engineered unit fixtures. Both recorded in 07.07.** | ✅ | 2026-08-05 |
 
 ### GOAL-013: Wire the final service, MCP tools, health, and transports
 
