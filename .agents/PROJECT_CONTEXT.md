@@ -201,12 +201,16 @@ vector database, ANN sidecar, or storage backend selector.
 
 ## Target package
 
-Landed layout (retrieval/ and mcp/ land with GOAL-012/013):
+Landed layout (`mcp/` lands with the rest of GOAL-013):
 
 ```text
 src/another_brain/
   cli.py config.py protocols.py errors.py
   domain/models.py          record types + locked validation
+  domain/retention.py       importance -> durable expiry (no storage dep)
+  domain/timeline.py        epoch ms -> YYYY-MM-DD diary day
+  retrieval/               query, lexical, vector, fusion, service
+  services/memory_service.py  use cases over the Protocols
   services/sql/             connection, migrations, schema, repository,
                             ttl, audit, retry
   services/embedding/       model_manifest, model_installer, provider,

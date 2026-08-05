@@ -1,9 +1,12 @@
-"""Durable TTL — computation, bounded purge, read-never-renews (TASK-051).
+"""Durable TTL — bounded purge and the read-never-renews invariant (TASK-051).
 
-``expires_at`` is persisted at write time from importance (5..1 →
-365/180/90/30/7 days) and is the single authoritative durability clock.
-Every live read excludes expired/deleted rows BEFORE any limit (repository
-``_LIVE`` predicate); reads never touch ``expires_at`` — no renewal on read.
+``expires_at`` is persisted at write time from importance (the policy itself
+lives in :mod:`another_brain.domain.retention`, which has no storage
+dependency so the service can arm a TTL without importing SQLite internals;
+``ttl_ms_for`` and ``expires_at_ms_for`` are re-exported here for storage
+callers). It is the single authoritative durability clock: every live read
+excludes expired/deleted rows BEFORE any limit (repository ``_LIVE``
+predicate), and reads never touch ``expires_at`` — no renewal on read.
 Purge is bounded and opportunistic: a small batch of expired / past-grace
 rows is hard-deleted per call (startup + write-time opportunities), and
 correctness never depends on a sweeper.
@@ -12,31 +15,24 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from another_brain.config import FORGET_GRACE_DAYS, TTL_DAYS_BY_IMPORTANCE
+from another_brain.config import FORGET_GRACE_DAYS
+from another_brain.domain.retention import DAY_MS as _DAY_MS
+from another_brain.domain.retention import expires_at_ms_for, ttl_ms_for
 from another_brain.errors import ValidationError
 from another_brain.services.sql.connection import SQLiteConnectionFactory
 from another_brain.services.sql.retry import busy_retry
 
-_DAY_MS = 86_400_000
 GRACE_MS = FORGET_GRACE_DAYS * _DAY_MS
 
 DEFAULT_PURGE_BATCH = 500
 
-
-def ttl_ms_for(importance: int) -> int:
-    """Locked TTL for one importance level, in milliseconds."""
-    try:
-        days = TTL_DAYS_BY_IMPORTANCE[importance]
-    except KeyError:
-        raise ValidationError(
-            f"importance must be in 1..5, got {importance}"
-        ) from None
-    return days * _DAY_MS
-
-
-def expires_at_ms_for(importance: int, now_ms: int) -> int:
-    """The absolute expiry a new memory of ``importance`` gets at ``now``."""
-    return now_ms + ttl_ms_for(importance)
+__all__ = [
+    "DEFAULT_PURGE_BATCH",
+    "GRACE_MS",
+    "expires_at_ms_for",
+    "purge_expired",
+    "ttl_ms_for",
+]
 
 
 def purge_expired(

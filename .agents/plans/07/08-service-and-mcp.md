@@ -24,21 +24,38 @@ before tool dispatch, never wildcard fallback.
 
 | ID | Task | Done | Date |
 |----|------|------|------|
-| TASK-064 | Refactor `MemoryService` onto final repository/retriever/audit/embedding Protocols; remember builds topic+summary once, search embeds the bounded prompted query once; no service import references storage internals. | | |
-> Scope note 2026-08-05: **`domain/timeline.py` landed ahead of this task and
-> belongs to it.** `timeline_day_for(epoch_ms, tz_name)` exists but has no
-> caller — the repository already persists `record.timeline_day` and both read
-> paths filter on it, so the only missing link is the service computing it at
-> write time from `AppConfig.timeline_timezone`. Deriving it once at write and
-> storing it (rather than recomputing from `created_at` on read) is what keeps
-> a later timezone change from moving a memory out of the day it was filed
-> under; the same helper must serve the audit write path so the two cannot
-> disagree. `SearchPreview` was widened in the same change (`catalog`,
-> `timeline_day`, `has_content`) — `has_content` is the preview/detail seam,
-> letting a client know `brain_get` has a body to fetch without shipping it,
-> so TASK-065's previews/get separation is preserved by construction.
-> `RecentFilters` gained `timeline_day` and `min_importance`, both already
-> wired through `scoped_live_where` and the repository's `recent`.
+| TASK-064 | Refactor `MemoryService` onto final repository/retriever/audit/embedding Protocols; remember builds topic+summary once, search embeds the bounded prompted query once; no service import references storage internals. | ✅ | 2026-08-05 |
+> Landed 2026-08-05 as `services/memory_service.py`. Not a refactor — the
+> legacy service lives only on `main` (Redis, async because redis-py is async
+> I/O), so this is a fresh implementation reading that as the behavior oracle.
+> Sync throughout: SQLite and ONNX Runtime are both blocking, and every
+> Protocol below is sync, so async here would be a wrapper that awaits nothing.
+>
+> Deviations from the legacy shape, all deliberate: documents embed
+> `topic + summary` (locked input version 2, the reason the clean branch beats
+> the oracle on Recall@5) rather than legacy summary-only; token budgets
+> replace the character-count `CONTENT_MAX_CHARS` cap, and are checked *before*
+> the embed so a doomed call never pays for a model load; `health()` reports
+> SQLite/profile state instead of Redis ping and index metadata, and never
+> forces a model load — lazy `not_loaded` is healthy, only a recorded load
+> error degrades. `profile_id` is filled from `MODEL_MANIFEST` and never
+> exposed on the tool surface.
+>
+> `domain/timeline.py` is now wired: `remember` derives `timeline_day` once at
+> write time from `AppConfig.timeline_timezone`, and `_record_audit` uses the
+> same helper, so the memory and audit write paths cannot disagree about which
+> day a mutation belongs to.
+>
+> One structural change came with it: `ttl_ms_for`/`expires_at_ms_for` moved to
+> `domain/retention.py` (the layout the master plan already specifies). They
+> were in `services/sql/ttl.py`, which imports `SQLiteConnectionFactory` — the
+> service must arm a TTL at write time, and importing that module would have
+> pulled storage internals across the boundary this task forbids. `ttl.py`
+> re-exports them for storage callers, so there is still one definition.
+>
+> Tests deferred to the final pass; verified by a temp-SQLite + fake-embedder
+> round trip covering remember/get/recent/search/reinforce/forget/audit/health,
+> global scope pinning, and the user-without-`scope_id` rejection.
 | TASK-065 | Preserve append-only diary, identity binding, previews/get separation, retention actions, by-ID brain isolation, audit privacy; replace Redis health/index behavior with SQLite schema/profile/integrity state. | | |
 | TASK-066 | Register `brain_remember/search/recent/get/reinforce/forget/health/audit` on MCP SDK v2 `MCPServer` with locked names, argument contracts, by-ID signatures, response shapes. | | |
 | TASK-067 | Wire stdio default + opt-in HTTP under the loopback/transport-security policy: SQLite/model lifecycle, signals, exact host/origin allowlists, `TransportSecuritySettings(enable_dns_rebinding_protection=True)` with exact bound host/port, health that never forces model load. Verify the pinned SDK's transport security API without weakening policy. | | |
