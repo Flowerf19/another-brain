@@ -75,8 +75,13 @@ no embedding dependency, so it is identical under both vector backends).
 7.75 / 13.53 and NumPy 3.22 / 5.32 / 13.03 / 26.90. At 100k, BM25 is 5.3x
 the vector branch and dominates the 116.92 ms hybrid p95, yet Success
 criterion 9 budgets vector retrieval only. Left unbudgeted deliberately —
-SC-9 is locked, so adding one is a plan revision; raised for TASK-087. Its
-cost tracks rows surviving the scope/live filter, not total store size.
+SC-9 is locked, so adding one is a plan revision; raised for TASK-087.
+The cost is driven by **MATCH selectivity**, not store size: every extracted
+term is OR-ed into the query, so the average judged query hits 53% of the
+10k store and `"the"` alone matches 49.8%. A document-frequency filter via
+`fts5vocab` (no hand-maintained stopword list, adapts to the corpus) buys
+~18% at the safe end with recall unchanged — measured, deliberately not
+implemented, and the full curve is recorded at TASK-087.
 The wired-in series is proven at full protocol on the 10k store
 (`retsuite-20260805T041805Z`, pooled n=5000); the other three sizes are
 still hand measurements pending a full reference-machine sweep.

@@ -28,10 +28,44 @@ are the exit checklist.
 > but the lexical branch is the slower one** — 71.68 ms p95 at 100k versus
 > 13.53 ms for sqlite-vec, and it dominates the 116.92 ms hybrid p95. The
 > `lexical_branch` series now ships in every retrieval-suite manifest, so the
-> data is there; decide here whether BM25 earns a locked budget. Note its cost
-> tracks rows surviving the scope/live filter, not total store size, so any
-> threshold should be expressed against candidates-per-scope rather than the
-> store-size buckets used for vector retrieval.
+> data is there; decide here whether BM25 earns a locked budget.
+>
+> **What actually drives that cost — corrected 2026-08-05.** Not the store
+> size, and not (as first written here) the rows surviving the scope/live
+> filter: it is **how many rows the MATCH itself hits**, which collapses
+> because `build_match_query` ORs every extracted term including stopwords.
+> Measured on the 10k store: a 63-term judged query matches 5857 rows (58.6%)
+> and the average judged query matches 53.1%, because the single term `"the"`
+> matches 4977 rows (49.8%) on its own. `bm25()` is then scored for every one
+> of those before `LIMIT 50`. So the driver is term selectivity, and a
+> threshold expressed against store size or candidates-per-scope would be
+> measuring the wrong axis.
+>
+> A frequency filter is possible without any hand-maintained stopword map —
+> `fts5vocab(main, memory_fts, row)` yields per-term document frequency
+> straight from the index and adapts to the corpus. That matters here: the
+> most frequent terms in the judged store include `kiem`, `tra`, `qua`,
+> `ket`, `lai`, so an English stopword list would miss them entirely.
+> Measured on 10k, dropping terms above a document-frequency threshold:
+>
+> | threshold | Recall@5 | lexical p50 | lexical p95 |
+> |---|---|---|---|
+> | none | 0.9700 | 4.92 ms | 8.78 ms |
+> | < 0.3 | 0.9750 | 4.31 ms | 7.16 ms |
+> | < 0.2 | 0.9700 | 3.72 ms | 6.89 ms |
+> | < 0.1 | 0.9667 | 3.22 ms | 6.13 ms |
+> | < 0.05 | 0.9583 | 2.00 ms | 4.80 ms |
+>
+> **Not implemented, deliberately.** The safe end of that curve buys ~18% and
+> BM25 already down-weights common terms, so the ranking barely moves. Against
+> that: it is a TASK-056 contract change with a behavior gate attached, it adds
+> a vocab lookup per query whose cost is unmeasured, and the threshold is
+> data-dependent — tuned on this synthetic mixed-language store it could drop
+> meaningful terms in a real mostly-Vietnamese corpus. Worse, because the
+> filter shifts as the index grows, the same query could return different
+> results at different corpus sizes: the same size-dependent-behavior trap
+> already rejected for the vector branch. Decide here, on real deployment
+> data, not on this fixture.
 | TASK-088 | Update root README, `docs/architecture.md`, deployment/MCP/trust docs, skill guidance, `.agents/TESTING_GUIDE.md`, `.agents/PROJECT_CONTEXT.md` from real final commands and paths. | | |
 | TASK-089 | Release rehearsal from an empty profile with only `uv`: install tool, configure one harness, first model install, remember/search/get/reinforce/forget, restart, doctor, uninstall; verify no daemon/container/server prerequisite. | | |
 | TASK-090 | Set plan status `done` only after: clean tree/full CI, validated migration artifact, Q4/retrieval/concurrency evidence manifests, artifact hashes, resource report, docs gate. | | |

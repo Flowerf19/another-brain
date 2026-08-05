@@ -41,9 +41,10 @@ acceptance criteria, not adjustable in test code.
 > nothing gates the branch that actually dominates. Left unbudgeted rather
 > than inventing a threshold here: SC-9 is locked in the master plan, and
 > setting a lexical budget is a plan revision. Raised for GOAL-016 (TASK-087)
-> where the resource envelope is re-measured — and note the FTS5 cost is
-> driven by candidates surviving the scope/live filter, so it depends on how
-> many rows share one scope, not on total store size.
+> where the resource envelope is re-measured — see the note there for what
+> actually drives the cost (MATCH selectivity, not store size: the average
+> judged query hits 53% of the 10k store because every extracted term is
+> OR-ed, and `"the"` alone matches 49.8%).
 >
 > Evidence for the wired-in series is `retsuite-20260805T041805Z`, run at the
 > full locked protocol (5 reps x 1000 measured, pooled n=5000) on the **10k
