@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "check-wheel-install.sh"
+SCRIPT = Path(__file__).resolve().parents[2] / "installer" / "linux" / "check-wheel-install.sh"
 
 
 @pytest.mark.slow

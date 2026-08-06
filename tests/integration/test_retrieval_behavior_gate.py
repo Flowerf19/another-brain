@@ -32,7 +32,7 @@ pytestmark = pytest.mark.slow
 
 ROOT = Path(__file__).resolve().parents[2]
 CORPUS = json.loads(
-    (ROOT / "spikes" / "fp32" / "corpus" / "embedding-quality-v1.json")
+    (ROOT / "tests" / "fixtures" / "embedding-quality-v1.json")
     .read_text(encoding="utf-8")
 )
 NOW_MS = CORPUS["now_ms"]

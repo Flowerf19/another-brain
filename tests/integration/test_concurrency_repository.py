@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-SCRIPT = Path(__file__).resolve().parents[2] / "benchmarks" / "concurrency" / "run_repository.py"
+SCRIPT = Path(__file__).resolve().parent / "concurrency" / "run_repository.py"
 
 
 @pytest.mark.slow

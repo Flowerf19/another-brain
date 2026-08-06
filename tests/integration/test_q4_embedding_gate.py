@@ -26,7 +26,7 @@ from another_brain.services.embedding.model_installer import is_installed, profi
 pytestmark = pytest.mark.slow
 
 ROOT = Path(__file__).resolve().parents[2]
-CORPUS = ROOT / "spikes" / "fp32" / "corpus" / "embedding-quality-v1.json"
+CORPUS = ROOT / "tests" / "fixtures" / "embedding-quality-v1.json"
 N_SEMANTIC_DOCS = 600
 TOP_K_RECALL = 5
 NDCG_K = 10

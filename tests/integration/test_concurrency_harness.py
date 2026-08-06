@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-SCRIPT = Path(__file__).resolve().parents[2] / "benchmarks" / "concurrency" / "run_harness.py"
+SCRIPT = Path(__file__).resolve().parent / "concurrency" / "run_harness.py"
 
 
 @pytest.mark.slow
