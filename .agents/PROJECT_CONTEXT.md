@@ -24,7 +24,7 @@ Redis/Docker/Torch code, tests, config, or docs remain, and
 
 - target: `.agents/plans/another-brain-architecture.md`;
 - execution: `.agents/plans/07-multiplatform-embedded-runtime.md` (master) plus
-  per-phase sub-plans under `.agents/plans/07/`;
+  per-phase sub-plans under `.agents/plans/07/` (done phases 01–09 archived to `.agents/plans/archive/07/`);
 - public README/deployment docs describe the clean target runtime (rewritten
   in TASK-077); the install contract is `uv tool install another-brain`.
 

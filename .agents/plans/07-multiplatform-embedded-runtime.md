@@ -436,15 +436,15 @@ document.
 
 | # | File | Covers | Gate to start |
 |---|------|--------|---------------|
-| 07.01 | `07/01-contracts-and-oracle.md` | GOAL-008 | — |
-| 07.02 | `07/02-package-shell.md` | GOAL-009 | 07.01 |
-| 07.03 | `07/03-clean-slate-deletion.md` | GOAL-015 | 07.02 |
-| 07.04 | `07/04-evidence-harnesses.md` | GOAL-001, GOAL-002 (TASK-005..007) | 07.03 |
-| 07.05 | `07/05-embedding-subsystem.md` | GOAL-005, GOAL-010 | 07.03 (evidence from 07.04 before TASK-019) |
-| 07.06 | `07/06-sqlite-storage.md` | GOAL-011 | 07.03 |
-| 07.07 | `07/07-retrieval.md` | GOAL-012, TASK-008 | 07.06 |
-| 07.08 | `07/08-service-and-mcp.md` | GOAL-013 | 07.05, 07.07 |
-| 07.09 | `07/09-import-and-cutover.md` | GOAL-014 | 07.08 + validated external artifact |
+| 07.01 | `archive/07/01-contracts-and-oracle.md` ✅ | GOAL-008 | — |
+| 07.02 | `archive/07/02-package-shell.md` ✅ | GOAL-009 | 07.01 |
+| 07.03 | `archive/07/03-clean-slate-deletion.md` ✅ | GOAL-015 | 07.02 |
+| 07.04 | `archive/07/04-evidence-harnesses.md` ✅ | GOAL-001, GOAL-002 (TASK-005..007) | 07.03 |
+| 07.05 | `archive/07/05-embedding-subsystem.md` ✅ | GOAL-005, GOAL-010 | 07.03 (evidence from 07.04 before TASK-019) |
+| 07.06 | `archive/07/06-sqlite-storage.md` ✅ | GOAL-011 | 07.03 |
+| 07.07 | `archive/07/07-retrieval.md` ✅ | GOAL-012, TASK-008 | 07.06 |
+| 07.08 | `archive/07/08-service-and-mcp.md` ✅ | GOAL-013 | 07.05, 07.07 |
+| 07.09 | `archive/07/09-import-and-cutover.md` ✅ | GOAL-014 | 07.08 + validated external artifact |
 | 07.10 | `07/10-release-gate.md` | GOAL-016 | all prior |
 
 ### Execution order
