@@ -100,6 +100,19 @@ the safe end and is deliberately not implemented (contract change +
 size-dependent behavior trap). Resolution folded into TASK-089: document,
 don't budget.
 
+## Windows install path evidence (verified 2026-08-06, for TASK-088 docs)
+
+uv installer -> `%USERPROFILE%\.local\bin\uv.exe` (PATH auto, new shell;
+`uv tool update-shell` if missing). `uv tool install another-brain`:
+exe shim **copied** to `%USERPROFILE%\.local\bin\another-brain.exe`
+(Windows copies, Unix symlinks); tool venv at `%APPDATA%\uv\tools\`
+(Roaming — astral-sh/uv#7008 requesting Local is still open; harmless for
+single-user machines). Product paths via platformdirs: DB at
+`%LOCALAPPDATA%\another-brain\brain.sqlite3`, model at
+`%LOCALAPPDATA%\another-brain\Cache\models\<profile>\` — Local, so the
+206 MB model never roams. Same `BRAIN_DATA_DIR`/`BRAIN_MODEL_CACHE_DIR`
+overrides as every OS.
+
 ## Test Plan
 
 - `wheel-gate` workflow green on all four OS images × three Pythons,
