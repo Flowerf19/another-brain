@@ -46,7 +46,7 @@ Do not preserve Redis in this branch merely for comparison.
 
 ## Retrieval evidence (TASK-063/008, accepted 2026-08-05)
 
-The judged suite (`benchmarks/retrieval/run_suite.py`) ran on all four
+The judged suite (harness retired; evidence consolidated in `benchmark.md` §2) ran on all four
 stores and TASK-063/031/008 are ticked. Two results diverged from the letter
 of the plan; both were traced to the fixture rather than to ranking code and
 both are now approved revisions recorded in `.agents/plans/07/07-retrieval.md`:
@@ -187,8 +187,7 @@ vector database, ANN sidecar, or storage backend selector.
   query prompt + hash, document template, input version 2, dims 640, unit_l2);
   installer/provider/schema consume it. (The fp32/q4 spike and benchmark
   harnesses were retired to git history once the permanent gates moved into
-  `tests/`; their evidence reports stay in `spikes/fp32/reports/` and
-  `benchmarks/reports/`.)
+  `tests/`; their evidence is consolidated in the root `benchmark.md`.)
 
 ### Retrieval
 
