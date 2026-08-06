@@ -33,9 +33,14 @@ dev = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["another_brain"]
+# Bundle the skill inside the wheel (TASK-093): `another-brain connect` installs
+# the skill from importlib.resources, so no repo clone or Node/npx is needed.
+# skills/another-brain/ stays the single editable source; this is a force-include
+# only — nothing is copied into the source tree.
+force-include = { "skills/another-brain" = "another_brain/skill" }
 
 [tool.hatch.build.targets.sdist]
-include = ["another_brain"]
+include = ["another_brain", "skills/another-brain"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

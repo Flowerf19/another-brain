@@ -96,6 +96,19 @@ def _build_parser() -> argparse.ArgumentParser:
     hard = admin_sub.add_parser("hard-delete", help="permanently remove a memory")
     hard.add_argument("memory_id")
 
+    connect = sub.add_parser(
+        "connect",
+        help="register the MCP server + install the skill for agent harnesses",
+    )
+    connect.add_argument(
+        "--detect",
+        action="store_true",
+        help="print detected harness names only; nothing is written",
+    )
+    connect.add_argument(
+        "harness", nargs="*", help="harness names to connect (default: list all)"
+    )
+
     imp = sub.add_parser("import-jsonl", help="import a another-brain-jsonl v1 artifact")
     imp.add_argument("path", help="path to the JSONL export artifact")
     return parser
@@ -152,6 +165,8 @@ def _dispatch(args: argparse.Namespace, config: AppConfig) -> int:
             return _cmd_admin_restore(args, config)
         if args.admin_command == "hard-delete":
             return _cmd_admin_hard_delete(args, config)
+    if args.command == "connect":
+        return _cmd_connect(args, config)
     if args.command == "import-jsonl":
         return _cmd_import_jsonl(args, config)
     return EXIT_USAGE
@@ -351,6 +366,65 @@ def _recent_line(record: "MemoryRecord") -> str:
         f"[{record.catalog}]  importance={record.importance}  "
         f"{record.topic}: {summary}"
     )
+
+
+def _cmd_connect(args: argparse.Namespace, config: AppConfig) -> int:
+    """Set up MCP + skill for agent harnesses, cross-platform (TASK-093).
+
+    - ``connect --detect`` prints detected harness names only.
+    - ``connect`` with no names lists known + detected harnesses.
+    - ``connect <name>...`` registers the MCP server (stdio) and installs
+      the skill for each harness, one line per step.
+
+    Works with no model installed and no database — this command never
+    touches the MCP stdio surface, the store, or the embedding model, like
+    ``recent``.
+
+    Exit codes: ``EXIT_ERROR`` on an unknown harness or any per-harness
+    failure; all failures are reported before returning.
+    """
+    from another_brain.services.harness_connect import (
+        UnknownHarnessError,
+        connect,
+        detect_harnesses,
+        known_harnesses,
+    )
+
+    if args.detect:
+        detected = detect_harnesses()
+        if not detected:
+            print("no harnesses detected")
+        for name in detected:
+            print(name)
+        return EXIT_OK
+
+    if not args.harness:
+        known = known_harnesses()
+        detected = detect_harnesses()
+        print(f"Known harnesses: {' '.join(known)}")
+        print(f"Detected here:   {' '.join(detected) if detected else 'none'}")
+        print(f"Usage: connect [{'|'.join(known)}]...")
+        return EXIT_OK
+
+    try:
+        results = connect(list(args.harness))
+    except UnknownHarnessError as exc:
+        _err(str(exc))
+        return EXIT_ERROR
+    except RuntimeError as exc:  # a harness CLI failed — typed, never a traceback
+        _err(str(exc))
+        return EXIT_ERROR
+
+    status = EXIT_OK
+    for result in results:
+        for message in result.messages:
+            if result.registered == "manual":
+                _err(message)  # manual-instruction lines go to stderr
+            else:
+                print(message)
+        if result.registered == "manual":
+            status = EXIT_ERROR
+    return status
 
 
 def _cmd_admin_restore(args: argparse.Namespace, config: AppConfig) -> int:
