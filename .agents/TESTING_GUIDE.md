@@ -27,7 +27,7 @@ uv run pytest -m "not slow"     # fast suite (unit + integration)
 uv run pytest                   # everything, incl. slow gates
 uv run pytest tests/unit
 scripts/check-clean-tree.sh     # dep graph + zero-reference gate
-scripts/check-wheel-install.sh  # clean wheel install gate
+installer/linux/check-wheel-install.sh  # clean wheel install gate (macOS wrapper + Windows .ps1 alongside)
 uv build --no-sources
 ```
 
