@@ -1,16 +1,17 @@
 #!/bin/sh
 # Another Brain harness connector.
 #
-#   scripts/connect.sh claude-code codex        # connect specific harnesses
-#   scripts/connect.sh detect                   # print detected harnesses
-#   scripts/connect.sh                          # list known + detected harnesses
+#   installer/linux/connect.sh claude-code codex   # connect specific harnesses
+#   installer/linux/connect.sh detect              # print detected harnesses
+#   installer/linux/connect.sh                     # list known + detected harnesses
+#   (macOS: installer/macos/connect.sh — same script)
 #
 # For each chosen harness this does the full setup, idempotently:
 #   1. registers the Another Brain MCP server (Streamable HTTP) in the
 #      harness's own MCP config — via its native CLI when it has one
 #   2. installs the another-brain skill for that harness
 #
-# Per-harness logic lives in scripts/harnesses/<name>.sh — one file per
+# Per-harness logic lives in installer/linux/harnesses/<name>.sh — one file per
 # harness, sourced by this script. To support a new harness, add one file
 # there defining three functions (the helpers below are available to it):
 #
@@ -77,7 +78,7 @@ register() {
 # Skill install: prefer the `skills` CLI via npx, but it needs Node >= 22
 # (its CLI uses top-level await). Otherwise fall back to copying the skill
 # directory out of this repo — the skill is plain files, same end result.
-SKILL_SRC="$SCRIPT_DIR/../skills/another-brain"
+SKILL_SRC="$SCRIPT_DIR/../../skills/another-brain"
 node_major=0
 if have node; then
     node_major=$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)
