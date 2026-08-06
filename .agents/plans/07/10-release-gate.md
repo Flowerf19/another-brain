@@ -1,7 +1,7 @@
 ---
 status: draft
 created: 2026-08-04
-last_updated: 2026-08-04
+last_updated: 2026-08-06
 parent: .agents/plans/07-multiplatform-embedded-runtime.md
 covers: GOAL-016
 ---
@@ -10,75 +10,100 @@ covers: GOAL-016
 
 ## Summary
 
-Final release gate: CI matrix, doctor, harness connectors, resource evidence on
-the checksummed reference machine, documentation refresh, and a full release
-rehearsal from an empty user profile. Success criteria 1–11 in the master plan
-are the exit checklist.
+Final release gate. Restructured 2026-08-06 around the measured dependency
+wheel matrix (evidence below) and the new per-OS `installer/` layout. Success
+criteria 1–11 in the master plan are the exit checklist.
 
-## Tasks
+## Compatibility evidence (measured 2026-08-06, PyPI file matrices)
+
+The platform story is bounded by the native dependencies, not by our code —
+the package ships a pure `py3-none-any` wheel; all platform risk lives in
+four wheels:
+
+| dependency | pinned | wheel coverage | consequence |
+|---|---|---|---|
+| onnxruntime | 1.28.0 | linux x86_64/aarch64 (glibc≥2.27), **macOS 14+ arm64 only**, win_amd64, win_arm64 | **the hard constraint** |
+| sqlite-vec | 0.1.9 | macOS 10.6 x86_64 / 11 arm64, manylinux x86_64/aarch64, win_amd64, musl x86_64/aarch64 (sdist exists) | no win_arm64 wheel → NumPy fallback there |
+| tokenizers | 0.23.1 | universal incl. musl, win32, win_arm64 | never a blocker |
+| numpy | 2.x | universal incl. musl, win32, win_arm64, macOS Intel | never a blocker |
+
+Resulting support tiers:
+
+- **Supported (CI-gated):** Ubuntu 22.04/24.04 x86_64, macOS 14+ Apple
+  Silicon, Windows 10/11 x86_64 — Python 3.12–3.14.
+- **Best-effort (wheels resolve, no CI hardware):** Linux aarch64, Windows
+  ARM64 (sqlite-vec absent → NumPy fallback path must work there), musl
+  systems where onnxruntime is absent → **unsupported, reported** (see
+  below), Linux ARMv7/ppc64le/s390x (tokenizers has wheels, onnxruntime
+  does not) → unsupported.
+- **Unsupported, reported explicitly (never a silent source build):**
+  macOS Intel (onnxruntime ≥1.28 ships no x86_64 macOS wheel — uv
+  resolution fails fast; release notes + doctor must say so), Alpine/musl
+  (no onnxruntime musl wheel), 32-bit Windows.
+
+Local code audit: no `os.symlink`, no `/proc` reads, no signal/fcntl usage
+in product code; platformdirs resolves all user paths; `os.replace` for
+atomic installs; `enable_load_extension`/`load_extension` guarded per
+connection. No platform-specific product code exists today — every gap
+above is dependency-driven.
+
+## Phases
+
+### Phase A — local, automatable (no GitHub needed)
 
 | ID | Task | Done | Date |
 |----|------|------|------|
-| TASK-083 | CI wheel/build/install/E2E matrix: Windows x86_64, macOS 14+ ARM64, Ubuntu 22.04/24.04 x86_64, Python 3.12–3.14; forced NumPy fallback; wildcard/hostname/LAN HTTP-bind rejection on every OS family; IPv6 `::1` positive where supported. | | |
-| TASK-084 | Linux ARM64 / Windows ARM64 best-effort wheel-resolution/fallback; report unsupported macOS Intel and musl explicitly instead of silent source builds. | | |
-| TASK-085 | `another-brain doctor`: package/model hashes, tokenizer/profile, SQLite bootstrap/readonly invariants, schema/integrity/FTS/extension-or-fallback, isolated write/search/delete probe, paths, actionable per-item results. | | |
-| TASK-086 | Update harness connectors to invoke installed `another-brain`; add Windows-capable examples; remove Docker/Redis/uvx assumptions. | | |
-| TASK-087 | Measure clean/model disk (≤450 MiB), cold/warm latency (≤128-token warm p95 ≤100 ms), one-/two-process memory (≤500 MiB steady RSS), SQLite retrieval p95 at 10k/50k/100k (≤25/75/150 ms), startup; emit evidence manifest + raw samples; enforce budgets or record an approved revision. | | |
-> Raised from TASK-006 (2026-08-05): **SC-9 budgets the vector branch only,
-> but the lexical branch is the slower one** — 71.68 ms p95 at 100k versus
-> 13.53 ms for sqlite-vec, and it dominates the 116.92 ms hybrid p95. The
-> `lexical_branch` series now ships in every retrieval-suite manifest, so the
-> data is there; decide here whether BM25 earns a locked budget.
->
-> **What actually drives that cost — corrected 2026-08-05.** Not the store
-> size, and not (as first written here) the rows surviving the scope/live
-> filter: it is **how many rows the MATCH itself hits**, which collapses
-> because `build_match_query` ORs every extracted term including stopwords.
-> Measured on the 10k store: a 63-term judged query matches 5857 rows (58.6%)
-> and the average judged query matches 53.1%, because the single term `"the"`
-> matches 4977 rows (49.8%) on its own. `bm25()` is then scored for every one
-> of those before `LIMIT 50`. So the driver is term selectivity, and a
-> threshold expressed against store size or candidates-per-scope would be
-> measuring the wrong axis.
->
-> A frequency filter is possible without any hand-maintained stopword map —
-> `fts5vocab(main, memory_fts, row)` yields per-term document frequency
-> straight from the index and adapts to the corpus. That matters here: the
-> most frequent terms in the judged store include `kiem`, `tra`, `qua`,
-> `ket`, `lai`, so an English stopword list would miss them entirely.
-> Measured on 10k, dropping terms above a document-frequency threshold:
->
-> | threshold | Recall@5 | lexical p50 | lexical p95 |
-> |---|---|---|---|
-> | none | 0.9700 | 4.92 ms | 8.78 ms |
-> | < 0.3 | 0.9750 | 4.31 ms | 7.16 ms |
-> | < 0.2 | 0.9700 | 3.72 ms | 6.89 ms |
-> | < 0.1 | 0.9667 | 3.22 ms | 6.13 ms |
-> | < 0.05 | 0.9583 | 2.00 ms | 4.80 ms |
->
-> **Not implemented, deliberately.** The safe end of that curve buys ~18% and
-> BM25 already down-weights common terms, so the ranking barely moves. Against
-> that: it is a TASK-056 contract change with a behavior gate attached, it adds
-> a vocab lookup per query whose cost is unmeasured, and the threshold is
-> data-dependent — tuned on this synthetic mixed-language store it could drop
-> meaningful terms in a real mostly-Vietnamese corpus. Worse, because the
-> filter shifts as the index grows, the same query could return different
-> results at different corpus sizes: the same size-dependent-behavior trap
-> already rejected for the vector branch. Decide here, on real deployment
-> data, not on this fixture.
-| TASK-088 | Update root README, `docs/architecture.md`, deployment/MCP/trust docs, skill guidance, `.agents/TESTING_GUIDE.md`, `.agents/PROJECT_CONTEXT.md` from real final commands and paths. | | |
-| TASK-089 | Release rehearsal from an empty profile with only `uv`: install tool, configure one harness, first model install, remember/search/get/reinforce/forget, restart, doctor, uninstall; verify no daemon/container/server prerequisite. | | |
-| TASK-090 | Set plan status `done` only after: clean tree/full CI, validated migration artifact, Q4/retrieval/concurrency evidence manifests, artifact hashes, resource report, docs gate. | | |
+| TASK-083 | `installer/` per-OS wheel gates: `linux/check-wheel-install.sh` (moved from scripts/, REPO_ROOT fixed two levels up), `macos/check-wheel-install.sh` (wrapper sharing the Linux source), `win/check-wheel-install.ps1` (PowerShell port; **untested until CI** — first real run is TASK-086). Clean-tree gate scans `installer/`. | ✅ | 2026-08-06 |
+| TASK-084 | `another-brain doctor`: package/model hashes, tokenizer/profile, SQLite bootstrap/readonly invariants, schema/integrity/FTS/extension-or-fallback, isolated write/search/delete probe, resolved platformdirs paths, actionable per-item results. Includes an explicit OS-support verdict line (supported / best-effort / unsupported + reason, from the matrix above). Unblocks the TASK-075 rehearsal-gate reference. | | |
+| TASK-085 | Forced-NumPy-fallback E2E switch: an env/CLI mechanism to disable sqlite-vec loading so CI and users can exercise the fallback path honestly (today only unit tests cover it via monkeypatch); wire into the wheel gates as a second pass. | | |
+
+### Phase B — CI matrix (needs GitHub runners)
+
+| ID | Task | Done | Date |
+|----|------|------|------|
+| TASK-086 | New `wheel-gate` workflow: matrix { ubuntu-22.04, ubuntu-24.04, macos-14, windows-2022 } × { Python 3.12, 3.13, 3.14 } running `installer/<os>/` gate + unit tests + clean-tree gate; plus one forced-fallback pass per OS (TASK-085). First execution of the Windows `.ps1` — budget iterations for pwsh semantics (native exit codes, path separators, `%LOCALAPPDATA%` resolution). | | |
+| TASK-087 | ARM64 best-effort: attempt wheel resolution on linux-aarch64 / windows-arm64 runners if available to the repo at no cost; otherwise document as resolve-verified-only (PyPI matrix above) and move on. No paid runner time without maintainer sign-off. | | |
+
+### Phase C — release
+
+| ID | Task | Done | Date |
+|----|------|------|------|
+| TASK-088 | Harness connectors: `scripts/connect.sh` is POSIX-only. Windows story = document the harness MCP config JSON (identical content on every OS) with Windows paths in the docs, not a .ps1 port, unless a harness proves to need CLI registration on Windows. Remove any Docker/Redis/uvx assumptions; keep `another-brain` (installed exe) as the only invocation. | | |
+| TASK-089 | Resource evidence for release notes: **accept `benchmark.md` as the evidence of record** (reference machine is checksummed; retrieval code untouched since those runs) — unless any retrieval/embedding diff lands before release, in which case restore the retired harness from git history and re-run. Release notes state: supported matrix + tiers, per-process ~322 MiB RSS model budget, NumPy-fallback p95 openly. Decide the parked lexical-branch budget question (see note below) as "no locked budget, documented behavior" unless new data appears. | | |
+| TASK-090 | Release rehearsal from an empty profile with only `uv`: install tool, `model pull`, connect one harness, remember/search/get/reinforce/forget, restart, `doctor`, uninstall; verify no daemon/container/server prerequisite. Recorded as release evidence. Then: version `0.11.0` + CHANGELOG + tag; `uv publish` only on maintainer signal; set plan status `done`. | | |
+
+## Open decisions (maintainer call before Phase B)
+
+1. **Python floor:** matrix tests 3.12–3.14 but `requires-python = ">=3.11"`.
+   Either add 3.11 to the matrix or bump the floor to 3.12. Recommendation:
+   bump to 3.12 (one-line pyproject change; 3.11 adds a CI axis for zero
+   known users).
+2. **ARM64 CI:** GitHub ARM runners are free for public repos only. This
+   repo is private → best-effort without CI unless you approve the cost.
+3. **TASK-089 evidence:** confirm `benchmark.md` is sufficient as the
+   release resource record (recommendation: yes).
+
+## Parked from the old TASK-087 note (lexical-branch budget)
+
+BM25 p95 at 100k is 71.68 ms vs 13.53 ms for the vector branch; driver is
+MATCH-term selectivity, not store size (a 63-term query matches 58.6% of the
+10k store; `"the"` alone 49.8%). Document-frequency filtering buys ~18% at
+the safe end and is deliberately not implemented (contract change +
+size-dependent behavior trap). Resolution folded into TASK-089: document,
+don't budget.
 
 ## Test Plan
 
-- CI matrix green on all required platforms; fallback mode covered everywhere.
-- Evidence manifests validate and match the checksummed reference machine for
-  performance numbers.
-- Rehearsal script is repeatable and recorded as release evidence.
+- `wheel-gate` workflow green on all four OS images × three Pythons,
+  including a forced-fallback pass each.
+- Windows `.ps1` gate proven on a real runner (TASK-086) — until then it is
+  unverified code.
+- Rehearsal script repeatable and recorded as release evidence.
 
 ## Assumptions
 
-- Budgets change only through an approved plan revision backed by a failed-run
-  manifest.
-- `done` requires every prior sub-plan's gate, not just this one's tasks.
+- onnxruntime's platform matrix is the binding constraint; if a future
+  onnxruntime release restores macOS Intel or musl wheels, the unsupported
+  tier can be revisited without product changes.
+- No product code change is expected for platform support — every gap is
+  dependency-wheel availability plus CI proof.

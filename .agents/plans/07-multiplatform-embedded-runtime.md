@@ -887,14 +887,14 @@ comparison remains available from the external `main` worktree.
 
 | ID | Task | Done | Date |
 |----|------|------|------|
-| TASK-083 | Add CI wheel/build/install/E2E matrix for Windows x86_64, macOS 14+ ARM64, and Ubuntu 22.04/24.04 x86_64 on Python 3.12–3.14; test forced NumPy fallback and reject wildcard/hostname/LAN HTTP binds on every OS family, with IPv6 `::1` positive where supported. | | |
-| TASK-084 | Verify Linux ARM64 and Windows ARM64 as best-effort wheel-resolution/fallback targets; report unsupported macOS Intel and musl explicitly instead of source-building silently. | | |
-| TASK-085 | Implement `another-brain doctor`: package/model hashes, tokenizer/profile, SQLite bootstrap/readonly invariants, schema/integrity/FTS/extension or fallback, isolated write/search/delete probe, paths, and actionable per-item results. | | |
-| TASK-086 | Update harness connectors to invoke installed `another-brain`; add Windows-capable examples and remove Docker/Redis/uvx assumptions. | | |
-| TASK-087 | Measure clean/model disk, cold/warm latency, one-/two-process memory, SQLite size/retrieval at 10k/50k/100k, and startup; emit the reproducible evidence manifest/raw samples and enforce budgets or record an approved revision. | | |
-| TASK-088 | Update root README, `docs/architecture.md`, deployment/MCP/trust docs, skill guidance, `.agents/TESTING_GUIDE.md`, and `.agents/PROJECT_CONTEXT.md` from real final commands and paths. | | |
-| TASK-089 | Final release rehearsal from an empty user profile with only `uv`: install tool, configure one harness, first model install, remember/search/get/reinforce/forget, restart, doctor, uninstall, and verify no daemon/container/server prerequisite. | | |
-| TASK-090 | Set status `done` only after clean tree/full CI, validated migration artifact, Q4/retrieval/concurrency evidence manifests, artifact hashes, resource report, and documentation gate are complete. | | |
+| TASK-083 | Per-OS `installer/` wheel gates: `linux/check-wheel-install.sh` (moved from scripts/), `macos/` wrapper, `win/check-wheel-install.ps1` (PowerShell port, unverified until CI); clean-tree gate scans `installer/`. Detail in 07.10. | | |
+| TASK-084 | Implement `another-brain doctor`: package/model hashes, tokenizer/profile, SQLite bootstrap/readonly invariants, schema/integrity/FTS/extension or fallback, isolated write/search/delete probe, paths, actionable per-item results, plus an explicit OS-support verdict line from the measured wheel matrix. | | |
+| TASK-085 | Forced-NumPy-fallback E2E switch (env/CLI) so CI and users can exercise the non-sqlite-vec path honestly; wired into the wheel gates as a second pass. | | |
+| TASK-086 | CI `wheel-gate` matrix { ubuntu-22.04, ubuntu-24.04, macos-14, windows-2022 } × Python 3.12–3.14 running `installer/<os>/` gates + unit tests + clean-tree + one forced-fallback pass per OS; first real execution of the Windows `.ps1`. | | |
+| TASK-087 | ARM64 best-effort: linux-aarch64 / windows-arm64 runners only where free for this private repo; otherwise resolve-verified-only per the measured PyPI wheel matrix; unsupported tiers (macOS Intel, musl, 32-bit) reported explicitly, never silent source builds. | | |
+| TASK-088 | Harness connectors: Windows story via documented harness MCP config JSON (same content every OS); remove Docker/Redis/uvx assumptions; installed `another-brain` exe is the only invocation. | | |
+| TASK-089 | Release notes + resource evidence: accept `benchmark.md` as the evidence of record (checksummed reference machine; retrieval code untouched since those runs); supported-matrix wording, fallback p95 stated openly; the parked lexical-branch budget resolves as documented-not-budgeted unless new data appears. | | |
+| TASK-090 | Release rehearsal from an empty profile with only `uv` (install, model pull, connect one harness, remember/search/get/reinforce/forget, restart, doctor, uninstall, no daemon/container), then version `0.11.0` + CHANGELOG + tag; `uv publish` only on maintainer signal; then set plan status `done`. | | |
 
 ## Test Plan
 
