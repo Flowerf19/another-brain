@@ -28,7 +28,9 @@ echo "== another-brain --help =="
 "$BIN" --help >/dev/null || { echo "FAIL: --help exit non-zero"; exit 1; }
 
 echo "== import provenance (wheel, not checkout) =="
-"$WORK/venv/bin/python" - "$REPO_ROOT" <<'PY'
+# Run from $WORK, not the repo root: with the flat layout the checkout's
+# another_brain/ would shadow the installed wheel via sys.path[0] == CWD.
+(cd "$WORK" && "$WORK/venv/bin/python" - "$REPO_ROOT") <<'PY'
 import pathlib
 import sys
 

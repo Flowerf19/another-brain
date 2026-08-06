@@ -29,10 +29,10 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/another_brain"]
+packages = ["another_brain"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/another_brain"]
+include = ["another_brain"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

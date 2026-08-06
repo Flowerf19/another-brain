@@ -91,7 +91,7 @@ its content.
 
 - [x] Warning on hook output — implemented at the injection point (the hook
   command in `~/.claude/settings.json` prepends an "unverified claims"
-  line), deliberately NOT in the CLI: `python src/main.py recent` is a
+  line), deliberately NOT in the CLI: `another-brain recent` is a
   neutral, general-purpose output and must stay usable by other consumers.
 - [x] Reader-stance text in `skills/another-brain/SKILL.md` — "claims, not
   facts; code wins; forget-on-conflict" section added.

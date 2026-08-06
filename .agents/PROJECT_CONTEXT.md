@@ -13,13 +13,14 @@ parameters), and retrieval (GOAL-012 TASK-056..063 plus the GOAL-002
 oracle comparison TASK-031/008: safe FTS5 query builder, weighted BM25
 lexical, exact cosine vector with sqlite-vec + NumPy fallback, pure RRF,
 hybrid orchestrator, and the judged 1k/10k/50k/100k evidence suite).
-`model pull` / `model status` are real commands and the MCP server
-(GOAL-013 TASK-064..067) now serves over stdio and opt-in loopback HTTP;
-JSONL import (GOAL-014) and the release gate (GOAL-016) are
-still pending — their CLI commands exit with
-typed not-yet-available errors pointing at their GOAL. The tree contains only the
-final `src/another_brain/` package — no Redis/Docker/Torch code, tests,
-config, or docs remain, and `scripts/check-clean-tree.sh` keeps it that way.
+`model pull` / `model status` / `recent` / `admin restore|hard-delete` /
+`import-jsonl` are real commands and the MCP server (GOAL-013/014) serves
+over stdio and opt-in loopback HTTP; only `doctor` (GOAL-016) still exits
+with a typed not-yet-available error. The tree contains only the final
+`another_brain/` package at the repo root (flat layout since 2026-08-06 —
+imports unchanged, the hatch targets in `pyproject.toml` point at it) — no
+Redis/Docker/Torch code, tests, config, or docs remain, and
+`scripts/check-clean-tree.sh` keeps it that way.
 
 - target: `.agents/plans/another-brain-architecture.md`;
 - execution: `.agents/plans/07-multiplatform-embedded-runtime.md` (master) plus
@@ -182,7 +183,7 @@ vector database, ANN sidecar, or storage backend selector.
 - q4 ONNX-community revision:
   `d59c919d0159aea2c19ed7d04288fcdd048d0f9c`.
 - TASK-042 (2026-08-04): the q4 profile is encoded once in
-  `src/another_brain/services/embedding/model_manifest.py` (repo, revision, five file hashes, byte-exact
+  `another_brain/services/embedding/model_manifest.py` (repo, revision, five file hashes, byte-exact
   query prompt + hash, document template, input version 2, dims 640, unit_l2);
   installer/provider/schema consume it. The spike `fetch_models.py` imports its q4
   constants from the manifest so evidence and installer cannot drift.
@@ -208,10 +209,10 @@ vector database, ANN sidecar, or storage backend selector.
 
 ## Target package
 
-Landed layout (`mcp/` lands with the rest of GOAL-013):
+Landed layout (flat, at the repo root):
 
 ```text
-src/another_brain/
+another_brain/
   cli.py config.py protocols.py errors.py
   domain/models.py          record types + locked validation
   domain/retention.py       importance -> durable expiry (no storage dep)
