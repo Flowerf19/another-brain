@@ -51,7 +51,7 @@ echo "== TASK-081: zero Redis/Docker/Torch references in the clean tree =="
 PATTERN='redis|docker|torch|sentence[_-]transformers|fastmcp|compose'
 # Allowed: explicit negations of legacy families, and the import-guard tuples
 # in tests that assert those modules never load at startup.
-ALLOW='no Docker, container|Docker and Redis are not part|no Torch|never imports? Redis/Torch/ST|.redis., .torch., .sentence_transformers.'
+ALLOW='no Docker, container|Docker and Redis are not part|Redis and Docker are gone|no Torch|never imports? Redis/Torch/ST|.redis., .torch., .sentence_transformers.'
 HITS="$(grep -rEni "$PATTERN" \
     another_brain/ tests/ scripts/ installer/ docs/ skills/ README.md pyproject.toml .github/ 2>/dev/null \
     | grep -v __pycache__ \

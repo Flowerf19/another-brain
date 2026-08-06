@@ -1,58 +1,118 @@
 # Another Brain
 
-Shared long-term memory for MCP agents — one brain, many agents. A standalone,
-fully embedded MCP tool: no server, container, or daemon required.
+Long-term memory your AI coding agents actually share. One brain, many agents:
+what Claude Code learns on Monday, Codex can recall on Friday.
 
-> **Status:** branch `v0.11.0` is an approved clean rebuild in progress.
-> Landed: the flat `another_brain/` package at the repo root (schema v1,
-> migrations, repository, durable TTL, lifecycle, audit), the Harrier q4
-> ONNX embedding provider, hybrid retrieval (FTS5 BM25 + exact cosine +
-> RRF), the eight `brain_*` MCP tools over stdio and opt-in loopback HTTP,
-> JSONL v1 import (GOAL-014), and the `doctor` diagnostic (GOAL-016).
-> Authoritative design: `.agents/plans/another-brain-architecture.md`;
-> execution record: `.agents/plans/07-multiplatform-embedded-runtime.md`;
-> completed sub-plans are archived under `.agents/plans/archive/07/`.
-
-## Target runtime
-
-- ordinary SQLite tables + FTS5 (BM25 5:3:1) + exact cosine vectors
-  (`sqlite-vec`, NumPy fallback) fused with RRF — one `brain.sqlite3` file in
-  the per-user data directory;
-- local Harrier OSS v1 270M q4 embeddings via raw ONNX Runtime CPU — no Torch,
-  no network after the one-time pinned model install;
-- MCP stdio by default, optional numeric-loopback HTTP;
-- durable TTL diary: importance 5..1 → 365/180/90/30/7 days, soft delete with
-  30-day grace, structural audit without memory text.
+It runs as a single installed executable — no server to start, no container,
+no database to administer, and nothing leaves your machine. Memories live in
+one SQLite file in your user directory; embeddings are computed locally on
+CPU.
 
 ## Install
 
+The one prerequisite is [uv](https://docs.astral.sh/uv/) — no daemon, no
+root, no container runtime:
+
 ```bash
-uv tool install another-brain
-another-brain model pull          # one-time pinned + hash-verified model download
-another-brain connect claude-code # register the MCP server + install the skill
-another-brain                     # MCP stdio server (the default)
-another-brain serve --http        # optional loopback HTTP on 127.0.0.1:1905
+curl -LsSf https://astral.sh/uv/install.sh | sh              # Linux / macOS
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"   # Windows
 ```
 
-`another-brain connect` is the whole harness setup, identical on Linux,
-macOS, and Windows: it registers the stdio entry
-`{"command": "another-brain"}` in the harness's own MCP config and installs
-the bundled skill — no manual JSON, no repo clone, no Node. Run it with no
-arguments to list known and detected harnesses (`claude-code`, `codex`,
-`cursor`, `gemini-cli`, `pi`); see `docs/deployment.md` for the details.
+Then:
 
-Operational commands: `another-brain recent [--limit N]` prints the bound
-brain's newest entries (no model required); `another-brain model status`
-shows install state; `another-brain admin restore|hard-delete MEMORY_ID`
-are the admin lifecycle operations; `another-brain import-jsonl PATH`
-imports a JSONL v1 export artifact. `another-brain doctor` verifies
-install/model/database health — platform support tier, resolved paths,
-package version, per-file model hashes, a read-only real-database check
-(integrity, foreign keys, schema, journal, page size), and an isolated
-write/read/delete probe in a throwaway temp database — and exits nonzero
-when any check fails. It never loads the embedding model, never downloads
-anything, and never writes to the real database.
+```bash
+uv tool install another-brain
+another-brain model pull            # one-time ~206 MB embedding model, hash-verified
+another-brain connect claude-code   # set up your agent harness
+```
 
-Harnesses invoke the installed `another-brain` executable — that is the only
-invocation. Docker and Redis are not part of the install, runtime, or
-deployment model, and neither are Node, npx, or a checkout of this repo.
+Restart the harness and your agent has memory. `connect` writes the MCP
+server entry into the harness's own config and installs a skill that teaches
+the agent when to use it — no JSON to edit by hand, on any OS.
+
+Run `another-brain connect` with no arguments to see which harnesses are
+known and which are installed here. Supported today: `claude-code`, `codex`,
+`cursor`, `gemini-cli`, `pi`.
+
+## What your agent can do
+
+Eight tools appear in the agent's toolbox:
+
+| Tool | What it does |
+|---|---|
+| `brain_remember` | store one thing worth recalling later — a decision, a bug and its fix, a preference |
+| `brain_search` | find memories by meaning *and* keywords at once |
+| `brain_recent` | list the newest entries, or walk one day or one topic |
+| `brain_get` | fetch one memory in full |
+| `brain_reinforce` | a memory proved useful — keep it longer |
+| `brain_forget` | a memory proved wrong — drop it |
+| `brain_health` | is the brain reachable and which one is bound |
+| `brain_audit` | what changed, when, and by which agent — never the memory text |
+
+Memory here is a **diary that forgets on purpose.** Each entry gets a
+lifespan from its importance — 1 to 5 maps to 7, 30, 90, 180, or 365 days —
+and expires unless an agent reinforces it after actually using it. Nothing
+accumulates forever, and a memory that turns out to be wrong can be
+forgotten. Forgetting is soft for 30 days, so a mistake is recoverable.
+
+Search combines two independent signals: semantic similarity (so "how do we
+handle expired tokens" finds a note about refresh logic) and full-text
+keyword match (so an exact error string or file path is findable verbatim).
+
+## New in 0.11.0
+
+- Redis and Docker are gone: one executable and one SQLite file, nothing running in the background.
+- `another-brain connect` sets up any supported harness on Linux, macOS, and Windows with one command.
+- `another-brain doctor` checks your install, model hashes, and database, and tells you what to fix.
+
+## Commands
+
+| Command | Purpose |
+|---|---|
+| `another-brain` | the MCP server itself (your harness runs this; you normally don't) |
+| `another-brain connect [harness…]` | register the server + install the skill |
+| `another-brain model pull` / `model status` | download or check the embedding model |
+| `another-brain recent [--limit N]` | print the newest entries from the terminal |
+| `another-brain doctor` | full health report; exits nonzero if something is wrong |
+| `another-brain admin restore\|hard-delete ID` | undo a forget inside its grace window, or purge |
+| `another-brain import-jsonl PATH` | import a JSONL v1 export |
+| `another-brain serve --http` | optional loopback HTTP on 127.0.0.1:1905 instead of stdio |
+
+`recent`, `admin`, `connect`, and `doctor` all work without the model
+installed.
+
+## Your data
+
+Memories live in `brain.sqlite3` in your per-user data directory, and the
+model in your per-user cache directory — `another-brain doctor` prints both
+exact paths. Nothing is uploaded; after `model pull` the tool never needs the
+network again.
+
+| Variable | Effect |
+|---|---|
+| `BRAIN_DATA_DIR` | where `brain.sqlite3` lives |
+| `BRAIN_MODEL_CACHE_DIR` | where the model lives |
+| `BRAIN_ID` | which brain this process is bound to (default `default`) |
+| `TIMELINE_TIMEZONE` | IANA zone deciding the diary day (default `UTC`) |
+
+Each agent process loads its own copy of the embedding model, about 322 MiB
+of RAM once it has embedded something — worth knowing if you run several
+harnesses at once.
+
+## Platform support
+
+Gated in CI on Linux x86_64, macOS 14+ Apple Silicon, and Windows x86_64,
+with Python 3.12–3.14. Linux ARM64 and Windows ARM64 work but have no CI
+hardware. macOS Intel, macOS 13 and older, and Alpine/musl are not supported
+— the install fails clearly rather than silently building from source.
+`another-brain doctor` reports the tier for your machine. Full matrix in
+[CHANGELOG.md](CHANGELOG.md).
+
+## More
+
+- [CHANGELOG.md](CHANGELOG.md) — release notes, support matrix, measured performance
+- [docs/deployment.md](docs/deployment.md) — harness setup in detail, configuration
+- [docs/mcp-tools.md](docs/mcp-tools.md) — the tool contracts
+- [docs/memory-trust-model.md](docs/memory-trust-model.md) — how much to trust a recalled memory
+
+MIT licensed.

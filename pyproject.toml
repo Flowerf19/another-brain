@@ -7,6 +7,23 @@ name = "another-brain"
 version = "0.11.0"
 description = "Shared long-term memory for MCP agents — one brain, many agents. Standalone embedded runtime: SQLite + FTS5 + exact vector hybrid search, local Harrier q4 ONNX embeddings, self-expiring diary model. No server, container, or daemon required."
 license = "MIT"
+license-files = ["LICENSE"]
+# Without this the PyPI project page renders empty.
+readme = "README.md"
+authors = [{ name = "flowerf19" }]
+keywords = ["mcp", "memory", "agents", "sqlite", "embeddings", "rag"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Libraries",
+]
 requires-python = ">=3.12"
 # Locked ranges (Plan 07 TASK-037); exact versions resolve in uv.lock.
 dependencies = [
@@ -24,6 +41,12 @@ dependencies = [
     "tzdata>=2024.1; sys_platform == 'win32'",
     "filelock>=3.16,<4",
 ]
+
+[project.urls]
+Homepage = "https://github.com/Flowerf19/another-brain"
+Repository = "https://github.com/Flowerf19/another-brain"
+Changelog = "https://github.com/Flowerf19/another-brain/blob/main/CHANGELOG.md"
+Issues = "https://github.com/Flowerf19/another-brain/issues"
 
 [project.scripts]
 another-brain = "another_brain.cli:main"
