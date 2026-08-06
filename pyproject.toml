@@ -19,6 +19,9 @@ dependencies = [
     # whole tool is uninstallable on Windows ARM64. Runtime degrades to the
     # NumPy exact fallback there (load_vec never raises). TASK-091.
     "sqlite-vec>=0.1.9,<0.2; sys_platform != 'win32' or platform_machine != 'ARM64'",
+    # Windows has no system IANA tz database; without tzdata even
+    # ZoneInfo("UTC") raises and AppConfig exits EXIT_CONFIG. Pure-data wheel.
+    "tzdata>=2024.1; sys_platform == 'win32'",
     "filelock>=3.16,<4",
 ]
 

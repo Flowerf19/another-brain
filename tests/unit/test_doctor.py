@@ -31,6 +31,9 @@ def profile_env(tmp_path, monkeypatch):
     real user profile; the data dir exists (like a fresh install)."""
     monkeypatch.setenv("BRAIN_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setenv("BRAIN_MODEL_CACHE_DIR", str(tmp_path / "models"))
+    # Isolate from a CI forced-fallback pass: these tests assert the default
+    # vec-capable report, so the env must not leak in.
+    monkeypatch.delenv("BRAIN_DISABLE_SQLITE_VEC", raising=False)
     return tmp_path
 
 
@@ -109,6 +112,17 @@ class TestBootstrappedProfile:
         assert "sqlite-vec loaded" in out
         assert "insert/read/delete + FTS hit ok" in out
         assert "all checks passed" in out
+
+    def test_probe_warns_when_fallback_forced(
+        self, bootstrapped_profile, monkeypatch, capsys
+    ):
+        """BRAIN_DISABLE_SQLITE_VEC=1: the probe reports the NumPy fallback
+        with the env var named as the reason; a warn, not a failure."""
+        monkeypatch.setenv("BRAIN_DISABLE_SQLITE_VEC", "1")
+        assert _run_doctor() == cli.EXIT_OK
+        out = capsys.readouterr().out
+        assert _statuses(out).get("probe") == "warn"
+        assert "disabled by BRAIN_DISABLE_SQLITE_VEC" in out
 
     def test_real_db_is_not_mutated_by_doctor(self, bootstrapped_profile):
         """Read-only contract: running doctor over a real store changes

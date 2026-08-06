@@ -86,7 +86,11 @@ print(f"ok: {module}")
         Remove-Item Env:BRAIN_DATA_DIR -ErrorAction SilentlyContinue
         Remove-Item Env:BRAIN_MODEL_CACHE_DIR -ErrorAction SilentlyContinue
     }
-    if ($code -ne 3) { Fail "bare command expected exit 3, got $code" }
+    if ($code -ne 3) {
+        [Console]::Error.WriteLine("bare command expected exit 3, got $code --- captured stderr:")
+        [Console]::Error.WriteLine((Get-Content $stderrFile -Raw))
+        exit 1
+    }
     if ($stdout) { Fail "bare command polluted stdout: $stdout" }
     if (-not (Select-String -Path $stderrFile -Pattern 'model pull' -Quiet)) {
         Fail 'missing model-not-installed error on stderr'
