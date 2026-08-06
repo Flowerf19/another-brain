@@ -85,6 +85,21 @@ parity signal recorded beforehand: 8 probes median cosine 0.9806, min
 
 ## 2. Retrieval suite (TASK-063 gate, sqlite-vec vs NumPy fallback)
 
+> **Staleness note (TASK-089, 2026-08-06).** Every run in §2 and §3 predates
+> `4a4a1d8` "remove scope partition from memory contract" (2026-08-05
+> 21:17 +07; the last run, `retsuite-20260805T041805Z`, was 11:18 +07 the
+> same day). That commit removed the `m.scope`/`m.scope_id` predicates from
+> both branches AND shortened all three composite `memories` indexes by two
+> leading columns, so the **latency** figures below were measured on a
+> schema the release does not ship. Quality figures are unaffected: the
+> judged corpus occupies a single scope, so the removed predicates matched
+> every row and the candidate sets are identical. Maintainer decision
+> 2026-08-06: publish with this caveat rather than re-run; the narrower
+> index is expected to be neutral or faster but has not been re-measured.
+> `another_brain/retrieval/` and `services/embedding/` have no other diff
+> since these runs (`84acdee` is a path-only move). To re-measure, restore
+> the harness with `git checkout fddffbe^ -- benchmarks/ spikes/`.
+
 Judged corpus on the v1 SQLite schema, fused top-10 (RRF k=60), vector
 branch via sqlite-vec or NumPy fallback. Parity contract: raw |Δ| ≤ 1e-6
 passes (max 9.48e-07); exact-canonical comparison differs in 120 cases

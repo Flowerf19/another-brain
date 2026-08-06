@@ -74,25 +74,31 @@ above is dependency-driven.
 
 | ID | Task | Done | Date |
 |----|------|------|------|
-| TASK-088 | After TASK-093 lands: turn `installer/linux/connect.sh` into a thin wrapper over `another-brain connect` (or retire it), refresh harness connection docs (Windows = same `another-brain connect`, zero manual JSON), remove Docker/Redis/uvx assumptions everywhere. | | |
-| TASK-089 | Resource evidence for release notes: **accept `benchmark.md` as the evidence of record** (reference machine is checksummed; retrieval code untouched since those runs) — unless any retrieval/embedding diff lands before release, in which case restore the retired harness from git history and re-run. Release notes state: supported matrix + tiers, per-process ~322 MiB RSS model budget, NumPy-fallback p95 openly. Decide the parked lexical-branch budget question (see note below) as "no locked budget, documented behavior" unless new data appears. | | |
-| TASK-090 | Release rehearsal from an empty profile with only `uv`: install tool, `model pull`, connect one harness, remember/search/get/reinforce/forget, restart, `doctor`, uninstall; verify no daemon/container/server prerequisite. Recorded as release evidence. Then: version `0.11.0` + CHANGELOG + tag; `uv publish` only on maintainer signal; set plan status `done`. | | |
+| TASK-088 | After TASK-093 lands: turn `installer/linux/connect.sh` into a thin wrapper over `another-brain connect` (or retire it), refresh harness connection docs (Windows = same `another-brain connect`, zero manual JSON), remove Docker/Redis/uvx assumptions everywhere. **Decided 2026-08-06: retired, not wrapped** — the sh connectors registered HTTP (`serve --http` prerequisite the zero-server runtime does not have), needed a repo clone for the skill and Node ≥ 22 for `npx skills add`, and were POSIX-only; a `exec another-brain connect "$@"` shim would be a POSIX-only detour to a command already on PATH. Deleted `installer/linux/connect.sh`, `installer/macos/connect.sh`, `installer/linux/harnesses/*.sh` (7 files, ~250 lines). Docs: README install block + `docs/deployment.md` "Connecting a harness" (verified output), `installer/README.md` now wheel-gates only. 632 tests green, clean-tree gate PASS. | ✅ | 2026-08-06 |
+| TASK-089 | Resource evidence for release notes: **accept `benchmark.md` as the evidence of record** (reference machine is checksummed; retrieval code untouched since those runs) — unless any retrieval/embedding diff lands before release, in which case restore the retired harness from git history and re-run. Release notes state: supported matrix + tiers, per-process ~322 MiB RSS model budget, NumPy-fallback p95 openly. Decide the parked lexical-branch budget question (see note below) as "no locked budget, documented behavior" unless new data appears. **Landed `CHANGELOG.md` (0.11.0, unreleased). The "retrieval code untouched" premise was FALSE: `4a4a1d8` (scope-partition removal, 2026-08-05 21:17 +07) postdates the last run (11:18 +07) and shortened all three composite `memories` indexes by two leading columns, so §2/§3 latency was measured on a schema we do not ship. Quality figures unaffected (single-scope corpus → identical candidate sets). Maintainer decision 2026-08-06: publish with an explicit caveat, no re-run; caveat recorded in both `CHANGELOG.md` and `benchmark.md` §2. Lexical branch resolved as documented-not-budgeted.** | ✅ | 2026-08-06 |
+| TASK-090 | Release rehearsal from an empty profile with only `uv`: install tool, `model pull`, connect one harness, remember/search/get/reinforce/forget, restart, `doctor`, uninstall; verify no daemon/container/server prerequisite. Recorded as release evidence. Then: version `0.11.0` + CHANGELOG date + tag; `uv publish` only on maintainer signal; set plan status `done`. **Folded in (2026-08-06): fix the codex manual-instruction fallback in `harness_connect.py` — when the `codex` CLI is absent it prints a JSON `mcpServers` snippet for `~/.codex/config.toml`, which needs TOML (`[mcp_servers.another-brain]` / `command = "another-brain"`). ~10 lines via a per-harness `manual_snippet` field; the `_register_cli` CLI-absent branch currently has no test coverage.** | | |
 
 ## Open decisions (maintainer call before Phase B)
 
-1. **Python floor:** matrix tests 3.12–3.14 but `requires-python = ">=3.11"`.
-   Either add 3.11 to the matrix or bump the floor to 3.12. Recommendation:
-   bump to 3.12 (one-line pyproject change; 3.11 adds a CI axis for zero
-   known users).
+1. ~~**Python floor**~~ — **NOT A DECISION (2026-08-06): the premise was
+   wrong.** `pyproject.toml` has had `requires-python = ">=3.12"` since the
+   first commit (`f1d62a7`, 2026-07-11); it was never `>=3.11`. The floor
+   already matches the 3.12–3.14 CI matrix exactly. No change made.
 2. ~~**ARM64 CI**~~ — **DECIDED 2026-08-06: no paid ARM runners.** Linux
    aarch64 stays best-effort (resolves, full vector path); recorded above.
-3. **TASK-089 evidence:** confirm `benchmark.md` is sufficient as the
-   release resource record (recommendation: yes).
+3. ~~**TASK-089 evidence**~~ — **DECIDED 2026-08-06: yes, with a caveat.**
+   `benchmark.md` is the resource record. Its §2/§3 latency figures predate
+   the scope-partition index change and are published as such rather than
+   re-measured; quality and memory figures carry no caveat. See TASK-089.
 4. ~~**Unlock Windows ARM64**~~ — **DECIDED 2026-08-06: yes** (TASK-091),
    plus a centralized platform probe service (TASK-092) so the support-tier
    logic lives in exactly one place.
 
-## Parked from the old TASK-087 note (lexical-branch budget)
+## Parked from the old TASK-087 note (lexical-branch budget) — RESOLVED
+
+**Resolved 2026-08-06 in TASK-089: no locked budget, documented behavior.**
+No new data appeared. The reasoning below is published in `CHANGELOG.md`.
+
 
 BM25 p95 at 100k is 71.68 ms vs 13.53 ms for the vector branch; driver is
 MATCH-term selectivity, not store size (a 63-term query matches 58.6% of the

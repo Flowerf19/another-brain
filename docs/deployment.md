@@ -37,5 +37,49 @@ loaded, so retrieval, `doctor`, and health all take the same path a machine
 without the sqlite-vec wheel takes. Intended for CI fallback testing and
 users on platforms where the wheel is unavailable.
 
-Full platform matrix, harness connector setup, and troubleshooting land with
-the release gate (GOAL-016).
+## Connecting a harness
+
+`another-brain connect` does the whole setup for an agent harness — the same
+command, with the same result, on Linux, macOS, and Windows. There is no
+manual JSON to write, no repo to clone, and no Node/npx:
+
+```bash
+another-brain connect              # list known + detected harnesses
+another-brain connect --detect     # detected names only, writes nothing
+another-brain connect claude-code  # register the MCP server + install the skill
+```
+
+Known harnesses: `claude-code`, `codex`, `cursor`, `gemini-cli`, `pi`. A
+harness counts as detected when its `~/.<name>` config dotdir exists — that
+dotdir is the same path on every OS, so detection needs no platform
+branching.
+
+For each named harness the command does two idempotent things:
+
+1. **Registers the MCP server as stdio.** The entry is always
+   `{"command": "another-brain"}` — the installed executable *is* the MCP
+   stdio server, so there is no url, port, or `serve --http` prerequisite.
+   Harnesses that own their config through a CLI (`claude`, `codex`) are
+   registered through that CLI; the rest get an upsert into their well-known
+   config file (`~/.cursor/mcp.json`, `~/.gemini/settings.json`,
+   `~/.config/mcp/mcp.json` for pi), preserving every other key and server.
+   If a harness's CLI is not on PATH, the command prints the exact entry to
+   add by hand and exits nonzero instead of failing silently.
+2. **Installs the skill** into the harness's skills directory
+   (`~/.claude/skills/another-brain/` and equivalents), from the copy bundled
+   inside the wheel. Re-runs replace the previous copy rather than nesting.
+
+```
+$ another-brain connect cursor pi
+wrote ~/.cursor/mcp.json: mcpServers.another-brain = {"command": "another-brain"}
+installed the skill for cursor -> ~/.cursor/skills/another-brain
+wrote ~/.config/mcp/mcp.json: mcpServers.another-brain = {"command": "another-brain"}
+installed the skill for pi -> ~/.pi/agent/skills/another-brain
+```
+
+Restart the harness afterwards so it picks up the new server. `connect` needs
+neither the model nor a database, so it is safe to run immediately after
+`uv tool install` — the model download can come later.
+
+The full platform matrix and support tiers land with the release notes;
+`another-brain doctor` already reports the tier for the machine it runs on.

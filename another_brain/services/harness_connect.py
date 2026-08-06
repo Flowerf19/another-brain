@@ -2,9 +2,9 @@
 another-brain MCP server + skill for each agent harness, from the installed
 tool alone.
 
-Replaces the POSIX-only shell connectors (installer/linux/connect.sh +
-installer/linux/harnesses/*.sh) with a data-driven Python registry. All
-harness paths derive from an injectable home directory (``pathlib.Path.home()``
+This is the only connector: the POSIX-only shell connectors it replaced were
+retired in TASK-088, leaving one data-driven Python registry. All harness
+paths derive from an injectable home directory (``pathlib.Path.home()``
 by default) — the ``~/.<name>`` dotdirs are identical on Linux, macOS, and
 Windows, so the same code serves every OS. No repo clone and no Node/npx are
 needed: the skill is bundled inside the installed wheel and read via
@@ -285,8 +285,8 @@ def _register_cli(harness: Harness, run: Runner) -> tuple[str, str]:
 
     The claude CLI reports an existing user-scope entry as a confirmation on
     stdout with exit 0 (not an error), so the "already exists" gate is
-    message-text based — mirroring the sh connector's remove + re-add so a
-    changed config actually lands. ``codex mcp add`` overwrites idempotently
+    message-text based, and the response is remove + re-add so a changed
+    config actually lands. ``codex mcp add`` overwrites idempotently
     and needs no re-add.
     """
     if harness.cli == "claude":

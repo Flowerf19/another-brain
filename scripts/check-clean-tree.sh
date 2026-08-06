@@ -38,6 +38,9 @@ fi
 echo "== TASK-081: zero Redis/Docker/Torch references in the clean tree =="
 # Scan code, tests, scripts, product docs, pyproject, and workflows.
 # .agents/ is intentionally excluded (plans + superseded history live there).
+# CHANGELOG.md is excluded for the same reason as the legacy-baseline fixture
+# below: release notes must be able to say what 0.11.0 REMOVED, and naming
+# Redis/Docker/Torch there is the point, not a leak.
 # tests/fixtures/legacy-baseline/ is excluded for the same reason: the TASK-031
 # oracle export is a *record of* the legacy stack, not legacy code running here.
 # It names Redis/Docker/Torch because that is what was measured; scrubbing those

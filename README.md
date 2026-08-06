@@ -28,10 +28,18 @@ fully embedded MCP tool: no server, container, or daemon required.
 
 ```bash
 uv tool install another-brain
-another-brain model pull   # one-time pinned + hash-verified model download
-another-brain              # MCP stdio server (the default)
-another-brain serve --http # optional loopback HTTP on 127.0.0.1:1905
+another-brain model pull          # one-time pinned + hash-verified model download
+another-brain connect claude-code # register the MCP server + install the skill
+another-brain                     # MCP stdio server (the default)
+another-brain serve --http        # optional loopback HTTP on 127.0.0.1:1905
 ```
+
+`another-brain connect` is the whole harness setup, identical on Linux,
+macOS, and Windows: it registers the stdio entry
+`{"command": "another-brain"}` in the harness's own MCP config and installs
+the bundled skill — no manual JSON, no repo clone, no Node. Run it with no
+arguments to list known and detected harnesses (`claude-code`, `codex`,
+`cursor`, `gemini-cli`, `pi`); see `docs/deployment.md` for the details.
 
 Operational commands: `another-brain recent [--limit N]` prints the bound
 brain's newest entries (no model required); `another-brain model status`
@@ -45,5 +53,6 @@ write/read/delete probe in a throwaway temp database — and exits nonzero
 when any check fails. It never loads the embedding model, never downloads
 anything, and never writes to the real database.
 
-Harnesses invoke the installed `another-brain` executable.
-Docker and Redis are not part of the install, runtime, or deployment model.
+Harnesses invoke the installed `another-brain` executable — that is the only
+invocation. Docker and Redis are not part of the install, runtime, or
+deployment model, and neither are Node, npx, or a checkout of this repo.
