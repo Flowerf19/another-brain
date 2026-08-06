@@ -23,7 +23,7 @@ four wheels:
 | dependency | pinned | wheel coverage | consequence |
 |---|---|---|---|
 | onnxruntime | 1.28.0 | linux x86_64/aarch64 (glibc≥2.27), **macOS 14+ arm64 only**, win_amd64, win_arm64 | **the hard constraint** |
-| sqlite-vec | 0.1.9 | macOS 10.6 x86_64 / 11 arm64, manylinux x86_64/aarch64, win_amd64, musl x86_64/aarch64 (sdist exists) | no win_arm64 wheel → NumPy fallback there |
+| sqlite-vec | 0.1.9 | exactly 5 wheels: macOS x86_64, macOS arm64, manylinux x86_64/aarch64, win_amd64 — **no sdist, no musl, no win_arm64** | win_arm64/musl = **install-time resolution failure** (uninstallable), not a runtime fallback |
 | tokenizers | 0.23.1 | universal incl. musl, win32, win_arm64 | never a blocker |
 | numpy | 2.x | universal incl. musl, win32, win_arm64, macOS Intel | never a blocker |
 
@@ -31,15 +31,18 @@ Resulting support tiers:
 
 - **Supported (CI-gated):** Ubuntu 22.04/24.04 x86_64, macOS 14+ Apple
   Silicon, Windows 10/11 x86_64 — Python 3.12–3.14.
-- **Best-effort (wheels resolve, no CI hardware):** Linux aarch64, Windows
-  ARM64 (sqlite-vec absent → NumPy fallback path must work there), musl
-  systems where onnxruntime is absent → **unsupported, reported** (see
-  below), Linux ARMv7/ppc64le/s390x (tokenizers has wheels, onnxruntime
-  does not) → unsupported.
+- **Best-effort (wheels resolve, no CI hardware):** Linux aarch64 (full
+  vector path — sqlite-vec ships a manylinux aarch64 wheel).
+- **Currently uninstallable (install-time resolution failure — no wheel,
+  no sdist):** Windows ARM64 and musl systems both fail at
+  `uv tool install` on sqlite-vec. Unlocking win_arm64 = making sqlite-vec
+  an optional/markered dependency; the runtime already degrades gracefully
+  (`load_vec()` never raises → NumPy exact fallback per connection).
+  musl stays unsupported regardless (onnxruntime has no musl wheel either).
 - **Unsupported, reported explicitly (never a silent source build):**
   macOS Intel (onnxruntime ≥1.28 ships no x86_64 macOS wheel — uv
-  resolution fails fast; release notes + doctor must say so), Alpine/musl
-  (no onnxruntime musl wheel), 32-bit Windows.
+  resolution fails fast; release notes + doctor must say so), Alpine/musl,
+  32-bit Windows, Linux ARMv7/ppc64le/s390x (onnxruntime absent).
 
 Local code audit: no `os.symlink`, no `/proc` reads, no signal/fcntl usage
 in product code; platformdirs resolves all user paths; `os.replace` for
