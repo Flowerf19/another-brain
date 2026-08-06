@@ -59,6 +59,8 @@ above is dependency-driven.
 | TASK-083 | `installer/` per-OS wheel gates: `linux/check-wheel-install.sh` (moved from scripts/, REPO_ROOT fixed two levels up), `macos/check-wheel-install.sh` (wrapper sharing the Linux source), `win/check-wheel-install.ps1` (PowerShell port; **untested until CI** — first real run is TASK-086). Clean-tree gate scans `installer/`. | ✅ | 2026-08-06 |
 | TASK-084 | `another-brain doctor`: package/model hashes, tokenizer/profile, SQLite bootstrap/readonly invariants, schema/integrity/FTS/extension-or-fallback, isolated write/search/delete probe, resolved platformdirs paths, actionable per-item results. Includes an explicit OS-support verdict line (supported / best-effort / unsupported + reason, from the matrix above). Unblocks the TASK-075 rehearsal-gate reference. | | |
 | TASK-085 | Forced-NumPy-fallback E2E switch: an env/CLI mechanism to disable sqlite-vec loading so CI and users can exercise the fallback path honestly (today only unit tests cover it via monkeypatch); wire into the wheel gates as a second pass. | | |
+| TASK-091 | Unlock Windows ARM64 install: marker sqlite-vec out of win_arm64 (`sys_platform != 'win32' or platform_machine != 'ARM64'`), regenerate uv.lock, verify universal resolution + fallback import path. Runtime already degrades via `load_vec()`. (Decided 2026-08-06.) **Landed `e8f9c05`: marker + lock; aarch64-pc-windows-msvc resolves without sqlite-vec, x86_64 keeps 0.1.9; 489 unit passed.** | ✅ | 2026-08-06 |
+| TASK-092 | Platform probe service (`another_brain/services/system.py`): single source of truth for OS/arch/libc detection + support-tier verdict (supported / best_effort / uninstallable / unsupported + reason + expect-sqlite-vec), pure/injectable for tests. Feeds the doctor verdict line (TASK-084); no CLI wiring here. (Decided 2026-08-06.) | | |
 
 ### Phase B — CI matrix (needs GitHub runners)
 
@@ -81,10 +83,13 @@ above is dependency-driven.
    Either add 3.11 to the matrix or bump the floor to 3.12. Recommendation:
    bump to 3.12 (one-line pyproject change; 3.11 adds a CI axis for zero
    known users).
-2. **ARM64 CI:** GitHub ARM runners are free for public repos only. This
-   repo is private → best-effort without CI unless you approve the cost.
+2. ~~**ARM64 CI**~~ — **DECIDED 2026-08-06: no paid ARM runners.** Linux
+   aarch64 stays best-effort (resolves, full vector path); recorded above.
 3. **TASK-089 evidence:** confirm `benchmark.md` is sufficient as the
    release resource record (recommendation: yes).
+4. ~~**Unlock Windows ARM64**~~ — **DECIDED 2026-08-06: yes** (TASK-091),
+   plus a centralized platform probe service (TASK-092) so the support-tier
+   logic lives in exactly one place.
 
 ## Parked from the old TASK-087 note (lexical-branch budget)
 

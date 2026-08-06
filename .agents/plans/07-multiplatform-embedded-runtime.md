@@ -895,6 +895,8 @@ comparison remains available from the external `main` worktree.
 | TASK-088 | Harness connectors: Windows story via documented harness MCP config JSON (same content every OS); remove Docker/Redis/uvx assumptions; installed `another-brain` exe is the only invocation. | | |
 | TASK-089 | Release notes + resource evidence: accept `benchmark.md` as the evidence of record (checksummed reference machine; retrieval code untouched since those runs); supported-matrix wording, fallback p95 stated openly; the parked lexical-branch budget resolves as documented-not-budgeted unless new data appears. | | |
 | TASK-090 | Release rehearsal from an empty profile with only `uv` (install, model pull, connect one harness, remember/search/get/reinforce/forget, restart, doctor, uninstall, no daemon/container), then version `0.11.0` + CHANGELOG + tag; `uv publish` only on maintainer signal; then set plan status `done`. | | |
+| TASK-091 | GOAL-016 | Unlock Windows ARM64 install: marker sqlite-vec out of win_arm64 (no wheel, no sdist at 0.1.9); runtime NumPy fallback already graceful. Landed `e8f9c05` with targeted-resolution proof both ways. | ✅ | 2026-08-06 |
+| TASK-092 | GOAL-016 | Platform probe service (`services/system.py`): single source of truth for OS/arch/libc + support-tier verdict (supported/best_effort/uninstallable/unsupported, reason, expect-sqlite-vec); feeds the TASK-084 doctor verdict line. | | |
 
 ## Test Plan
 
