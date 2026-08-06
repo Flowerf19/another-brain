@@ -39,6 +39,7 @@ try {
     $Py = Join-Path $Venv 'Scripts\python.exe'
     uv pip install --quiet --python $Py $Wheel
     if ($LASTEXITCODE -ne 0) { Fail "uv pip install exit $LASTEXITCODE" }
+    Write-Output "venv python: $(& $Py --version 2>&1)"
 
     $Bin = Join-Path $Venv 'Scripts\another-brain.exe'
     if (-not (Test-Path $Bin)) { Fail "entry point $Bin missing" }

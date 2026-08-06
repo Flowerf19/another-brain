@@ -1,0 +1,71 @@
+name: wheel gate
+
+# TASK-086: per-OS clean-wheel install gate + unit tests across the supported
+# matrix. Python coverage is spread across OSes instead of a full sweep —
+# gate behavior is OS-driven, and macOS minutes bill at 10x on private repos:
+#   ubuntu-24.04 x 3.12/3.13/3.14  (mainline)
+#   ubuntu-22.04 x 3.12            (oldest supported glibc floor)
+#   windows-2022   x 3.12/3.13/3.14 (first real runs of the .ps1 gate)
+#   macos-14       x 3.13          (Apple Silicon)
+# Every wheel-gate cell also runs the BRAIN_DISABLE_SQLITE_VEC second pass
+# (inside the gate scripts). The unit job runs the suite twice per OS: once
+# default, once with the fallback forced.
+
+on:
+  push:
+    branches: [main, v0.11.0]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  wheel:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, python: "3.12" }
+          - { os: ubuntu-24.04, python: "3.13" }
+          - { os: ubuntu-24.04, python: "3.14" }
+          - { os: ubuntu-22.04, python: "3.12" }
+          - { os: windows-2022, python: "3.12" }
+          - { os: windows-2022, python: "3.13" }
+          - { os: windows-2022, python: "3.14" }
+          - { os: macos-14, python: "3.13" }
+    runs-on: ${{ matrix.os }}
+    env:
+      UV_PYTHON: ${{ matrix.python }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v9.0.0
+        with:
+          enable-cache: true
+      - name: wheel gate (linux)
+        if: runner.os == 'Linux'
+        run: installer/linux/check-wheel-install.sh
+      - name: wheel gate (macos)
+        if: runner.os == 'macOS'
+        run: installer/macos/check-wheel-install.sh
+      - name: wheel gate (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: installer/win/check-wheel-install.ps1
+
+  unit:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04, macos-14, windows-2022]
+    runs-on: ${{ matrix.os }}
+    env:
+      UV_PYTHON: "3.13"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v9.0.0
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run pytest tests/unit -q
+      - name: unit tests (forced NumPy fallback)
+        run: uv run pytest tests/unit -q
+        env:
+          BRAIN_DISABLE_SQLITE_VEC: "1"

@@ -20,6 +20,7 @@ echo "built: $(basename "$WHEEL") + $(basename "$SDIST")"
 echo "== install wheel into clean venv =="
 uv venv --quiet "$WORK/venv"
 uv pip install --quiet --python "$WORK/venv/bin/python" "$WHEEL"
+echo "venv python: $("$WORK/venv/bin/python" --version 2>&1)"
 
 BIN="$WORK/venv/bin/another-brain"
 [ -x "$BIN" ] || { echo "FAIL: entry point $BIN missing"; exit 1; }
