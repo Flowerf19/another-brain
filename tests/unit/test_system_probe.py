@@ -251,12 +251,20 @@ class TestExpectSqliteVec:
 
 
 class TestCurrentSystem:
-    def test_host_is_supported_linux_x86_64_glibc(self):
-        """This machine is linux x86_64 glibc (CI/developer host)."""
+    def test_host_report_is_coherent(self):
+        """current_system() works on any real host (CI runs linux/macOS/
+        Windows): the report is internally consistent, whatever the tier."""
+        import platform as _platform
+        import sys as _sys
+
         report = current_system()
-        assert report.os_family == "linux"
-        assert report.tier == "supported"
-        assert report.expect_sqlite_vec is True
-        assert report.libc == "glibc"
-        assert report.macos_version == ""
-        assert report.python_version == __import__("platform").python_version()
+        assert report.tier in ("supported", "best_effort", "uninstallable", "unsupported")
+        assert report.reason
+        expected_family = {"linux": "linux", "darwin": "macos", "win32": "windows"}.get(
+            _sys.platform, "other"
+        )
+        assert report.os_family == expected_family
+        assert report.arch == _platform.machine()
+        assert report.python_version == _platform.python_version()
+        if expected_family != "linux":
+            assert report.macos_version == "" or expected_family == "macos"

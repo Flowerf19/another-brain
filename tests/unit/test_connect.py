@@ -33,6 +33,9 @@ from another_brain.services.harness_connect import (
 def fake_home(tmp_path, monkeypatch):
     """Point the connect service at tmp_path; never the real $HOME."""
     monkeypatch.setenv("HOME", str(tmp_path))
+    # Path.home() honors $HOME only on POSIX; on Windows it reads
+    # USERPROFILE, so patch the lookup directly for cross-OS determinism.
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
     return tmp_path
 
 

@@ -1,0 +1,2 @@
+# The JSONL v1 contract is LF-only; never let checkout convert line endings.
+*.jsonl text eol=lf

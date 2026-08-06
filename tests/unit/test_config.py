@@ -1,5 +1,6 @@
 """TASK-038/039: config validation matrix and platformdirs path resolution."""
 import stat
+import sys
 
 import pytest
 
@@ -115,6 +116,7 @@ class TestAppConfig:
         assert cfg.data_dir == data
         assert cfg.model_cache_dir == models
 
+    @pytest.mark.skipif(sys.platform != "linux", reason="XDG vars are honored only on Linux")
     def test_platformdirs_defaults(self, monkeypatch, tmp_path):
         monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "xdg-data"))
         monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "xdg-cache"))
@@ -124,6 +126,7 @@ class TestAppConfig:
         assert str(cfg.model_cache_dir).startswith(str(tmp_path / "xdg-cache"))
         assert "models" in str(cfg.model_cache_dir)
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX permission bits do not exist on Windows")
     def test_ensure_directories_user_only(self, tmp_path):
         cfg = AppConfig.from_env(
             {

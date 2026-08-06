@@ -198,6 +198,6 @@ def test_nan_literal_rejected(tmp_path: Path) -> None:
     path = _write_envelope(tmp_path, [line], raw=True)
     text = path.read_text("utf-8")
     text = text.replace("\"importance\":3", "\"importance\":NaN")
-    path.write_text(text, "utf-8")
+    path.write_text(text, "utf-8", newline="\n")  # contract is LF-only
     with pytest.raises(JsonlEnvelopeError, match="non-finite"):
         parse_envelope(path)
