@@ -15,7 +15,10 @@ dependencies = [
     "tokenizers>=0.23,<0.24",
     "numpy>=2.1,<3",
     "platformdirs>=4.3,<5",
-    "sqlite-vec>=0.1.9,<0.2",
+    # 0.1.9 ships no win_arm64 wheel and no sdist; without this marker the
+    # whole tool is uninstallable on Windows ARM64. Runtime degrades to the
+    # NumPy exact fallback there (load_vec never raises). TASK-091.
+    "sqlite-vec>=0.1.9,<0.2; sys_platform != 'win32' or platform_machine != 'ARM64'",
     "filelock>=3.16,<4",
 ]
 
