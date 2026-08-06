@@ -238,7 +238,9 @@ def _cmd_import_jsonl(args: argparse.Namespace, config: AppConfig) -> int:
     from another_brain.services.sql.migrations import migrate
 
     config.ensure_directories()
-    factory = SQLiteConnectionFactory(config.database_path)
+    factory = SQLiteConnectionFactory(
+        config.database_path, disable_vec=config.disable_sqlite_vec
+    )
     factory.bootstrap()
     migrate(config.database_path)
     importer = JsonlImporter(
@@ -314,7 +316,9 @@ def _open_store(config: AppConfig) -> "MemoryService":
     from another_brain.services.sql.repository import SQLiteMemoryRepository
 
     config.ensure_directories()
-    factory = SQLiteConnectionFactory(config.database_path)
+    factory = SQLiteConnectionFactory(
+        config.database_path, disable_vec=config.disable_sqlite_vec
+    )
     factory.bootstrap()
     migrate(config.database_path)
     register_profile(factory)

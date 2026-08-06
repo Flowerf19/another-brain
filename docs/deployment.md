@@ -31,5 +31,11 @@ controls the diary day. Loopback HTTP binds with CLI `--host/--port` >
 `MCP_HTTP_HOST`/`MCP_HTTP_PORT` > `127.0.0.1:1905`, numeric loopback only,
 endpoint path `/mcp`.
 
+`BRAIN_DISABLE_SQLITE_VEC` (truthy: `1`/`true`/`yes`/`on`, case-insensitive)
+forces the NumPy exact vector fallback: the sqlite-vec extension is never
+loaded, so retrieval, `doctor`, and health all take the same path a machine
+without the sqlite-vec wheel takes. Intended for CI fallback testing and
+users on platforms where the wheel is unavailable.
+
 Full platform matrix, harness connector setup, and troubleshooting land with
 the release gate (GOAL-016).

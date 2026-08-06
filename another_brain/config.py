@@ -19,6 +19,10 @@ Environment variables:
 - ``TIMELINE_TIMEZONE`` — IANA name for ``timeline_day`` (default ``UTC``).
 - ``BRAIN_DATA_DIR`` / ``BRAIN_MODEL_CACHE_DIR`` — override the platformdirs
   per-user data/cache locations.
+- ``BRAIN_DISABLE_SQLITE_VEC`` — force the NumPy vector fallback: the
+  sqlite-vec extension is never loaded, so every retrieval/doctor/health
+  consumer reports the same capability a machine without the wheel has
+  (truthy: ``1``/``true``/``yes``/``on`` case-insensitive).
 - ``MCP_HTTP_HOST`` / ``MCP_HTTP_PORT`` — loopback HTTP bind (opt-in via
   ``serve --http``; bare invocation is always stdio). Numeric loopback IP
   literals only: hostnames (including ``localhost``), wildcard, LAN, public,
@@ -45,6 +49,10 @@ DEFAULT_BRAIN_ID = "default"
 DEFAULT_TIMELINE_TIMEZONE = "UTC"
 DEFAULT_HTTP_HOST = "127.0.0.1"
 DEFAULT_HTTP_PORT = 1905
+
+#: ``BRAIN_DISABLE_SQLITE_VEC`` env var name (recorded in the vec probe
+#: reason when the switch forces the NumPy fallback, TASK-085).
+DISABLE_SQLITE_VEC_ENV = "BRAIN_DISABLE_SQLITE_VEC"
 
 TTL_DAYS_BY_IMPORTANCE: dict[int, int] = {5: 365, 4: 180, 3: 90, 2: 30, 1: 7}
 FORGET_GRACE_DAYS = 30
@@ -76,6 +84,11 @@ def _identity(env: Mapping[str, str], key: str, default: str) -> str:
     if ":" in value:
         raise ConfigError(f"{key} must not contain ':', got {value!r}")
     return value
+
+
+def parse_bool(raw: str) -> bool:
+    """Truthy env value: 1/true/yes/on, case-insensitive; everything else false."""
+    return raw.strip().lower() in ("1", "true", "yes", "on")
 
 
 def parse_loopback_host(raw: str) -> str:
@@ -130,6 +143,10 @@ class AppConfig:
     data_dir: Path
     model_cache_dir: Path
     http: HttpConfig = field(default_factory=HttpConfig)
+    #: Force the NumPy vector fallback (TASK-085): the sqlite-vec extension
+    #: is never loaded, so retrieval/doctor/health see the same capability a
+    #: machine without the wheel has.
+    disable_sqlite_vec: bool = False
 
     @property
     def database_path(self) -> Path:
@@ -167,6 +184,7 @@ class AppConfig:
             host=_str(env, "MCP_HTTP_HOST", DEFAULT_HTTP_HOST),
             port=parse_port(_str(env, "MCP_HTTP_PORT", str(DEFAULT_HTTP_PORT))),
         )
+        disable_sqlite_vec = parse_bool(_str(env, DISABLE_SQLITE_VEC_ENV, ""))
 
         return cls(
             brain_id=brain_id,
@@ -174,4 +192,5 @@ class AppConfig:
             data_dir=data_dir,
             model_cache_dir=model_cache_dir,
             http=http,
+            disable_sqlite_vec=disable_sqlite_vec,
         )

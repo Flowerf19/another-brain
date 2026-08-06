@@ -182,3 +182,31 @@ class TestVecCapability:
             assert con.load_vec() is False
             assert not con.vec_loaded
             assert con.vec_load_error  # reason recorded, never raised
+
+    def test_disable_vec_skips_load_and_records_env_reason(self, tmp_path):
+        """TASK-085: a factory built with disable_vec=True never loads the
+        extension; the capability probe reports fallback with a reason that
+        names the env var — the exact state a machine without the wheel
+        would reach through the same probe."""
+        from another_brain.config import DISABLE_SQLITE_VEC_ENV
+
+        factory = SQLiteConnectionFactory(
+            tmp_path / "brain.sqlite3", disable_vec=True
+        )
+        factory.bootstrap()
+        with factory.connect() as con:
+            assert con.load_vec() is False
+            assert not con.vec_loaded
+            assert con.vec_load_error is not None
+            assert DISABLE_SQLITE_VEC_ENV in con.vec_load_error
+            assert "disabled" in con.vec_load_error
+
+    def test_disable_vec_flag_off_still_loads(self, tmp_path):
+        """TASK-085: default (flag off) keeps loading the extension exactly
+        as before — the switch must not affect the happy path."""
+        factory = SQLiteConnectionFactory(tmp_path / "brain.sqlite3")
+        factory.bootstrap()
+        with factory.connect() as con:
+            assert con.load_vec() is True
+            assert con.vec_loaded
+            assert con.vec_load_error is None

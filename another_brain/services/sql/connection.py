@@ -31,6 +31,7 @@ from pathlib import Path
 from filelock import FileLock
 
 from another_brain.config import (
+    DISABLE_SQLITE_VEC_ENV,
     SQLITE_BUSY_TIMEOUT_MS,
     SQLITE_PAGE_SIZE,
     SQLITE_SYNCHRONOUS,
@@ -44,8 +45,12 @@ SCHEMA_LOCK_SUFFIX = ".schema.lock"
 class SQLiteConnectionFactory:
     """Opens bootstrapped/read-write/read-only connections to one database."""
 
-    def __init__(self, db_path: Path) -> None:
+    def __init__(self, db_path: Path, *, disable_vec: bool = False) -> None:
         self._db_path = Path(db_path)
+        #: TASK-085: when set, no connection ever loads sqlite-vec — every
+        #: consumer (search, doctor probe, health) sees the same capability a
+        #: machine without the wheel has, so the NumPy exact fallback runs.
+        self._disable_vec = disable_vec
 
     @property
     def db_path(self) -> Path:
@@ -120,7 +125,7 @@ class SQLiteConnectionFactory:
             raw = sqlite3.connect(f"file:{self._db_path}?mode=ro", uri=True)
         else:
             raw = sqlite3.connect(str(self._db_path))
-        connection = Connection(raw, read_only=read_only)
+        connection = Connection(raw, read_only=read_only, disable_vec=self._disable_vec)
         try:
             connection._configure()
         except Exception:
@@ -132,9 +137,12 @@ class SQLiteConnectionFactory:
 class Connection:
     """Guaranteed-close wrapper; carries the per-connection vec capability."""
 
-    def __init__(self, raw: sqlite3.Connection, *, read_only: bool) -> None:
+    def __init__(
+        self, raw: sqlite3.Connection, *, read_only: bool, disable_vec: bool = False
+    ) -> None:
         self._raw = raw
         self._read_only = read_only
+        self._disable_vec = disable_vec
         self._closed = False
         self._vec_loaded = False
         self._vec_error: str | None = None
@@ -206,6 +214,12 @@ class Connection:
         """
         if self._vec_loaded:
             return True
+        if self._disable_vec:
+            self._vec_error = (
+                f"disabled by {DISABLE_SQLITE_VEC_ENV};"
+                " NumPy exact fallback runs instead"
+            )
+            return False
         try:
             import sqlite_vec
 

@@ -53,6 +53,15 @@ OUT="$(BRAIN_DATA_DIR="$WORK/data" BRAIN_MODEL_CACHE_DIR="$WORK/models" \
 [ "$OUT" = "exit=3" ] || { echo "FAIL: bare command expected exit 3, got $OUT"; exit 1; }
 grep -q "model pull" "$WORK/stderr" || { echo "FAIL: missing model-not-installed error on stderr"; exit 1; }
 
+# TASK-085 second pass: BRAIN_DISABLE_SQLITE_VEC=1 forces the NumPy vector
+# fallback — startup must be unaffected, the typed missing-model error and
+# exit 3 must still hold (the env var must not leak into the first pass).
+echo "== bare command (BRAIN_DISABLE_SQLITE_VEC=1): typed missing-model error, stdout clean =="
+OUT="$(BRAIN_DATA_DIR="$WORK/data" BRAIN_MODEL_CACHE_DIR="$WORK/models" \
+  BRAIN_DISABLE_SQLITE_VEC=1 "$BIN" 2>"$WORK/stderr" || echo "exit=$?")"
+[ "$OUT" = "exit=3" ] || { echo "FAIL: forced-fallback bare command expected exit 3, got $OUT"; exit 1; }
+grep -q "model pull" "$WORK/stderr" || { echo "FAIL: forced-fallback pass missing model-not-installed error on stderr"; exit 1; }
+
 echo "== sdist/wheel contents: no legacy flat src modules =="
 "$WORK/venv/bin/python" - "$WHEEL" <<'PY'
 import sys

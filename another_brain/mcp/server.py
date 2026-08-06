@@ -80,7 +80,9 @@ class Runtime:
 def build_runtime(config: AppConfig) -> Runtime:
     """Open storage, wire the graph, register the tools. Never loads the model."""
     config.ensure_directories()
-    factory = SQLiteConnectionFactory(config.database_path)
+    factory = SQLiteConnectionFactory(
+        config.database_path, disable_vec=config.disable_sqlite_vec
+    )
     factory.bootstrap()
     migrate(config.database_path)
     register_profile(factory)

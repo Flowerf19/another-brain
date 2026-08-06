@@ -8,7 +8,12 @@ CLI contract on a machine with no model installed:
 
 - bare `another-brain` exits 3 with `model is not installed` on stderr —
   never a traceback;
-- no per-user data directory is created as a side effect.
+- no per-user data directory is created as a side effect;
+- a second pass runs the bare command with `BRAIN_DISABLE_SQLITE_VEC=1`
+  (Linux) / `$env:BRAIN_DISABLE_SQLITE_VEC = '1'` (Windows): the switch
+  forces the NumPy vector fallback for CI fallback testing and machines
+  without the sqlite-vec wheel, and must not break startup — exit 3 with
+  the typed model-not-installed error still holds.
 
 ## Linux
 

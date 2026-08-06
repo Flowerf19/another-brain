@@ -91,6 +91,27 @@ print(f"ok: {module}")
         Fail 'missing model-not-installed error on stderr'
     }
 
+    # TASK-085 second pass: BRAIN_DISABLE_SQLITE_VEC=1 forces the NumPy
+    # vector fallback; startup must be unaffected and the typed
+    # missing-model error + exit 3 must still hold.
+    Write-Output '== bare command (BRAIN_DISABLE_SQLITE_VEC=1): typed missing-model error, stdout clean =='
+    $env:BRAIN_DATA_DIR = Join-Path $Work 'data'
+    $env:BRAIN_MODEL_CACHE_DIR = Join-Path $Work 'models'
+    $env:BRAIN_DISABLE_SQLITE_VEC = '1'
+    try {
+        $stdout = & $Bin 2>$stderrFile
+        $code = $LASTEXITCODE
+    } finally {
+        Remove-Item Env:BRAIN_DATA_DIR -ErrorAction SilentlyContinue
+        Remove-Item Env:BRAIN_MODEL_CACHE_DIR -ErrorAction SilentlyContinue
+        Remove-Item Env:BRAIN_DISABLE_SQLITE_VEC -ErrorAction SilentlyContinue
+    }
+    if ($code -ne 3) { Fail "forced-fallback bare command expected exit 3, got $code" }
+    if ($stdout) { Fail "forced-fallback bare command polluted stdout: $stdout" }
+    if (-not (Select-String -Path $stderrFile -Pattern 'model pull' -Quiet)) {
+        Fail 'forced-fallback pass missing model-not-installed error on stderr'
+    }
+
     Write-Output '== sdist/wheel contents: no legacy flat src modules =='
     $contents = @'
 import sys

@@ -14,6 +14,7 @@ from another_brain.config import (
     CANDIDATE_LIMIT,
     COSINE_FLOOR_MICRO,
     DATABASE_FILENAME,
+    DISABLE_SQLITE_VEC_ENV,
     FORGET_GRACE_DAYS,
     RRF_K,
     TOP_K,
@@ -79,6 +80,19 @@ class TestAppConfig:
         assert cfg.http == HttpConfig(host="127.0.0.1", port=1905)
         assert cfg.database_path.name == DATABASE_FILENAME
         assert cfg.database_path.parent == cfg.data_dir
+        assert cfg.disable_sqlite_vec is False
+
+    @pytest.mark.parametrize("value", ["1", "true", "TRUE", "yes", "Yes", "on", " ON "])
+    def test_disable_sqlite_vec_truthy(self, value):
+        cfg = AppConfig.from_env({DISABLE_SQLITE_VEC_ENV: value, **BASE_ENV})
+        assert cfg.disable_sqlite_vec is True
+
+    @pytest.mark.parametrize(
+        "value", ["", "0", "false", "no", "off", "2", "enabled", "anything"]
+    )
+    def test_disable_sqlite_vec_falsy(self, value):
+        cfg = AppConfig.from_env({DISABLE_SQLITE_VEC_ENV: value, **BASE_ENV})
+        assert cfg.disable_sqlite_vec is False
 
     def test_brain_id_colon_rejected(self):
         with pytest.raises(ConfigError):

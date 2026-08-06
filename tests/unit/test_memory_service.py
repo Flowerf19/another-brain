@@ -366,6 +366,44 @@ class TestDaysFilter:
 
 
 class TestSearch:
+    def test_forced_fallback_search_returns_correct_results(
+        self, disabled_service, fake_embedder
+    ):
+        """TASK-085: with sqlite-vec disabled, search still returns correct
+        results via the exact NumPy fallback — and the capability probe
+        reports the forced state (vec error names the env var), not just the
+        results."""
+        from another_brain.config import DISABLE_SQLITE_VEC_ENV
+
+        remembered = disabled_service.remember(
+            topic="forced-fallback-topic", summary="forced fallback summary",
+            agent_id="a", content="forced fallback body",
+        )
+        previews = disabled_service.search("forced")
+        assert [p.memory_id for p in previews] == [remembered.memory_id]
+        # The retriever's capability probe is the switch surface: it must
+        # report the forced NumPy backend with the env-var reason.
+        retriever = disabled_service._retriever
+        assert retriever.vector_backend() == "numpy"
+        with retriever._factory.connect(read_only=True) as con:
+            assert con.load_vec() is False  # the probe itself is the switch
+            assert con.vec_loaded is False
+            assert con.vec_load_error is not None
+            assert DISABLE_SQLITE_VEC_ENV in con.vec_load_error
+
+    def test_forced_fallback_vector_branch_is_exact(self, disabled_service, fake_embedder):
+        """TASK-085: the vector branch under the switch is the exact NumPy
+        path — a doc whose cosine is above the floor is a vector candidate
+        with the canonical key, and the search result is the same one the
+        non-disabled path produces."""
+        remembered = disabled_service.remember(
+            topic="exact-topic", summary="exact summary", agent_id="a",
+        )
+        previews = disabled_service.search("exact")
+        assert [p.memory_id for p in previews] == [remembered.memory_id]
+        retriever = disabled_service._retriever
+        assert retriever.vector_backend() == "numpy"
+
     def test_lexical_only_candidate_with_zero_cosine_is_returned(
         self, service, fake_embedder
     ):

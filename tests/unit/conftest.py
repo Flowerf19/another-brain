@@ -177,6 +177,59 @@ def make_service(sql_factory, tmp_path, fake_clock, fake_embedder):
 
 
 @pytest.fixture
+def make_disabled_service(sql_factory, tmp_path, fake_clock, fake_embedder):
+    """MemoryService factory over a sqlite-vec-disabled factory (TASK-085).
+
+    Same seam wiring as ``make_service`` but the factory itself is built
+    with ``disable_vec=True`` — the only difference a ``BRAIN_DISABLE_SQLITE_VEC``
+    env var makes at runtime is that one constructor arg, so service-level
+    tests exercise the exact forced-fallback path.
+    """
+    from another_brain.retrieval.service import HybridMemoryRetriever
+    from another_brain.services.memory_service import MemoryService
+    from another_brain.services.sql.audit import SQLiteAuditRepository
+    from another_brain.services.sql.health import SQLiteHealthProbe
+    from another_brain.services.sql.repository import SQLiteMemoryRepository
+
+    disabled_factory = SQLiteConnectionFactory(
+        sql_factory.db_path, disable_vec=True
+    )
+
+    def _make(brain_id: str = "test-brain") -> MemoryService:
+        config = AppConfig(
+            brain_id=brain_id,
+            timeline_timezone="UTC",
+            data_dir=tmp_path,
+            model_cache_dir=tmp_path,
+            disable_sqlite_vec=True,
+        )
+        return MemoryService(
+            repository=SQLiteMemoryRepository(
+                disabled_factory, brain_id=brain_id, clock=fake_clock
+            ),
+            retriever=HybridMemoryRetriever(
+                disabled_factory, brain_id=brain_id, clock=fake_clock
+            ),
+            audit=SQLiteAuditRepository(
+                disabled_factory, brain_id=brain_id, clock=fake_clock
+            ),
+            embedder=fake_embedder,
+            budgets=FakeBudgets(),
+            storage=SQLiteHealthProbe(disabled_factory),
+            config=config,
+            clock=fake_clock,
+        )
+
+    return _make
+
+
+@pytest.fixture
+def disabled_service(make_disabled_service):
+    """A MemoryService bound to ``test-brain`` with sqlite-vec disabled."""
+    return make_disabled_service()
+
+
+@pytest.fixture
 def service(make_service):
     """A MemoryService bound to ``test-brain`` over migrated temp SQLite."""
     return make_service()

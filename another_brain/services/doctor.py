@@ -273,7 +273,9 @@ def probe_item(config: "AppConfig") -> DoctorItem:
         with tempfile.TemporaryDirectory(prefix="another-brain-doctor-") as td:
             tmp = Path(td)
             checks.append(f"tempfile {tmp.name}")
-            factory = SQLiteConnectionFactory(tmp / "probe.sqlite3")
+            factory = SQLiteConnectionFactory(
+                tmp / "probe.sqlite3", disable_vec=config.disable_sqlite_vec
+            )
             factory.bootstrap()
             checks.append("bootstrap ok")
             version = migrate(factory.db_path)
