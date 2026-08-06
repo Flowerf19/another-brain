@@ -185,8 +185,10 @@ vector database, ANN sidecar, or storage backend selector.
 - TASK-042 (2026-08-04): the q4 profile is encoded once in
   `another_brain/services/embedding/model_manifest.py` (repo, revision, five file hashes, byte-exact
   query prompt + hash, document template, input version 2, dims 640, unit_l2);
-  installer/provider/schema consume it. The spike `fetch_models.py` imports its q4
-  constants from the manifest so evidence and installer cannot drift.
+  installer/provider/schema consume it. (The fp32/q4 spike and benchmark
+  harnesses were retired to git history once the permanent gates moved into
+  `tests/`; their evidence reports stay in `spikes/fp32/reports/` and
+  `benchmarks/reports/`.)
 
 ### Retrieval
 

@@ -1,6 +1,0 @@
-.venv/
-.models/
-__pycache__/
-# keep run manifests + metric results committed; drop bulky artifacts
-evidence/*.npy
-evidence/latency_samples.json
