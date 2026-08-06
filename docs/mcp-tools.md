@@ -1,8 +1,8 @@
 # MCP Tools
 
 The server exposes eight stable tools. Self-contained schemas and server
-instructions land with the MCP implementation (GOAL-013); this page is
-rewritten from the final tool definitions in TASK-088.
+instructions landed with the MCP implementation (GOAL-013); this page is
+refreshed from the final tool definitions in `another_brain/mcp/tools.py`.
 
 | Tool | Purpose |
 |------|---------|

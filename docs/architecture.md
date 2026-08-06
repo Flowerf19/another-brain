@@ -2,9 +2,10 @@
 
 > The authoritative architecture for the `v0.11.0` embedded rebuild is
 > `.agents/plans/another-brain-architecture.md`, executed through
-> `.agents/plans/07-multiplatform-embedded-runtime.md` and its sub-plans under
-> `.agents/plans/07/`. This page is refreshed from the final implementation in
-> TASK-088.
+> `.agents/plans/07-multiplatform-embedded-runtime.md` and its sub-plans
+> (completed phases 01–09 are archived under `.agents/plans/archive/07/`;
+> only `07/10-release-gate.md` is still active). This page is refreshed from
+> the final implementation.
 
 Summary: Another Brain is a standalone MCP tool. Eight `brain_*` tools sit in
 front of a `MemoryService` over ordinary SQLite tables; retrieval is FTS5

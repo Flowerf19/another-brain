@@ -33,7 +33,7 @@ read path equally.
   an explicit `brain_get`. There is always a deliberate step before full
   reliance.
 - **Freshness evidence**: every preview carries `timeline_day`; the hook
-  injects only the last 3 days.
+  injects only a short recency window.
 - **Decay**: every memory expires unless a reader explicitly judged it
   correct (`brain_reinforce`). Failure direction is forgetting.
 - **Erasability**: `brain_forget` removes wrong memories from all queries
