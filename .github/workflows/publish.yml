@@ -1,0 +1,62 @@
+name: publish
+
+# Trusted Publishing (OIDC). No PyPI token exists anywhere — not in repo
+# secrets, not on a laptop, not in this file. GitHub mints a short-lived
+# identity token scoped to THIS workflow file in THIS repository, and PyPI
+# trades it for an equally short-lived upload token. Nothing to leak, rotate,
+# or revoke.
+#
+# PyPI must be told to trust it first: add a publisher (a "pending publisher"
+# while the project does not exist yet) with owner Flowerf19, repository
+# another-brain, workflow filename publish.yml, environment pypi.
+#
+# Fires only on a v* tag. GitHub reads the workflow file from the ref being
+# pushed, so the tag itself must contain this file — moving the tag after
+# editing this workflow is required, not optional.
+#
+# A publish cannot be undone: PyPI allows yanking, never deleting. So this
+# gates on the real wheel-install check and a version/tag agreement check
+# before it uploads anything.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/another-brain
+    permissions:
+      id-token: write # mints the OIDC token; the entire mechanism rests on it
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v9.0.0
+        with:
+          enable-cache: true
+
+      - name: tag and package version must agree
+        if: github.event_name == 'push'
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg="$(python3 -c "import tomllib;print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")"
+          if [ "$tag" != "$pkg" ]; then
+            echo "FAIL: tag $GITHUB_REF_NAME does not match pyproject version $pkg"
+            exit 1
+          fi
+          echo "ok: publishing $pkg as $GITHUB_REF_NAME"
+
+      - name: wheel gate
+        run: installer/linux/check-wheel-install.sh
+
+      - name: build
+        run: uv build
+
+      - name: smoke test the built wheel
+        run: uv run --isolated --no-project --with dist/*.whl another-brain --version
+
+      - name: publish to PyPI
+        run: uv publish
