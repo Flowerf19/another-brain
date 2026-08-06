@@ -8,8 +8,7 @@ fully embedded MCP tool: no server, container, or daemon required.
 > migrations, repository, durable TTL, lifecycle, audit), the Harrier q4
 > ONNX embedding provider, hybrid retrieval (FTS5 BM25 + exact cosine +
 > RRF), the eight `brain_*` MCP tools over stdio and opt-in loopback HTTP,
-> and JSONL v1 import (GOAL-014). Pending: the release gate (GOAL-016) —
-> `doctor` is still a typed not-yet-available stub.
+> JSONL v1 import (GOAL-014), and the `doctor` diagnostic (GOAL-016).
 > Authoritative design: `.agents/plans/another-brain-architecture.md`;
 > execution record: `.agents/plans/07-multiplatform-embedded-runtime.md`;
 > completed sub-plans are archived under `.agents/plans/archive/07/`.
@@ -39,7 +38,12 @@ brain's newest entries (no model required); `another-brain model status`
 shows install state; `another-brain admin restore|hard-delete MEMORY_ID`
 are the admin lifecycle operations; `another-brain import-jsonl PATH`
 imports a JSONL v1 export artifact. `another-brain doctor` verifies
-install/model/database and lands with the release gate (GOAL-016).
+install/model/database health — platform support tier, resolved paths,
+package version, per-file model hashes, a read-only real-database check
+(integrity, foreign keys, schema, journal, page size), and an isolated
+write/read/delete probe in a throwaway temp database — and exits nonzero
+when any check fails. It never loads the embedding model, never downloads
+anything, and never writes to the real database.
 
 Harnesses invoke the installed `another-brain` executable.
 Docker and Redis are not part of the install, runtime, or deployment model.

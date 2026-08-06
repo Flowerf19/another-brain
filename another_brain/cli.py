@@ -7,9 +7,10 @@ precedence CLI ``--host/--port`` > ``MCP_HTTP_HOST``/``MCP_HTTP_PORT`` >
 ``127.0.0.1:1905``, numeric loopback only (validated by
 :mod:`another_brain.config`).
 
-``doctor`` still lands in a later phase (GOAL-016); until then it validates
-its arguments, then exits ``EXIT_UNAVAILABLE`` with a typed not-yet-available
-message on stderr. ``recent`` and ``admin`` are live and need no embedding
+``doctor`` (TASK-084) is live: it reports install/platform/model/database
+health and never loads the embedding model, never downloads anything, and
+never writes to the real database (the write probe runs against a throwaway
+temp database). ``recent`` and ``admin`` are live and need no embedding
 model: they open the store with a no-op budget validator (token budgets only
 matter on the write/search path), so listing or administering memories works
 without a model download.
@@ -41,15 +42,6 @@ EXIT_ERROR = 1
 EXIT_USAGE = 2
 EXIT_UNAVAILABLE = 3
 EXIT_CONFIG = 4
-
-
-class _NotAvailable(Exception):
-    """The command is valid but its subsystem has not landed yet."""
-
-    def __init__(self, command: str, phase: str) -> None:
-        super().__init__(command)
-        self.command = command
-        self.phase = phase
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -157,7 +149,7 @@ def _dispatch(args: argparse.Namespace, config: AppConfig) -> int:
         if args.model_command == "status":
             return _cmd_model_status(config)
     if args.command == "doctor":
-        raise _NotAvailable("doctor", "GOAL-016")
+        return _cmd_doctor(config)
     if args.command == "recent":
         return _cmd_recent(args, config)
     if args.command == "admin":
@@ -177,9 +169,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         config = AppConfig.from_env()
         return _dispatch(args, config)
-    except _NotAvailable as exc:
-        _err(f"{exc.command!r} is not yet available in this build (lands in {exc.phase})")
-        return EXIT_UNAVAILABLE
     except ConfigError as exc:
         _err(f"configuration error: {exc}")
         return EXIT_CONFIG
@@ -468,6 +457,30 @@ def _cmd_model_status(config: AppConfig) -> int:
     for name, state in states.items():
         print(f"  {name}: {state}")
     return EXIT_OK
+
+
+def _cmd_doctor(config: AppConfig) -> int:
+    """Print the health report; exit OK when nothing failed (warns allowed).
+
+    Every item is (name, status, detail, hint) — aligned columns, one line
+    per item. ``EXIT_ERROR`` when any item failed; the report still renders
+    in full so a broken machine shows everything at once (TASK-084).
+    """
+    from another_brain.services.doctor import run
+
+    report = run(config)
+    status_width = max(len(item.status) for item in report.items)
+    for item in report.items:
+        line = f"[{item.status:>{status_width}}] {item.name:<8} {item.detail}"
+        print(line)
+        if item.hint:
+            print(f"{'':>{status_width + 14}}hint: {item.hint}")
+    summary = (
+        "all checks passed" if not report.failed else
+        "one or more checks FAILED — see the report above"
+    )
+    print(f"summary: {summary}")
+    return EXIT_ERROR if report.failed else EXIT_OK
 
 
 if __name__ == "__main__":

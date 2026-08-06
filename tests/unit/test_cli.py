@@ -16,12 +16,14 @@ def _isolated_env(monkeypatch, tmp_path):
 
 
 class TestParsingAndExitCodes:
-    @pytest.mark.parametrize("argv", [["doctor"]])
-    def test_valid_commands_typed_unavailable(self, argv, capsys):
-        assert cli.main(argv) == cli.EXIT_UNAVAILABLE
-        captured = capsys.readouterr()
-        assert captured.out == ""  # stdout stays protocol-clean
-        assert "not yet available" in captured.err
+    def test_doctor_is_live_and_reports_health(self, capsys):
+        """TASK-084: doctor runs in an empty profile — model/database warn,
+        nothing fails, exit EXIT_OK, human-readable stdout."""
+        assert cli.main(["doctor"]) == cli.EXIT_OK
+        out = capsys.readouterr().out
+        assert "[warn] model" in out.replace("  ", " ")
+        assert "no database yet" in out
+        assert "summary:" in out
 
     def test_recent_empty_store_prints_no_memories(self, capsys):
         """TASK-074: recent is live against a fresh store; no model needed."""
