@@ -33,8 +33,13 @@ pwsh installer/win/check-wheel-install.ps1
 `installer/linux/connect.sh` (macOS: `installer/macos/connect.sh`, same
 script) registers the Another Brain MCP server into a harness's own config
 and installs the another-brain skill — per-harness logic lives one file per
-harness in `installer/linux/harnesses/`. POSIX-only; the Windows story is
-TASK-088 (documented MCP config JSON). NOTE: connectors currently register
-the Streamable HTTP endpoint (`http://localhost:1905/mcp`), which assumes a
-running `another-brain serve --http` — TASK-088 decides the move to stdio
-(`{"command": "another-brain"}`), which is also the Windows-friendly form.
+harness in `installer/linux/harnesses/`. One script serves both OSes because
+every supported harness keeps its CLI config in the same `$HOME/.<name>`
+dotdir on Linux and macOS alike (the `~/Library/Application Support`
+convention only applies to native GUI apps — and to our own data dir, which
+platformdirs handles inside the Python code, not here). POSIX-only; the
+Windows story is TASK-088 (documented MCP config JSON). NOTE: connectors
+currently register the Streamable HTTP endpoint (`http://localhost:1905/mcp`),
+which assumes a running `another-brain serve --http` — TASK-088 decides the
+move to stdio (`{"command": "another-brain"}`), which is also the
+Windows-friendly form.
