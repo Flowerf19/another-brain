@@ -67,8 +67,8 @@ above is dependency-driven.
 
 | ID | Task | Done | Date |
 |----|------|------|------|
-| TASK-086 | New `wheel-gate` workflow: matrix { ubuntu-22.04, ubuntu-24.04, macos-14, windows-2022 } × { Python 3.12, 3.13, 3.14 } running `installer/<os>/` gate + unit tests + clean-tree gate; plus one forced-fallback pass per OS (TASK-085). First execution of the Windows `.ps1` — budget iterations for pwsh semantics (native exit codes, path separators, `%LOCALAPPDATA%` resolution). | | |
-| TASK-087 | ARM64 best-effort: attempt wheel resolution on linux-aarch64 / windows-arm64 runners if available to the repo at no cost; otherwise document as resolve-verified-only (PyPI matrix above) and move on. No paid runner time without maintainer sign-off. | | |
+| TASK-086 | New `wheel-gate` workflow: matrix { ubuntu-22.04, ubuntu-24.04, macos-14, windows-2022 } × { Python 3.12, 3.13, 3.14 } running `installer/<os>/` gate + unit tests + clean-tree gate; plus one forced-fallback pass per OS (TASK-085). First execution of the Windows `.ps1` — budget iterations for pwsh semantics (native exit codes, path separators, `%LOCALAPPDATA%` resolution). **Green run 31089526222 (2026-08-06): 8/8 wheel cells + 4/4 unit cells. Caught and fixed: tzdata missing on Windows (EXIT_CONFIG on bare command), 2 doctor tests env-fragile, 6 POSIX-only test assumptions; `.gitattributes` pins LF for the JSONL contract.** | ✅ | 2026-08-06 |
+| TASK-087 | ARM64 best-effort: attempt wheel resolution on linux-aarch64 / windows-arm64 runners if available to the repo at no cost; otherwise document as resolve-verified-only (PyPI matrix above) and move on. No paid runner time without maintainer sign-off. **Decided 2026-08-06: no ARM CI. Resolution evidence: aarch64-unknown-linux-gnu compiles WITH sqlite-vec==0.1.9 (full vector path); aarch64-pc-windows-msvc compiles WITHOUT it (fallback, TASK-091). Both stay best-effort, doctor reports the tier.** | ✅ | 2026-08-06 |
 
 ### Phase C — release
 
