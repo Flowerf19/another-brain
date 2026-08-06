@@ -1,7 +1,7 @@
 ---
-status: in-progress
+status: done
 created: 2026-07-29
-last_updated: 2026-08-05
+last_updated: 2026-08-06
 ---
 
 # Plan 07 — Clean embedded rebuild (remove Docker, Redis, and Torch)
@@ -894,7 +894,7 @@ comparison remains available from the external `main` worktree.
 | TASK-087 | ARM64: linux-aarch64 is best-effort (resolves, full vector path; CI only if runners are free for this private repo). Windows ARM64 is currently uninstallable (sqlite-vec: no win_arm64 wheel, no sdist -> resolution failure); unlocking it = optional/markered sqlite-vec + the existing NumPy fallback. Unsupported tiers (macOS Intel, musl, 32-bit) reported explicitly, never silent source builds. Decided: no ARM CI; both ARM64 targets resolve-verified and stay best-effort. | ✅ | 2026-08-06 |
 | TASK-088 | Harness connectors: sh connectors **retired** (not wrapped) now that `another-brain connect` covers every OS — they registered HTTP, needed a repo clone + Node ≥ 22, and were POSIX-only. Docs refreshed (README, `docs/deployment.md` "Connecting a harness", `installer/README.md`); installed `another-brain` exe is the only invocation, no Node/npx/clone. | ✅ | 2026-08-06 |
 | TASK-089 | Release notes + resource evidence: `CHANGELOG.md` for 0.11.0 — support matrix + tiers, ~322 MiB RSS per process, NumPy-fallback p95 stated openly, lexical branch documented-not-budgeted. `benchmark.md` accepted as the evidence of record **with a caveat**: its §2/§3 latency predates the scope-partition index change (`4a4a1d8`), so it was measured on a schema we do not ship; quality/memory figures unaffected. Maintainer chose caveat over re-run. | ✅ | 2026-08-06 |
-| TASK-090 | Release rehearsal from an empty profile with only `uv` (install, model pull, connect one harness, remember/search/get/reinforce/forget, restart, doctor, uninstall, no daemon/container), then version `0.11.0` + CHANGELOG + tag; `uv publish` only on maintainer signal; then set plan status `done`. | | |
+| TASK-090 | Release rehearsal from an empty profile with only `uv`: `scripts/release-rehearsal.sh` PASS 9/9 (install, modelless-start contract, real 205.5 MB model pull, connect, full MCP lifecycle + restart, doctor 6/6, no listener, uninstall). Evidence `benchmark.md` §7. Folded-in codex TOML snippet fix landed. `CHANGELOG.md` dated 2026-08-06; tag `v0.11.0` local only — `uv publish` awaits maintainer signal. | ✅ | 2026-08-06 |
 | TASK-091 | GOAL-016 | Unlock Windows ARM64 install: marker sqlite-vec out of win_arm64 (no wheel, no sdist at 0.1.9); runtime NumPy fallback already graceful. Landed `e8f9c05` with targeted-resolution proof both ways. | ✅ | 2026-08-06 |
 | TASK-093 | GOAL-016 | `another-brain connect`: Python-native harness detect/register(stdio)/skill-install with wheel-bundled skill — makes Windows a first-class citizen and removes the repo-clone/Node prerequisites. Landed with 26 tests + fake-home E2E. | ✅ | 2026-08-06 |
 | TASK-092 | GOAL-016 | Platform probe service (`services/system.py`): single source of truth for OS/arch/libc + support-tier verdict (supported/best_effort/uninstallable/unsupported, reason, expect-sqlite-vec); feeds the TASK-084 doctor verdict line. Landed with 39 probe tests. | ✅ | 2026-08-06 |

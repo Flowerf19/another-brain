@@ -6,9 +6,13 @@ imports **from the venv** (checked from a neutral working directory so the
 checkout's root `another_brain/` cannot shadow it), and verifies the typed
 CLI contract on a machine with no model installed:
 
-- bare `another-brain` exits 3 with `model is not installed` on stderr —
-  never a traceback;
-- no per-user data directory is created as a side effect;
+- bare `another-brain` exits 3 with a typed missing-model error on stderr
+  (`model profile not installed; run ...model pull`) — never a traceback;
+- the run is confined to the gate's `BRAIN_DATA_DIR`/`BRAIN_MODEL_CACHE_DIR`
+  overrides, so the real per-user profile is never touched. Note the run is
+  not footprint-free inside those overrides: `build_runtime()` opens storage
+  before the tokenizer check that raises, so a modelless start leaves an
+  empty bootstrapped `brain.sqlite3` behind (TASK-090 finding);
 - a second pass runs the bare command with `BRAIN_DISABLE_SQLITE_VEC=1`
   (Linux) / `$env:BRAIN_DISABLE_SQLITE_VEC = '1'` (Windows): the switch
   forces the NumPy vector fallback for CI fallback testing and machines

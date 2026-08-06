@@ -17,6 +17,9 @@ import pytest
 from another_brain import cli
 from another_brain.errors import BrainError
 from another_brain.services.harness_connect import (
+    _HARNESSES,
+    MANUAL_JSON,
+    MANUAL_TOML,
     SERVER_ENTRY_JSON,
     SKILL_NAME,
     SKILL_RESOURCE_DIR,
@@ -205,7 +208,10 @@ class TestConnect:
         (fake_home / ".claude").mkdir()
         result = connect(["claude-code"], home=fake_home)[0]
         assert result.registered == "manual"
-        assert result.snippet == SERVER_ENTRY_JSON
+        assert result.snippet == MANUAL_JSON
+        assert json.loads(result.snippet)["mcpServers"]["another-brain"] == {
+            "command": "another-brain"
+        }
         assert "claude" in result.messages[0]
         assert result.skill_installed is True
 
@@ -217,6 +223,39 @@ class TestConnect:
         result = connect(["codex"], home=fake_home)[0]
         assert result.registered == "manual"
         assert result.skill_installed is True
+
+    def test_codex_manual_snippet_is_toml_not_json(self, fake_home, monkeypatch):
+        """codex's config.toml cannot take an mcpServers JSON object."""
+        monkeypatch.setattr(
+            "another_brain.services.harness_connect.shutil.which", lambda _: None
+        )
+        (fake_home / ".codex").mkdir()
+        result = connect(["codex"], home=fake_home)[0]
+        assert result.snippet == MANUAL_TOML
+        assert result.snippet == (
+            '[mcp_servers.another-brain]\ncommand = "another-brain"'
+        )
+        assert "mcpServers" not in result.messages[0]
+        assert "[mcp_servers.another-brain]" in result.messages[0]
+
+    def test_manual_snippet_language_matches_config_file(self):
+        """A harness's paste-this snippet must parse as its file's format.
+
+        The bug this pins: codex is the one registry row whose config file
+        is not JSON, and it used to be handed the shared JSON snippet.
+        """
+        tomllib = pytest.importorskip("tomllib")
+        for harness in _HARNESSES:
+            if harness.mcp_file.endswith(".toml"):
+                parsed = tomllib.loads(harness.manual_snippet)
+                assert parsed["mcp_servers"]["another-brain"] == {
+                    "command": "another-brain"
+                }
+            else:
+                parsed = json.loads(harness.manual_snippet)
+                assert parsed["mcpServers"]["another-brain"] == {
+                    "command": "another-brain"
+                }
 
     def test_claude_with_cli_registers_stdio_and_skill(self, fake_home, monkeypatch):
         monkeypatch.setattr(

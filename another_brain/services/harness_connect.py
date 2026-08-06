@@ -15,8 +15,9 @@ Registration is STDIO everywhere — the payload is the ``mcpServers`` entry
 zero-server, and the bare ``another-brain`` command is always the MCP stdio
 server. Harnesses with a native CLI (claude, codex) get their config through
 that CLI; the rest get a JSON upsert of their well-known config file. If the
-CLI is absent we return a ``manual`` result carrying the exact JSON snippet,
-never an exception.
+CLI is absent we return a ``manual`` result carrying the exact snippet to
+paste — in that config file's own language, JSON or TOML — never an
+exception.
 
 Subprocess calls go through an injectable runner so tests never shell out;
 defaults to :func:`subprocess.run` with the caller's environment.
@@ -41,7 +42,16 @@ SKILL_RESOURCE_DIR = "another_brain.skill"
 # old HTTP url form — there is no server to point at.
 SERVER_ENTRY: dict[str, object] = {"command": SERVER_NAME}
 SERVER_ENTRY_JSON = json.dumps(SERVER_ENTRY)
-"""Canonical JSON snippet for the manual-instruction fallback."""
+"""The bare entry value, as written into a JSON config's ``mcpServers``."""
+
+# What a user must paste when we cannot write their config for them. The
+# payload is the same stdio entry in both cases; only the file's language
+# differs, so the snippet is per-harness rather than global.
+MANUAL_JSON = json.dumps({"mcpServers": {SERVER_NAME: SERVER_ENTRY}})
+MANUAL_TOML = f'[mcp_servers.{SERVER_NAME}]\ncommand = "{SERVER_NAME}"'
+"""codex's ``config.toml`` is TOML: an ``mcpServers`` JSON object pasted
+there is a syntax error, not a config. The table key is ``mcp_servers``
+(snake_case) and a hyphenated server name is a legal TOML bare key."""
 
 # The bundled skill is force-included into the wheel as another_brain/skill/
 # (TASK-093). In the source tree that directory does not exist — the single
@@ -83,6 +93,8 @@ class Harness:
     ``detect_dir`` (the ``~/.<name>`` dotdir) and ``skill_dir`` are
     home-relative path segments; ``mcp_file`` is the registration target.
     ``cli`` is the optional native CLI that owns the harness's MCP config.
+    ``manual_snippet`` must be written in ``mcp_file``'s own language — see
+    :data:`MANUAL_TOML`.
     """
 
     name: str
@@ -90,6 +102,7 @@ class Harness:
     skill_dir: str
     mcp_file: str
     cli: str | None = None
+    manual_snippet: str = MANUAL_JSON
 
 
 _HARNESSES: tuple[Harness, ...] = (
@@ -106,6 +119,7 @@ _HARNESSES: tuple[Harness, ...] = (
         skill_dir=".codex/skills",
         mcp_file=".codex/config.toml",
         cli="codex",
+        manual_snippet=MANUAL_TOML,
     ),
     Harness(
         name="cursor",
@@ -255,8 +269,7 @@ def _connect_one(
         # CLI absent: return the manual-instruction result, never raise.
         registered, message = "manual", (
             f"{harness.cli} CLI not found — register {harness.name} by hand:"
-            f' add to ~/{harness.mcp_file}: {{"mcpServers":'
-            f' {{"{SERVER_NAME}": {SERVER_ENTRY_JSON}}}}}'
+            f" add to ~/{harness.mcp_file}:\n{harness.manual_snippet}"
         )
         messages.append(message)
     else:
@@ -273,7 +286,7 @@ def _connect_one(
     return HarnessResult(
         name=harness.name,
         registered=registered,
-        snippet=SERVER_ENTRY_JSON,
+        snippet=harness.manual_snippet,
         skill_installed=skill_ok,
         skill_path=skill_path,
         messages=messages,

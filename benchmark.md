@@ -225,3 +225,41 @@ with the §1 resource gate (412 MiB steady RSS includes eval scaffolding);
 `close()` releases only ~20 MiB (onnxruntime arena; real reclamation at
 process exit); no hidden embedding daemon — one lazy session per MCP
 process, serialized first load.
+
+## 7. Release rehearsal (TASK-090, 2026-08-06) — PASS 9/9
+
+`scripts/release-rehearsal.sh`, repeatable. One temp root holds a fake HOME
+(so platformdirs resolves every product path from scratch), an isolated uv
+tool dir, and an isolated bin dir; `XDG_*` and every `BRAIN_*` override are
+unset so nothing of the host profile leaks in. uv's own package cache is
+shared with the host on purpose — uv is the stated prerequisite. The model
+cache is not: `model pull` downloaded the pinned 205.5 MB profile for real.
+
+| Step | Asserted | Result |
+|---|---|---|
+| 1 | wheel built, `uv tool install`, exe resolves to the isolated bin | `another_brain-0.11.0-py3-none-any.whl` |
+| 2 | modelless start: exit 3, typed error, no traceback | holds; footprint recorded below |
+| 3 | `model pull` into an empty cache, every pinned hash verified | 5/5 files, 216 MB on disk |
+| 4 | `connect cursor` writes the stdio entry + installs the skill | `{"command": "another-brain"}`, no url |
+| 5 | MCP stdio: 8 locked tools, health without loading the model, remember → search → get → reinforce → forget, then restart | forgotten entry stays gone; audit carries forget/reinforce/remember |
+| 6 | a separate process reads the same store | `recent` ok, db 336 KB |
+| 7 | `doctor` | 6/6 ok, tier `supported`, `sqlite-vec loaded` |
+| 8 | nothing listening on 1905; tool venv free of redis/torch/ST/docker | 100 site-packages entries, none forbidden |
+| 9 | `uv tool uninstall` removes shim + venv, leaves user data | holds |
+
+**Finding (step 2), recorded not fixed:** a start with no model installed is
+not footprint-free. `build_runtime()` calls `ensure_directories()` and
+bootstraps `brain.sqlite3` (plus WAL/shm/schema lock) *before* `_budgets()`
+reaches the missing `tokenizer.json` and raises. So a modelless run leaves an
+empty, schema-complete store and an empty model-cache directory behind. It is
+benign — 0 memories, well-formed, and the same store first real use would
+create — but it contradicts the "no per-user data directory is created as a
+side effect" line that `installer/README.md` carried; that line is corrected
+rather than the ordering, since moving the model check ahead of storage setup
+is a startup-behavior change and this is a release gate. The rehearsal now
+asserts the true invariant: whatever a failed start creates must be empty and
+well-formed, never partial.
+
+Environment note: uv provisioned the tool venv on CPython 3.12.8 (the floor),
+not the 3.14.6 of the reference machine above — the rehearsal exercises the
+supported floor, which is the more useful signal for a release gate.
