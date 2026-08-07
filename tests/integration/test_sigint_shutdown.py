@@ -1,21 +1,12 @@
 """TASK-097: a single Ctrl-C exits ``serve`` quietly with status 130.
 
-Regression test for the leaked shutdown traceback. The MCP stdio transport
-serves its stdin reader on an anyio worker thread that stays blocked on the
-pipe while a harness holds it open, so a plain KeyboardInterrupt escapes the
-event loop and then hangs interpreter shutdown on the non-daemon thread join;
-a second Ctrl-C lands inside ``threading._shutdown`` and prints the traceback
-this task was filed against.
-
-The test drives the repo's console script (the one beside ``sys.executable``,
-so a stale globally installed copy cannot mask the code under test) over
-stdio with an isolated data home, completes the MCP ``initialize`` handshake
-(proof the server is fully serving), sends SIGINT, and asserts:
-
-- the process exits within a few seconds (no hang on the worker join),
-- the exit code is 130 (128+SIGINT on POSIX; Windows kills hard, so the
-  assertion branches),
-- stderr carries no ``Traceback``.
+Regression test for the leaked shutdown traceback (anyio stdin-reader worker
+blocked on the pipe; interpreter shutdown hung joining it). Drives the repo's
+console script — the one beside ``sys.executable``, so a stale globally
+installed copy cannot mask the code under test — through the MCP ``initialize``
+handshake as the readiness probe, sends SIGINT, and asserts fast exit, code
+130 (POSIX; Windows kills hard, so the assertion branches), and no
+``Traceback`` on stderr.
 
 Uses the pinned q4 model from the shared default cache — run
 ``another-brain model pull`` first. Marked ``slow``; CI runs the fast suite.

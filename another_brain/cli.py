@@ -18,6 +18,8 @@ without a model download.
 from __future__ import annotations
 
 import argparse
+import os
+import signal
 import sys
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -183,13 +185,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 def _cmd_serve(args: argparse.Namespace, config: AppConfig) -> int:
     """Start the MCP server; stdio unless ``--http`` opts in (TASK-067).
-
-    SIGINT is handled here, not in the transport: the MCP stdio server runs
-    its stdin reader on an anyio worker thread that stays blocked on the
-    pipe while a harness holds it open, so a plain KeyboardInterrupt escapes
-    the event loop and then hangs interpreter shutdown on the thread join
-    (TASK-097). The handler below turns one Ctrl-C into a clean 130 exit.
-    """
+    SIGINT is wrapped for a quiet 130 exit (TASK-097)."""
     from another_brain.mcp.server import serve_http, serve_stdio
 
     try:
@@ -209,22 +205,11 @@ def _cmd_serve(args: argparse.Namespace, config: AppConfig) -> int:
 
 
 def _serve_under_sigint(run_server) -> None:
-    """Run ``run_server`` so SIGINT exits quietly with status 130.
+    """Run ``run_server`` so SIGINT exits quietly with status 130 (TASK-097).
 
-    Why this exists: the MCP stdio transport serves its stdin reader on an
-    anyio worker thread that stays blocked on the pipe while a harness holds
-    it open. A plain KeyboardInterrupt escapes the event loop and then hangs
-    interpreter shutdown on the non-daemon thread join; a second Ctrl-C then
-    lands inside ``threading._shutdown`` and leaks the traceback this task
-    was filed against. Raising SystemExit has the same hole (asyncio's
-    runner restores the default handler and re-delivers a queued SIGINT).
-    ``os._exit`` in the handler is the one path with no join and no window:
-    status 130 (128+SIGINT), immediate, silent. Normal EOF shutdown is
-    untouched — the transport's ``finally`` (runtime.close) still runs.
-    """
-    import os
-    import signal
-
+    ``os._exit`` in the handler is deliberate: the stdio transport's anyio
+    worker thread blocks on the pipe and cannot be joined, so every cleanup
+    path hangs interpreter shutdown. Normal EOF shutdown is untouched."""
     def _on_sigint(signum, frame) -> None:
         os._exit(130)
 
