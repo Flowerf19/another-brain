@@ -63,6 +63,16 @@ class TestParsingAndExitCodes:
         assert exc.value.code == 0
         assert cli.VERSION in capsys.readouterr().out
 
+    def test_version_matches_pyproject(self):
+        """--version reads dist metadata; the editable install mirrors
+        pyproject, so the two can never drift apart (guard the seam)."""
+        import tomllib
+        from pathlib import Path
+
+        pyproject = Path(__file__).resolve().parents[2] / "pyproject.toml"
+        declared = tomllib.loads(pyproject.read_text("utf-8"))["project"]["version"]
+        assert cli.VERSION == declared
+
     def test_bare_model_requires_subcommand(self, capsys):
         """TASK-096: `model` with no subcommand must not exit silently —
         argparse prints the usage error naming the missing argument."""

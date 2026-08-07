@@ -22,6 +22,7 @@ import os
 import signal
 import sys
 from collections.abc import Sequence
+from importlib.metadata import version as _dist_version
 from typing import TYPE_CHECKING
 
 from another_brain.config import AppConfig, parse_loopback_host, parse_port
@@ -37,7 +38,7 @@ if TYPE_CHECKING:
     from another_brain.services.memory_service import MemoryService
 
 PROG = "another-brain"
-VERSION = "0.11.0"
+VERSION = _dist_version(PROG)  # single source of truth: pyproject, via dist metadata
 
 EXIT_OK = 0
 EXIT_ERROR = 1
