@@ -908,7 +908,7 @@ comparison remains available from the external `main` worktree.
 | TASK-095 | GOAL-017 | clean-tree `compose` false positive reword. Landed `210e1d9`. | ✅ | 2026-08-07 |
 | TASK-096 | GOAL-017 | bare `model`/`admin` required-subcommand UX. Landed `20f3fec` + regression tests. | ✅ | 2026-08-07 |
 | TASK-097 | GOAL-017 | `serve` SIGINT quiet shutdown. Landed `0b17b90` (os._exit(130) handler) + follow-ups. | ✅ | 2026-08-07 |
-| TASK-098 | GOAL-017 | command-matrix E2E + 0.12.0 release. | | |
+| TASK-098 | GOAL-017 | command-matrix E2E + 0.12.0 release. Matrix green, publish run 31141890303 SUCCESS, PyPI live. | ✅ | 2026-08-07 |
 
 ## Test Plan
 
