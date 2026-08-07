@@ -10,6 +10,18 @@
   order; no new machinery. Re-running is safe. Motivation: the install → pull →
   connect sequence was three commands where one predictable one does.
 
+### Fixed
+
+- Bare `another-brain model` / `another-brain admin` printed nothing and
+  exited 2; both now emit the standard argparse usage error naming the
+  required subcommand (found in the first real-user session).
+- Ctrl-C on `serve` leaked a shutdown `Traceback` (the stdio transport's
+  anyio worker thread blocks on the pipe and cannot be joined, hanging
+  interpreter shutdown); one SIGINT now exits immediately and silently
+  with the conventional status 130. Normal EOF shutdown is unchanged.
+- `--version` now reads the installed distribution metadata, so it can
+  never drift from the released version again.
+
 ## 0.11.0 — 2026-08-06
 
 First release of the standalone embedded runtime. Another Brain is now a
