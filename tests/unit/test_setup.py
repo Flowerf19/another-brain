@@ -1,7 +1,7 @@
-"""CLI ``setup`` — one-shot onboarding composing model pull + connect.
+"""CLI ``setup`` — one-shot onboarding bundling model pull + connect.
 
 Both steps are idempotent and individually covered elsewhere; these tests
-pin the composition: order (model first, connect only if it succeeds),
+pin the orchestration: order (model first, connect only if it succeeds),
 the no-harness path, and re-run safety.
 """
 

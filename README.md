@@ -26,7 +26,7 @@ another-brain setup    # pulls the ~206 MB model, connects every detected harnes
 ```
 
 Restart the harness and your agent has memory. `setup` is a one-shot
-composition of `model pull` + `connect`: it downloads the hash-verified
+bundle of `model pull` + `connect`: it downloads the hash-verified
 embedding model once, then writes the MCP server entry into each detected
 harness's own config and installs a skill that teaches the agent when to use
 it — no JSON to edit by hand, on any OS. Both steps are idempotent, so

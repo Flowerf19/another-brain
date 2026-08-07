@@ -6,8 +6,8 @@
 
 - **`another-brain setup`** — one-shot onboarding: pulls the pinned embedding
   model (idempotent, hash-verified) and runs `connect` for every detected
-  harness, ending with the restart reminder. It composes the existing steps
-  with no new machinery; re-running is safe. Motivation: the install → pull →
+  harness, ending with the restart reminder. It runs the existing steps in
+  order; no new machinery. Re-running is safe. Motivation: the install → pull →
   connect sequence was three commands where one predictable one does.
 
 ## 0.11.0 — 2026-08-06
