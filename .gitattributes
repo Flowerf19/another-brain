@@ -1,2 +1,5 @@
 # The JSONL v1 contract is LF-only; never let checkout convert line endings.
 *.jsonl text eol=lf
+
+# This fixture must keep its CR bytes — it exists to prove CR rejection.
+tests/fixtures/jsonl-v1/invalid-crlf.jsonl -text
