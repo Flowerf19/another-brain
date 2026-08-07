@@ -182,16 +182,23 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 def _cmd_serve(args: argparse.Namespace, config: AppConfig) -> int:
-    """Start the MCP server; stdio unless ``--http`` opts in (TASK-067)."""
+    """Start the MCP server; stdio unless ``--http`` opts in (TASK-067).
+
+    SIGINT is handled here, not in the transport: the MCP stdio server runs
+    its stdin reader on an anyio worker thread that stays blocked on the
+    pipe while a harness holds it open, so a plain KeyboardInterrupt escapes
+    the event loop and then hangs interpreter shutdown on the thread join
+    (TASK-097). The handler below turns one Ctrl-C into a clean 130 exit.
+    """
     from another_brain.mcp.server import serve_http, serve_stdio
 
     try:
         if args.http:
             host, port = _resolve_http_bind(args, config)
             _err(f"serving MCP on http://{host}:{port}/mcp")
-            serve_http(config, host=host, port=port)
+            _serve_under_sigint(lambda: serve_http(config, host=host, port=port))
         else:
-            serve_stdio(config)
+            _serve_under_sigint(lambda: serve_stdio(config))
     except ModelNotInstalledError as exc:
         _err(str(exc))
         return EXIT_UNAVAILABLE
@@ -199,6 +206,33 @@ def _cmd_serve(args: argparse.Namespace, config: AppConfig) -> int:
         _err(f"storage error: {exc}")
         return EXIT_ERROR
     return EXIT_OK
+
+
+def _serve_under_sigint(run_server) -> None:
+    """Run ``run_server`` so SIGINT exits quietly with status 130.
+
+    Why this exists: the MCP stdio transport serves its stdin reader on an
+    anyio worker thread that stays blocked on the pipe while a harness holds
+    it open. A plain KeyboardInterrupt escapes the event loop and then hangs
+    interpreter shutdown on the non-daemon thread join; a second Ctrl-C then
+    lands inside ``threading._shutdown`` and leaks the traceback this task
+    was filed against. Raising SystemExit has the same hole (asyncio's
+    runner restores the default handler and re-delivers a queued SIGINT).
+    ``os._exit`` in the handler is the one path with no join and no window:
+    status 130 (128+SIGINT), immediate, silent. Normal EOF shutdown is
+    untouched — the transport's ``finally`` (runtime.close) still runs.
+    """
+    import os
+    import signal
+
+    def _on_sigint(signum, frame) -> None:
+        os._exit(130)
+
+    previous = signal.signal(signal.SIGINT, _on_sigint)
+    try:
+        run_server()
+    finally:
+        signal.signal(signal.SIGINT, previous)
 
 
 def _cmd_model_pull(config: AppConfig) -> int:

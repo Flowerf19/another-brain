@@ -166,6 +166,38 @@ class TestHttpBindPrecedence:
         assert "HTTP" not in err
 
 
+class TestServeSigintWrapper:
+    """TASK-097: ``_serve_under_sigint`` installs a SIGINT handler that turns
+    one Ctrl-C into a clean 130 exit and restores the prior handler on a
+    normal return. The end-to-end exit-code/no-traceback contract is asserted
+    by the integration test (tests/integration/test_sigint_shutdown.py).
+    """
+
+    def test_normal_return_restores_prior_handler(self):
+        """A clean server return leaves the process's SIGINT handler as found."""
+        import signal
+
+        sentinel = lambda signum, frame: None  # noqa: E731
+        signal.signal(signal.SIGINT, sentinel)
+        try:
+            cli._serve_under_sigint(lambda: None)
+            assert signal.getsignal(signal.SIGINT) is sentinel
+        finally:
+            signal.signal(signal.SIGINT, signal.default_int_handler)
+
+    def test_handler_is_installed_while_running(self):
+        """While the server runs, SIGINT is routed to the 130-exit handler."""
+        import signal
+
+        observed = {}
+
+        def run_server():
+            observed["handler"] = signal.getsignal(signal.SIGINT)
+
+        cli._serve_under_sigint(run_server)
+        assert observed["handler"] is not signal.default_int_handler
+
+
 class TestStartupImports:
     def test_cli_import_has_no_legacy_or_heavy_deps(self):
         """`another-brain` startup never imports Redis/Torch/ST/ONNX (TASK-040)."""
