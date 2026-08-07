@@ -67,7 +67,7 @@ def _build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--port", default=None, type=str, help="TCP port 1..65535")
 
     model = sub.add_parser("model", help="manage the pinned embedding model")
-    model_sub = model.add_subparsers(dest="model_command")
+    model_sub = model.add_subparsers(dest="model_command", required=True)
     model_sub.add_parser("pull", help="download and verify the pinned q4 artifacts")
     model_sub.add_parser("status", help="show install/load state without loading the model")
 
@@ -82,7 +82,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     admin = sub.add_parser("admin", help="administrative lifecycle operations")
-    admin_sub = admin.add_subparsers(dest="admin_command")
+    admin_sub = admin.add_subparsers(dest="admin_command", required=True)
     restore = admin_sub.add_parser("restore", help="undo a soft delete inside its grace window")
     restore.add_argument("memory_id")
     hard = admin_sub.add_parser("hard-delete", help="permanently remove a memory")
@@ -429,7 +429,7 @@ def _cmd_connect(args: argparse.Namespace, config: AppConfig) -> int:
 
 def _cmd_setup(config: AppConfig) -> int:
     """One-shot onboarding: ``model pull`` + ``connect`` for every detected
-    harness. Composes the existing commands — no new machinery; both steps
+    harness. Runs the two existing commands — no new machinery; both steps
     are idempotent, so re-running ``setup`` is safe.
 
     Exit codes: the model pull's code if it fails (connect is then not

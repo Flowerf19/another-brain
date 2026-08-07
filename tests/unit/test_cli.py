@@ -63,6 +63,22 @@ class TestParsingAndExitCodes:
         assert exc.value.code == 0
         assert cli.VERSION in capsys.readouterr().out
 
+    def test_bare_model_requires_subcommand(self, capsys):
+        """TASK-096: `model` with no subcommand must not exit silently —
+        argparse prints the usage error naming the missing argument."""
+        with pytest.raises(SystemExit) as exc:
+            cli.main(["model"])
+        assert exc.value.code == 2
+        assert "model_command" in capsys.readouterr().err
+
+    def test_bare_admin_requires_subcommand(self, capsys):
+        """TASK-096: `admin` with no subcommand must not exit silently —
+        argparse prints the usage error naming the missing argument."""
+        with pytest.raises(SystemExit) as exc:
+            cli.main(["admin"])
+        assert exc.value.code == 2
+        assert "admin_command" in capsys.readouterr().err
+
     def test_model_status_reports_not_installed_without_loading(self, capsys):
         """Empty cache: status answers from disk state, exit 0, no model load."""
         assert cli.main(["model", "status"]) == cli.EXIT_OK
