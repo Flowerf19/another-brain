@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.12.0 — 2026-08-07
+
+### Added
+
+- **`another-brain setup`** — one-shot onboarding: pulls the pinned embedding
+  model (idempotent, hash-verified) and runs `connect` for every detected
+  harness, ending with the restart reminder. It composes the existing steps
+  with no new machinery; re-running is safe. Motivation: the install → pull →
+  connect sequence was three commands where one predictable one does.
+
 ## 0.11.0 — 2026-08-06
 
 First release of the standalone embedded runtime. Another Brain is now a

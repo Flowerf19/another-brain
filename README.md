@@ -22,13 +22,15 @@ Then:
 
 ```bash
 uv tool install another-brain
-another-brain model pull            # one-time ~206 MB embedding model, hash-verified
-another-brain connect claude-code   # set up your agent harness
+another-brain setup    # pulls the ~206 MB model, connects every detected harness
 ```
 
-Restart the harness and your agent has memory. `connect` writes the MCP
-server entry into the harness's own config and installs a skill that teaches
-the agent when to use it — no JSON to edit by hand, on any OS.
+Restart the harness and your agent has memory. `setup` is a one-shot
+composition of `model pull` + `connect`: it downloads the hash-verified
+embedding model once, then writes the MCP server entry into each detected
+harness's own config and installs a skill that teaches the agent when to use
+it — no JSON to edit by hand, on any OS. Both steps are idempotent, so
+re-running `setup` is safe; the individual commands stay available below.
 
 Run `another-brain connect` with no arguments to see which harnesses are
 known and which are installed here. Supported today: `claude-code`, `codex`,
@@ -70,6 +72,7 @@ keyword match (so an exact error string or file path is findable verbatim).
 | Command | Purpose |
 |---|---|
 | `another-brain` | the MCP server itself (your harness runs this; you normally don't) |
+| `another-brain setup` | one-shot onboarding: pull the model + connect detected harnesses |
 | `another-brain connect [harness…]` | register the server + install the skill |
 | `another-brain model pull` / `model status` | download or check the embedding model |
 | `another-brain recent [--limit N]` | print the newest entries from the terminal |

@@ -101,6 +101,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "harness", nargs="*", help="harness names to connect (default: list all)"
     )
 
+    sub.add_parser(
+        "setup",
+        help="one-shot onboarding: pull the model, connect every detected harness",
+    )
+
     imp = sub.add_parser("import-jsonl", help="import a another-brain-jsonl v1 artifact")
     imp.add_argument("path", help="path to the JSONL export artifact")
     return parser
@@ -157,6 +162,8 @@ def _dispatch(args: argparse.Namespace, config: AppConfig) -> int:
             return _cmd_admin_restore(args, config)
         if args.admin_command == "hard-delete":
             return _cmd_admin_hard_delete(args, config)
+    if args.command == "setup":
+        return _cmd_setup(config)
     if args.command == "connect":
         return _cmd_connect(args, config)
     if args.command == "import-jsonl":
@@ -418,6 +425,34 @@ def _cmd_connect(args: argparse.Namespace, config: AppConfig) -> int:
         if result.registered == "manual":
             status = EXIT_ERROR
     return status
+
+
+def _cmd_setup(config: AppConfig) -> int:
+    """One-shot onboarding: ``model pull`` + ``connect`` for every detected
+    harness. Composes the existing commands — no new machinery; both steps
+    are idempotent, so re-running ``setup`` is safe.
+
+    Exit codes: the model pull's code if it fails (connect is then not
+    attempted); otherwise the connect step's code.
+    """
+    status = _cmd_model_pull(config)
+    if status != EXIT_OK:
+        return status
+
+    from another_brain.services.harness_connect import detect_harnesses, known_harnesses
+
+    detected = detect_harnesses()
+    if not detected:
+        known = " | ".join(known_harnesses())
+        print(f"no harnesses detected — after installing one, run: {PROG} connect [{known}]")
+        return EXIT_OK
+    print(f"detected harnesses: {' '.join(detected)}")
+    connect_status = _cmd_connect(
+        argparse.Namespace(detect=False, harness=list(detected)), config
+    )
+    if connect_status == EXIT_OK:
+        print("setup complete — restart your harness(es) to load the server and skill")
+    return connect_status
 
 
 def _cmd_admin_restore(args: argparse.Namespace, config: AppConfig) -> int:
