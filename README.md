@@ -61,11 +61,11 @@ Search combines two independent signals: semantic similarity (so "how do we
 handle expired tokens" finds a note about refresh logic) and full-text
 keyword match (so an exact error string or file path is findable verbatim).
 
-## New in 0.11.0
-
-- Redis and Docker are gone: one executable and one SQLite file, nothing running in the background.
-- `another-brain connect` sets up any supported harness on Linux, macOS, and Windows with one command.
-- `another-brain doctor` checks your install, model hashes, and database, and tells you what to fix.
+## 0.12.0 — 2026-08-07
+Added
+another-brain setup — one-shot onboarding: pulls the pinned embedding model (idempotent, hash-verified) and runs connect for every detected harness, ending with the restart reminder.
+Fixed
+Bare another-brain model / another-brain admin printed nothing and exited 2
 
 ## Commands
 
