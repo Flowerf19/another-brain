@@ -905,8 +905,8 @@ comparison remains available from the external `main` worktree.
 | ID | Goal | Task | Status | Date |
 |---|---|---|---|---|
 | TASK-094 | GOAL-017 | `another-brain setup` one-shot onboarding (model pull + connect detected). Detail in sub-plan 07.11. | ✅ (unreleased) | 2026-08-07 |
-| TASK-095 | GOAL-017 | clean-tree `compose` false positive reword. | | |
-| TASK-096 | GOAL-017 | bare `model`/`admin` required-subcommand UX. | | |
+| TASK-095 | GOAL-017 | clean-tree `compose` false positive reword. Landed `210e1d9`. | ✅ | 2026-08-07 |
+| TASK-096 | GOAL-017 | bare `model`/`admin` required-subcommand UX. Landed `20f3fec` + regression tests. | ✅ | 2026-08-07 |
 | TASK-097 | GOAL-017 | `serve` SIGINT quiet shutdown. | | |
 | TASK-098 | GOAL-017 | command-matrix E2E + 0.12.0 release. | | |
 
