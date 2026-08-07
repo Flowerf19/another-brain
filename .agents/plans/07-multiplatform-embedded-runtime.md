@@ -446,6 +446,7 @@ document.
 | 07.08 | `archive/07/08-service-and-mcp.md` ✅ | GOAL-013 | 07.05, 07.07 |
 | 07.09 | `archive/07/09-import-and-cutover.md` ✅ | GOAL-014 | 07.08 + validated external artifact |
 | 07.10 | `07/10-release-gate.md` | GOAL-016 | all prior |
+| 07.11 | `07/11-setup-and-cli-polish.md` | GOAL-017 | 07.10 |
 
 ### Execution order
 
@@ -898,6 +899,16 @@ comparison remains available from the external `main` worktree.
 | TASK-091 | GOAL-016 | Unlock Windows ARM64 install: marker sqlite-vec out of win_arm64 (no wheel, no sdist at 0.1.9); runtime NumPy fallback already graceful. Landed `e8f9c05` with targeted-resolution proof both ways. | ✅ | 2026-08-06 |
 | TASK-093 | GOAL-016 | `another-brain connect`: Python-native harness detect/register(stdio)/skill-install with wheel-bundled skill — makes Windows a first-class citizen and removes the repo-clone/Node prerequisites. Landed with 26 tests + fake-home E2E. | ✅ | 2026-08-06 |
 | TASK-092 | GOAL-016 | Platform probe service (`services/system.py`): single source of truth for OS/arch/libc + support-tier verdict (supported/best_effort/uninstallable/unsupported, reason, expect-sqlite-vec); feeds the TASK-084 doctor verdict line. Landed with 39 probe tests. | ✅ | 2026-08-06 |
+
+### GOAL-017: One-shot onboarding + first-real-use CLI polish (0.12.0)
+
+| ID | Goal | Task | Status | Date |
+|---|---|---|---|---|
+| TASK-094 | GOAL-017 | `another-brain setup` one-shot onboarding (model pull + connect detected). Detail in sub-plan 07.11. | ✅ (unreleased) | 2026-08-07 |
+| TASK-095 | GOAL-017 | clean-tree `compose` false positive reword. | | |
+| TASK-096 | GOAL-017 | bare `model`/`admin` required-subcommand UX. | | |
+| TASK-097 | GOAL-017 | `serve` SIGINT quiet shutdown. | | |
+| TASK-098 | GOAL-017 | command-matrix E2E + 0.12.0 release. | | |
 
 ## Test Plan
 
