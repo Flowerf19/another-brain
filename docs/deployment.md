@@ -1,10 +1,33 @@
 # Deployment
 
 Another Brain deploys as a single installed executable — there is no server,
-container, or external database to run.
+container, or external database to run. The only requirement is Python
+3.12+.
+
+Install the published package into a venv with standard pip:
 
 ```bash
-uv tool install another-brain
+python -m venv .venv
+.venv/bin/python -m pip install another-brain
+```
+
+Windows runs the same two commands with `.venv\Scripts\python`; the console
+script lands in the venv's `bin` directory on POSIX and `Scripts` on
+Windows. From a checkout of this repo, install the local tree from the repo
+root instead — hatchling is the PEP 517 build backend, so pip needs nothing
+beyond the checkout:
+
+```bash
+python -m venv .venv
+.venv/bin/python -m pip install .
+```
+
+Neither path reads `uv.lock` or needs uv at install or runtime. `uv tool
+install another-brain` remains an optional one-command convenience, and uv
+with the lockfile is this repo's reproducible development workflow. With
+the venv active, the commands below are identical:
+
+```bash
 another-brain model pull   # one-time, pinned + hash-verified
 another-brain              # MCP stdio server for your harness
 another-brain serve --http # optional loopback HTTP on 127.0.0.1:1905
@@ -85,7 +108,7 @@ not `another_brain_brain_health`; the MCP wire contract is unchanged.
 
 Restart the harness afterwards so it picks up the new server. `connect` needs
 neither the model nor a database, so it is safe to run immediately after
-`uv tool install` — the model download can come later.
+install — the model download can come later.
 
 The full platform matrix and support tiers land with the release notes;
 `another-brain doctor` already reports the tier for the machine it runs on.

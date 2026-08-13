@@ -19,6 +19,27 @@ CLI contract on a machine with no model installed:
   without the sqlite-vec wheel, and must not break startup — exit 3 with
   the typed model-not-installed error still holds.
 
+## Install with pip
+
+The wheel gates below prove the standard install path: a clean venv, pip,
+and the package alone. Users run the same two commands — the published
+package:
+
+```bash
+python -m venv .venv
+.venv/bin/python -m pip install another-brain
+```
+
+or a checkout of this repo, from its root:
+
+```bash
+python -m venv .venv
+.venv/bin/python -m pip install .
+```
+
+Windows: `.venv\Scripts\python`. Neither path reads `uv.lock` or needs uv.
+Full install docs: `../README.md`, `../docs/deployment.md`.
+
 ## Linux
 
 ```bash

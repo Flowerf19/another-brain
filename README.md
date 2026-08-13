@@ -10,27 +10,38 @@ CPU.
 
 ## Install
 
-The one prerequisite is [uv](https://docs.astral.sh/uv/) — no daemon, no
-root, no container runtime:
+Another Brain is a standard Python package — the only prerequisite is Python
+3.12+ (no daemon, no root, no container runtime). Install the published
+package into a venv with pip:
 
 ```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh              # Linux / macOS
-powershell -c "irm https://astral.sh/uv/install.ps1 | iex"   # Windows
+python -m venv .venv
+.venv/bin/python -m pip install another-brain   # Windows: .venv\Scripts\python
+.venv/bin/another-brain setup                   # Windows: .venv\Scripts\another-brain
 ```
 
-Then:
+Or install a checkout of this repo from its root:
 
 ```bash
-uv tool install another-brain
-another-brain setup    # pulls the ~206 MB model, connects every detected harness
+python -m venv .venv
+.venv/bin/python -m pip install .
 ```
+
+The console script `another-brain` lands in the venv's `bin` directory
+(`Scripts` on Windows); activating the venv puts it on PATH.
 
 Restart the harness and your agent has memory. `setup` is a one-shot
 bundle of `model pull` + `connect`: it downloads the hash-verified
-embedding model once, then writes the MCP server entry into each detected
-harness's own config and installs a skill that teaches the agent when to use
-it — no JSON to edit by hand, on any OS. Both steps are idempotent, so
-re-running `setup` is safe; the individual commands stay available below.
+embedding model (~206 MB) once, then writes the MCP server entry into each
+detected harness's own config and installs a skill that teaches the agent
+when to use it — no JSON to edit by hand, on any OS. Both steps are
+idempotent, so re-running `setup` is safe; the individual commands stay
+available below.
+
+[uv](https://docs.astral.sh/uv/) is an optional convenience: `uv tool
+install another-brain` does the same install and puts `another-brain` on
+PATH in one command. The `uv.lock` file is a maintainer/development
+artifact — pip installs never read it, and uv is never needed at runtime.
 
 Run `another-brain connect` with no arguments to see which harnesses are
 known and which are installed here. Supported today: `claude-code`, `codex`,
