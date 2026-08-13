@@ -39,6 +39,21 @@ jobs:
       - uses: astral-sh/setup-uv@v9.0.0
         with:
           enable-cache: true
+      # The pip gates use plain `python -m venv` / `python -m pip` from PATH,
+      # so the matrix python must be on PATH, not just discoverable by uv.
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - name: pip install gate (linux)
+        if: runner.os == 'Linux'
+        run: installer/linux/check-pip-install.sh
+      - name: pip install gate (macos)
+        if: runner.os == 'macOS'
+        run: installer/macos/check-pip-install.sh
+      - name: pip install gate (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: installer/win/check-pip-install.ps1
       - name: wheel gate (linux)
         if: runner.os == 'Linux'
         run: installer/linux/check-wheel-install.sh
