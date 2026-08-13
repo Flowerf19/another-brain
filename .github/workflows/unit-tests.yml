@@ -13,6 +13,6 @@ jobs:
       - uses: astral-sh/setup-uv@v9.0.0
         with:
           enable-cache: true
-      - run: uv sync --locked
-      - run: uv run pytest tests/unit
+      - run: uv sync --locked --extra dev
+      - run: uv run --extra dev pytest tests/unit
       - run: scripts/check-clean-tree.sh

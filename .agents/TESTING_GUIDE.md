@@ -23,9 +23,9 @@ export commit.
 The clean tree requires no external service:
 
 ```bash
-uv run pytest -m "not slow"     # fast suite (unit + integration)
-uv run pytest                   # everything, incl. slow gates
-uv run pytest tests/unit
+uv run --extra dev pytest -m "not slow"     # fast suite (unit + integration)
+uv run --extra dev pytest                   # everything, incl. slow gates
+uv run --extra dev pytest tests/unit
 scripts/check-clean-tree.sh     # dep graph + zero-reference gate
 installer/linux/check-wheel-install.sh  # clean wheel install gate (macOS wrapper + Windows .ps1 alongside)
 uv build --no-sources
@@ -34,9 +34,9 @@ uv build --no-sources
 Evidence harnesses (run from the repo root, not CI):
 
 ```bash
-uv run python benchmarks/concurrency/run_harness.py --quick   # toy concurrency validation (TASK-007)
-uv run python benchmarks/run_benchmarks.py --help             # retrieval latency harness (full locked protocol runs at TASK-063)
-uv run python benchmarks/measure_embedding_memory.py --profile-dir DIR  # per-process RSS/PSS (TASK-044)
+uv run --extra dev python benchmarks/concurrency/run_harness.py --quick   # toy concurrency validation (TASK-007)
+uv run --extra dev python benchmarks/run_benchmarks.py --help             # retrieval latency harness (full locked protocol runs at TASK-063)
+uv run --extra dev python benchmarks/measure_embedding_memory.py --profile-dir DIR  # per-process RSS/PSS (TASK-044)
 ```
 
 The permanent q4 gate (`tests/integration/test_q4_embedding_gate.py`, slow)
@@ -54,9 +54,9 @@ has a known content-only match bug.
 The clean tree requires no external service:
 
 ```bash
-uv run pytest                    # permanent unit + SQLite integration suite
-uv run pytest tests/unit
-uv run pytest tests/integration
+uv run --extra dev pytest                    # permanent unit + SQLite integration suite
+uv run --extra dev pytest tests/unit
+uv run --extra dev pytest tests/integration
 uv build --no-sources
 ```
 
@@ -170,7 +170,7 @@ Before release, run:
 
 ```bash
 git diff --check
-uv run pytest
+uv run --extra dev pytest
 uv build --no-sources
 ```
 

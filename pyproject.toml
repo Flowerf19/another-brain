@@ -53,7 +53,7 @@ Issues = "https://github.com/Flowerf19/another-brain/issues"
 [project.scripts]
 another-brain = "another_brain.cli:main"
 
-[dependency-groups]
+[project.optional-dependencies]
 dev = [
     "pytest>=8",
     "pytest-asyncio>=0.24",
