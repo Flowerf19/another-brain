@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: done
 created: 2026-08-12
 last_updated: 2026-08-13
 ---
@@ -79,7 +79,7 @@ has multiple MCP servers exposing the same names; document that trade-off.
 | TASK-004 | Replace the uv-only development dependency declaration with one pip-consumable `[project.optional-dependencies].dev` declaration, update uv commands/workflows to request the `dev` extra, and regenerate `uv.lock` without duplicating dependency lists. | ✅ | 2026-08-13 |
 | TASK-005 | Document both published-package and local-checkout installation with `python -m venv` and `python -m pip install`; keep `uv tool install` as an optional convenience/reproducible development path, not a prerequisite. | ✅ | 2026-08-13 |
 | TASK-006 | Add a cross-platform pip install smoke gate that creates a clean venv, runs `python -m pip install .` (or the built wheel), verifies the installed console script and import provenance from outside the checkout, and does not invoke uv. | ✅ | 2026-08-13 |
-| TASK-007 | Update `doctor`'s missing-install/reinstall hints and release/deployment/testing docs so pip and uv commands are both accurate; record the 0.13.0-dev change in `CHANGELOG.md`. | | |
+| TASK-007 | Update `doctor`'s missing-install/reinstall hints and release/deployment/testing docs so pip and uv commands are both accurate; record the 0.13.0-dev change in `CHANGELOG.md`. | ✅ | 2026-08-13 |
 
 ## Files and ownership
 
