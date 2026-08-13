@@ -5,7 +5,7 @@ transport with an isolated data home (``tmp_path``), using the pinned q4
 model from the shared default cache. Proves the real product path end to end:
 
 1. fresh data home: initialize carries server instructions; the eight locked
-   tool names are listed; ``brain_health`` answers without loading the
+   tool names are listed; ``health`` answers without loading the
    embedding model; remember → expires_at = created_at + 7d (importance 1);
    search finds the phrase; get returns the full record; reinforce pushes
    expires_at later; forget returns ok.
@@ -111,15 +111,15 @@ async def test_e2e_stdio_round_trip(tmp_path):
 
             tools = await session.list_tools()
             locked = [
-                "brain_remember", "brain_search", "brain_recent", "brain_get",
-                "brain_reinforce", "brain_forget", "brain_health", "brain_audit",
+                "remember", "search", "recent", "get",
+                "reinforce", "forget", "health", "audit",
             ]
             assert sorted(t.name for t in tools.tools) == sorted(locked), (
                 f"expected exactly the {len(locked)} locked tools, got "
                 f"{sorted(t.name for t in tools.tools)}"
             )
 
-            health = await _result(await session.call_tool("brain_health"), "brain_health")
+            health = await _result(await session.call_tool("health"), "health")
             assert health["status"] == "ok"
             assert health["brain_id"] == "e2e-brain"
             assert health["agent_id"] == CLIENT_NAME  # client_info from the handshake
@@ -127,7 +127,7 @@ async def test_e2e_stdio_round_trip(tmp_path):
 
             remember = await _result(
                 await session.call_tool(
-                    "brain_remember",
+                    "remember",
                     {
                         "topic": TOPIC,
                         "summary": SUMMARY,
@@ -135,7 +135,7 @@ async def test_e2e_stdio_round_trip(tmp_path):
                         "importance": IMPORTANCE,
                     },
                 ),
-                "brain_remember",
+                "remember",
             )
             memory_id = remember["memory_id"]
             assert remember["timeline_day"]
@@ -143,7 +143,7 @@ async def test_e2e_stdio_round_trip(tmp_path):
             # Second remember of identical input is append-only: a different id.
             second = await _result(
                 await session.call_tool(
-                    "brain_remember",
+                    "remember",
                     {
                         "topic": TOPIC,
                         "summary": SUMMARY,
@@ -151,13 +151,13 @@ async def test_e2e_stdio_round_trip(tmp_path):
                         "importance": IMPORTANCE,
                     },
                 ),
-                "brain_remember",
+                "remember",
             )
             assert second["memory_id"] != memory_id
 
             found = await _result(
-                await session.call_tool("brain_search", {"query": DISTINCTIVE_PHRASE}),
-                "brain_search",
+                await session.call_tool("search", {"query": DISTINCTIVE_PHRASE}),
+                "search",
             )
             assert found["count"] >= 1
             assert any(r["memory_id"] == memory_id for r in found["results"]), (
@@ -165,8 +165,8 @@ async def test_e2e_stdio_round_trip(tmp_path):
             )
 
             record = await _result(
-                await session.call_tool("brain_get", {"memory_id": memory_id}),
-                "brain_get",
+                await session.call_tool("get", {"memory_id": memory_id}),
+                "get",
             )
             assert record["found"] is True
             assert record["topic"] == TOPIC
@@ -185,9 +185,9 @@ async def test_e2e_stdio_round_trip(tmp_path):
 
             reinforced = await _result(
                 await session.call_tool(
-                    "brain_reinforce", {"memory_id": memory_id}
+                    "reinforce", {"memory_id": memory_id}
                 ),
-                "brain_reinforce",
+                "reinforce",
             )
             assert reinforced["ok"] is True
             assert reinforced["expires_at"] > record["expires_at"], (
@@ -195,8 +195,8 @@ async def test_e2e_stdio_round_trip(tmp_path):
             )
 
             forgotten = await _result(
-                await session.call_tool("brain_forget", {"memory_id": memory_id}),
-                "brain_forget",
+                await session.call_tool("forget", {"memory_id": memory_id}),
+                "forget",
             )
             assert forgotten["ok"] is True
 
@@ -211,14 +211,14 @@ async def test_e2e_stdio_round_trip(tmp_path):
             await session.initialize()
 
             gone = await _result(
-                await session.call_tool("brain_get", {"memory_id": memory_id}),
-                "brain_get",
+                await session.call_tool("get", {"memory_id": memory_id}),
+                "get",
             )
             assert gone["found"] is False  # forget persisted across restart
 
             no_hits = await _result(
-                await session.call_tool("brain_search", {"query": DISTINCTIVE_PHRASE}),
-                "brain_search",
+                await session.call_tool("search", {"query": DISTINCTIVE_PHRASE}),
+                "search",
             )
             # The append-only twin shares the phrase, so count > 0 is expected;
             # the contract is that the *forgotten* id is gone from search.
@@ -227,8 +227,8 @@ async def test_e2e_stdio_round_trip(tmp_path):
             )
 
             recent = await _result(
-                await session.call_tool("brain_recent", {"limit": 100}),
-                "brain_recent",
+                await session.call_tool("recent", {"limit": 100}),
+                "recent",
             )
             assert all(r["memory_id"] != memory_id for r in recent["results"]), (
                 "forgotten memory must not appear in recent"
@@ -237,8 +237,8 @@ async def test_e2e_stdio_round_trip(tmp_path):
             assert any(r["memory_id"] == second["memory_id"] for r in recent["results"])
 
             audit = await _result(
-                await session.call_tool("brain_audit", {"day": remember_day}),
-                "brain_audit",
+                await session.call_tool("audit", {"day": remember_day}),
+                "audit",
             )
             by_action = {e["action"] for e in audit["events"] if e["memory_id"] == memory_id}
             assert {"remember", "reinforce", "forget"} <= by_action, (
@@ -251,5 +251,5 @@ async def test_e2e_stdio_round_trip(tmp_path):
                 if e["memory_id"] == memory_id
             ), "audit events must be attributed to the declared client name"
 
-            health2 = await _result(await session.call_tool("brain_health"), "brain_health")
+            health2 = await _result(await session.call_tool("health"), "health")
             assert health2["status"] == "ok"

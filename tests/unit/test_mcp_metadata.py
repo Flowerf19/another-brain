@@ -21,14 +21,14 @@ from another_brain.mcp.server import INSTRUCTIONS
 from mcp.types import Tool
 
 LOCKED_TOOL_NAMES = {
-    "brain_remember",
-    "brain_search",
-    "brain_recent",
-    "brain_get",
-    "brain_reinforce",
-    "brain_forget",
-    "brain_health",
-    "brain_audit",
+    "remember",
+    "search",
+    "recent",
+    "get",
+    "reinforce",
+    "forget",
+    "health",
+    "audit",
 }
 
 # ---------------------------------------------------------------------------
@@ -136,16 +136,16 @@ def test_numeric_bounds_are_encoded_in_the_schemas(mcp_server):
                 spec = spec["anyOf"][0]
         return spec
 
-    importance = _field("brain_remember", "importance")
+    importance = _field("remember", "importance")
     assert importance.get("minimum") == 1 and importance.get("maximum") == 5
 
-    recent_limit = _field("brain_recent", "limit")
+    recent_limit = _field("recent", "limit")
     assert recent_limit.get("minimum") == 1 and recent_limit.get("maximum") == 100
 
-    audit_limit = _field("brain_audit", "limit")
+    audit_limit = _field("audit", "limit")
     assert audit_limit.get("minimum") == 1 and audit_limit.get("maximum") == 500
 
-    for tool_name in ("brain_search", "brain_recent"):
+    for tool_name in ("search", "recent"):
         min_importance = _field(tool_name, "min_importance")
         assert min_importance.get("minimum") == 1, tool_name
         assert min_importance.get("maximum") == 5, tool_name
@@ -218,9 +218,9 @@ def test_skill_less_client_can_learn_the_house_rules(mcp_server):
             f"missing substring {substr!r} in:\n{corpus}"
         )
 
-    # (a) search/recent return previews; brain_get fetches full detail.
+    # (a) search/recent return previews; get fetches full detail.
     _assert("previews", "search/recent return previews")
-    _assert("brain_get", "brain_get fetches full detail")
+    _assert("fetch full detail", "get fetches full detail")
     # (b) reinforce is the only way an entry's life is extended.
     _assert("only way", "reinforce is the only way to extend an entry's life")
     # (c) TTL mapping 365/180/90/30/7 days for importance 5..1.
@@ -236,7 +236,7 @@ def test_skill_less_client_can_learn_the_house_rules(mcp_server):
     _assert("lowercase-kebab", "topic is lowercase-kebab")
     _assert("3-8 tokens", "topic is 3-8 tokens")
     _assert("at most 12", "topic max 12")
-    # (h) content is never embedded; full-text searchable; fetched only via brain_get.
+    # (h) content is never embedded; full-text searchable; fetched only via get.
     _assert("never embedded", "content is never embedded")
     _assert("full-text", "content is full-text searchable")
     # (i) forget hides immediately; admin can restore during a grace window.

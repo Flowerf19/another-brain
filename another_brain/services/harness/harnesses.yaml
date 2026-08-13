@@ -11,9 +11,11 @@
 # manual          the paste-this snippet when no CLI is found; must be written
 #                 in mcp_file's own language — JSON everywhere except codex's
 #                 config.toml, which is TOML
-# server_entry    optional override of the mcpServers payload; pi needs
-#                 toolPrefix: "none" so its adapter exposes the bare brain_*
-#                 names instead of another_brain_brain_*
+# server_entry    optional override of the mcpServers payload; currently
+#                 unused — every harness takes the bare {"command":
+#                 "another-brain"} entry, and harness adapters that prefix
+#                 tool names expose the bare-verb tools as
+#                 another_brain_remember, another_brain_search, ...
 harnesses:
   - name: claude-code
     detect_dir: .claude
@@ -42,12 +44,10 @@ harnesses:
 
   # Pi has no built-in MCP; the pi-mcp-adapter extension reads the shared
   # global config ~/.config/mcp/mcp.json in every project, so that is the
-  # registration target. Pi's adapter prefixes tools with the server name
-  # unless the entry opts out, so this row carries the bare-name override.
+  # registration target. No prefix override here: with the tools renamed to
+  # bare verbs, pi's default adapter prefix yields another_brain_remember,
+  # another_brain_search, ... — the standard entry, nothing special.
   - name: pi
     detect_dir: .pi
     skill_dir: .pi/agent/skills
     mcp_file: .config/mcp/mcp.json
-    server_entry:
-      command: another-brain
-      toolPrefix: none

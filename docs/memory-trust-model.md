@@ -17,26 +17,26 @@ agents hallucinate with confidence.
 | --- | --- | --- |
 | **Authority confusion** | Auto-injected text at session start reads like system truth, not fallible notes | Epistemic framing (section 4) |
 | **Stale-but-confident** | The world changed; the memory did not. Agent asserts outdated facts | Recency windows, `timeline_day` freshness evidence, TTL |
-| **Contamination loop** | Wrong memory → trusted → new memories derived from it → error compounds | Conflict → `brain_forget` (section 4) |
+| **Contamination loop** | Wrong memory → trusted → new memories derived from it → error compounds | Conflict → `forget` (section 4) |
 | **Cross-agent poisoning** | One shared brain: a single agent's error or junk reaches every other agent | Writer stance (section 5), audit trail |
-| **Context-free fragments** | A 1-2 sentence summary detached from its situation; the model fills the gaps | Preview-only recall, `brain_get` before acting |
+| **Context-free fragments** | A 1-2 sentence summary detached from its situation; the model fills the gaps | Preview-only recall, `get` before acting |
 | **Anchoring** | A recalled decision stops re-evaluation of a situation that has changed | "Code wins" rule |
 
 These vectors exist in *all* recall, not just hook injection. A manual
-`brain_search` returns the same unverified claims; the hook only raises
+`search` returns the same unverified claims; the hook only raises
 their frequency and salience. The trust model therefore applies to every
 read path equally.
 
 ## 2. What the system guarantees today
 
 - **Preview-only recall**: search/recent return summaries; detail requires
-  an explicit `brain_get`. There is always a deliberate step before full
+  an explicit `get`. There is always a deliberate step before full
   reliance.
 - **Freshness evidence**: every preview carries `timeline_day`; the hook
   injects only a short recency window.
 - **Decay**: every memory expires unless a reader explicitly judged it
-  correct (`brain_reinforce`). Failure direction is forgetting.
-- **Erasability**: `brain_forget` removes wrong memories from all queries
+  correct (`reinforce`). Failure direction is forgetting.
+- **Erasability**: `forget` removes wrong memories from all queries
   immediately; admin restore exists for mistakes.
 - **Provenance**: every record and audit event carries who wrote it and
   when — wrong memories can be traced to their author.
@@ -57,12 +57,12 @@ read path equally.
    against current code/docs before relying on it for anything that matters.
 2. **Code wins.** When a memory conflicts with what you observe, the
    observation is right and the memory is wrong.
-3. On discovering a wrong memory: `brain_forget` it. A wrong memory left in
+3. On discovering a wrong memory: `forget` it. A wrong memory left in
    the store is a trap for the next agent; forgetting is store hygiene, not
    rudeness.
-4. `brain_get` before acting on a preview when the action is expensive or
+4. `get` before acting on a preview when the action is expensive or
    irreversible.
-5. `brain_reinforce` only after a memory proved correct *in use* — never on
+5. `reinforce` only after a memory proved correct *in use* — never on
    sight.
 
 ## 5. Writer stance (contract for agents)
@@ -72,7 +72,7 @@ read path equally.
 2. One memory = one claim. Bundled claims rot at different speeds.
 3. Set `importance` honestly: it controls how long a wrong memory can
    survive if never reviewed.
-4. Update = `brain_remember` (new version) + `brain_forget` (old version).
+4. Update = `remember` (new version) + `forget` (old version).
    Never leave both.
 
 ## 6. Proactive recall addendum (SessionStart hook)
@@ -97,5 +97,5 @@ its content.
   facts; code wins; forget-on-conflict" section added.
 - [ ] Whether hook injection should filter by `catalog` (e.g. inject
   `task`/`decision` only) or by `min_importance`.
-- [ ] `brain_ingest` (auto-capture) must not land while these are open —
+- [ ] `ingest` (auto-capture) must not land while these are open —
   automated writing multiplies every vector in section 1.

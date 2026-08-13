@@ -47,26 +47,27 @@ Run `another-brain connect` with no arguments to see which harnesses are
 known and which are installed here. Supported today: `claude-code`, `codex`,
 `cursor`, `gemini-cli`, `pi`.
 
-For `pi` the connector writes `toolPrefix: "none"` into
-`~/.config/mcp/mcp.json`, so the agent sees the bare tool names —
-`brain_health`, not `another_brain_brain_health`. Every other harness keeps
-the standard `{"command": "another-brain"}` entry, and the MCP wire names
-never change.
+For `pi` the connector writes the standard `{"command": "another-brain"}`
+entry into `~/.config/mcp/mcp.json`, like every other harness. With the
+tools renamed to bare verbs, each harness adds its own prefix on top of the
+wire names: pi's adapter exposes `another_brain_health`, Claude Code shows
+`mcp__another-brain__health`, and the MCP wire names themselves never
+change.
 
 ## What your agent can do
 
-Eight tools appear in the agent's toolbox:
+Eight tools appear in the agent's toolbox (your harness may prefix them):
 
 | Tool | What it does |
 |---|---|
-| `brain_remember` | store one thing worth recalling later — a decision, a bug and its fix, a preference |
-| `brain_search` | find memories by meaning *and* keywords at once |
-| `brain_recent` | list the newest entries, or walk one day or one topic |
-| `brain_get` | fetch one memory in full |
-| `brain_reinforce` | a memory proved useful — keep it longer |
-| `brain_forget` | a memory proved wrong — drop it |
-| `brain_health` | is the brain reachable and which one is bound |
-| `brain_audit` | what changed, when, and by which agent — never the memory text |
+| `remember` | store one thing worth recalling later — a decision, a bug and its fix, a preference |
+| `search` | find memories by meaning *and* keywords at once |
+| `recent` | list the newest entries, or walk one day or one topic |
+| `get` | fetch one memory in full |
+| `reinforce` | a memory proved useful — keep it longer |
+| `forget` | a memory proved wrong — drop it |
+| `health` | is the brain reachable and which one is bound |
+| `audit` | what changed, when, and by which agent — never the memory text |
 
 Memory here is a **diary that forgets on purpose.** Each entry gets a
 lifespan from its importance — 1 to 5 maps to 7, 30, 90, 180, or 365 days —
@@ -78,11 +79,10 @@ Search combines two independent signals: semantic similarity (so "how do we
 handle expired tokens" finds a note about refresh logic) and full-text
 keyword match (so an exact error string or file path is findable verbatim).
 
-## 0.12.0 — 2026-08-07
-Added
-another-brain setup — one-shot onboarding: pulls the pinned embedding model (idempotent, hash-verified) and runs connect for every detected harness, ending with the restart reminder.
-Fixed
-Bare another-brain model / another-brain admin printed nothing and exited 2
+## 0.13.0 — 2026-08-13
+Changed
+Tool names shortened to bare verbs — remember, search, recent, get, reinforce, forget, health, audit (was brain_*); your harness still prefixes them, so Claude Code shows mcp__another-brain__remember and pi shows another_brain_remember. Hard rename, no aliases.
+pip is a first-class install path — python -m pip install another-brain; uv stays an optional dev convenience.
 
 ## Commands
 

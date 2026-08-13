@@ -222,7 +222,7 @@ another_brain/
   retrieval/               query, lexical, vector, fusion, service
   services/memory_service.py  use cases over the Protocols
   services/harness/        connect: harnesses.yaml data + registry/service
-  mcp/tools.py              the eight brain_* tools (thin adapter)
+  mcp/tools.py              the eight bare-verb tools (thin adapter)
   mcp/server.py             runtime assembly, stdio + loopback HTTP
   services/sql/             connection, migrations, schema, repository,
                             ttl, audit, health, profile, retry
@@ -231,7 +231,7 @@ another_brain/
 ```
 
 Startup splits eager storage from lazy model: a broken database fails at
-launch, but the ONNX session loads on first embed because `brain_health` must
+launch, but the ONNX session loads on first embed because `health` must
 answer without it and a per-session stdio process must not pay seconds and
 hundreds of MiB for sessions that never search. The tokenizer is the one
 eager piece — budgets gate every embed, so an uninstalled profile is caught at

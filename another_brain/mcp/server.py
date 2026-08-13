@@ -7,7 +7,7 @@ loopback HTTP.
 
 Two rules shape startup. Storage opens eagerly, because a broken database
 should fail at launch rather than on an agent's first tool call. The embedding
-model stays lazy: loading it costs seconds and hundreds of MiB, `brain_health`
+model stays lazy: loading it costs seconds and hundreds of MiB, `health`
 must answer without it, and a host that spawns a stdio server per session would
 otherwise pay that cost for sessions that never search.
 
@@ -60,7 +60,7 @@ recorded here. Entries expire on a schedule set by importance, so after you \
 actually use one, close the loop — reinforce it if it proved right (the only \
 way an entry's life is extended), forget it if it proved wrong.
 
-Search and recent return previews; fetch full detail by id with brain_get.\
+Search and recent return previews; fetch full detail by id with get.\
 """
 
 

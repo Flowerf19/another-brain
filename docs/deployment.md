@@ -86,9 +86,10 @@ For each named harness the command does two idempotent things:
    registered through that CLI; the rest get an upsert into their well-known
    config file (`~/.cursor/mcp.json`, `~/.gemini/settings.json`,
    `~/.config/mcp/mcp.json` for pi), preserving every other key and server.
-   Pi's entry is the only one with `toolPrefix: "none"` — its adapter would
-   otherwise expose `another_brain_brain_remember`-style names, and the
-   override keeps the bare `brain_*` wire names. If a harness's CLI is not
+   Every harness gets the same bare entry — the tools are named with bare
+   verbs (`remember`, `search`, `get`, ...), and harness adapters that
+   prefix tool names with the server name expose them as
+   `another_brain_remember` and so on. If a harness's CLI is not
    on PATH, the command prints the exact entry to add by hand and exits
    nonzero instead of failing silently.
 2. **Installs the skill** into the harness's skills directory
@@ -99,12 +100,14 @@ For each named harness the command does two idempotent things:
 $ another-brain connect cursor pi
 wrote ~/.cursor/mcp.json: mcpServers.another-brain = {"command": "another-brain"}
 installed the skill for cursor -> ~/.cursor/skills/another-brain
-wrote ~/.config/mcp/mcp.json: mcpServers.another-brain = {"command": "another-brain", "toolPrefix": "none"}
+wrote ~/.config/mcp/mcp.json: mcpServers.another-brain = {"command": "another-brain"}
 installed the skill for pi -> ~/.pi/agent/skills/another-brain
 ```
 
-For pi the `toolPrefix: "none"` entry means the agent sees `brain_health`,
-not `another_brain_brain_health`; the MCP wire contract is unchanged.
+With the tools renamed to bare verbs, each harness adds its own prefix on
+top of the wire names: the pi adapter exposes `another_brain_health`, Claude
+Code shows `mcp__another-brain__health`, and the MCP wire contract itself is
+unchanged.
 
 Restart the harness afterwards so it picks up the new server. `connect` needs
 neither the model nor a database, so it is safe to run immediately after

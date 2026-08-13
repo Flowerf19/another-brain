@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "another-brain"
-version = "0.12.0"
+version = "0.13.0"
 description = "Shared long-term memory for MCP agents — one brain, many agents. Standalone embedded runtime: SQLite + FTS5 + exact vector hybrid search, local Harrier q4 ONNX embeddings, self-expiring diary model. No server, container, or daemon required."
 license = "MIT"
 license-files = ["LICENSE"]

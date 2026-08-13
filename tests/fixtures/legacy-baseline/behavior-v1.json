@@ -137,7 +137,7 @@
   },
   {
    "id": "mcp-preview-shapes",
-   "given": "one memory with content+metadata; search/recent previews vs brain_get",
+   "given": "one memory with content+metadata; search/recent previews vs get",
    "legacy": {
     "search_preview_keys": [
      "catalog",
@@ -175,7 +175,7 @@
     ],
     "previews_never_carry_content": true
    },
-   "expect_clean_equivalent": "previews omit content/metadata; brain_get returns full detail"
+   "expect_clean_equivalent": "previews omit content/metadata; get returns full detail"
   },
   {
    "id": "health-shape",

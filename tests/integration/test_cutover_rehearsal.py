@@ -167,25 +167,25 @@ async def test_cutover_rehearsal_from_external_artifact(tmp_path):
         ) as session:
             await session.initialize()
 
-            health = await _call(session, "brain_health")
+            health = await _call(session, "health")
             assert health["status"] == "ok"
             assert health["brain_id"] == BRAIN_ID
             assert health["embedding_state"] == "not_loaded"
             assert health["storage"]["schema_ok"] is True
 
-            found = await _call(session, "brain_search", {"query": term})
+            found = await _call(session, "search", {"query": term})
             assert any(
                 r["memory_id"] == summary_payload["memory_id"]
                 for r in found["results"]
             ), f"{term!r} must find {summary_payload['memory_id']}, got {found}"
 
-            gone = await _call(session, "brain_get",
+            gone = await _call(session, "get",
                                {"memory_id": soft["memory_id"]})
             assert gone["found"] is False, (
                 f"soft-deleted {soft['memory_id']} must be invisible"
             )
 
-            audit = await _call(session, "brain_audit", {"day": audit_day})
+            audit = await _call(session, "audit", {"day": audit_day})
             assert audit["count"] == len(audits_a), (
                 f"expected {len(audits_a)} events for {BRAIN_ID} on {audit_day},"
                 f" got {audit['count']}"
@@ -212,11 +212,11 @@ async def test_cutover_rehearsal_from_external_artifact(tmp_path):
         ) as session:
             await session.initialize()
 
-            again = await _call(session, "brain_search", {"query": term})
+            again = await _call(session, "search", {"query": term})
             again_ids = {r["memory_id"] for r in again["results"]}
             assert summary_payload["memory_id"] in again_ids, again
 
-            recent = await _call(session, "brain_recent", {"limit": 100})
+            recent = await _call(session, "recent", {"limit": 100})
             recent_ids = [r["memory_id"] for r in recent["results"]]
             assert sorted(recent_ids) == sorted(expected_ids), (
                 f"recent must expose only brain A's {len(expected_ids)} live"

@@ -1,4 +1,4 @@
-"""TASK-068: brain_* tool contracts over an in-memory MCP client session.
+"""TASK-068: tool contracts over an in-memory MCP client session.
 
 Every response shape, the shared ``not_found`` shapes, actionable
 actual/allowed validation errors, agent attribution from the handshake, and
@@ -43,7 +43,7 @@ def _error_text(result) -> str:
 async def _remember(client, **overrides):
     args = {"topic": "auth-token-refresh", "summary": "Tokens rotate hourly."}
     args.update(overrides)
-    result = await client.call_tool("brain_remember", args)
+    result = await client.call_tool("remember", args)
     return _payload(result)
 
 
@@ -67,7 +67,7 @@ async def test_search_and_recent_preview_shape(mcp_server):
             client, topic="deploy-runbook", summary="Deploys ship Friday."
         )
 
-        search = _payload(await client.call_tool("brain_search", {"query": "tokens"}))
+        search = _payload(await client.call_tool("search", {"query": "tokens"}))
         assert search["count"] == len(search["results"]) == 2
         by_id = {r["memory_id"]: r for r in search["results"]}
         assert set(by_id) == {with_content["memory_id"], without_content["memory_id"]}
@@ -77,7 +77,7 @@ async def test_search_and_recent_preview_shape(mcp_server):
         assert by_id[with_content["memory_id"]]["has_content"] is True
         assert by_id[without_content["memory_id"]]["has_content"] is False
 
-        recent = _payload(await client.call_tool("brain_recent", {}))
+        recent = _payload(await client.call_tool("recent", {}))
         assert recent["count"] == 2
         for preview in recent["results"]:
             assert set(preview) == PREVIEW_KEYS
@@ -88,7 +88,7 @@ async def test_recent_is_newest_first(mcp_server, fake_clock):
         older = await _remember(client, topic="older-topic", summary="Older.")
         fake_clock.advance_days(1)
         newer = await _remember(client, topic="newer-topic", summary="Newer.")
-        recent = _payload(await client.call_tool("brain_recent", {}))
+        recent = _payload(await client.call_tool("recent", {}))
     order = [r["memory_id"] for r in recent["results"]]
     assert order == [newer["memory_id"], older["memory_id"]]
 
@@ -97,14 +97,14 @@ async def test_get_full_shape_and_not_found(mcp_server):
     async with Client(mcp_server) as client:
         remembered = await _remember(client, content="full body", metadata={"a": 1})
         got = _payload(
-            await client.call_tool("brain_get", {"memory_id": remembered["memory_id"]})
+            await client.call_tool("get", {"memory_id": remembered["memory_id"]})
         )
         assert got["found"] is True
         assert set(got) == PREVIEW_KEYS | GET_EXTRA_KEYS
         assert got["content"] == "full body"
         assert got["metadata"] == {"a": 1}
 
-        missing = _payload(await client.call_tool("brain_get", {"memory_id": "nope"}))
+        missing = _payload(await client.call_tool("get", {"memory_id": "nope"}))
         assert missing == {"found": False, "memory_id": "nope"}
 
 
@@ -114,28 +114,28 @@ async def test_reinforce_and_forget_shapes(mcp_server):
 
         reinforced = _payload(
             await client.call_tool(
-                "brain_reinforce", {"memory_id": remembered["memory_id"]}
+                "reinforce", {"memory_id": remembered["memory_id"]}
             )
         )
         assert set(reinforced) == {"ok", "memory_id", "expires_at"}
         assert reinforced["ok"] is True
 
-        missing = _payload(await client.call_tool("brain_reinforce", {"memory_id": "x"}))
+        missing = _payload(await client.call_tool("reinforce", {"memory_id": "x"}))
         assert missing == {"ok": False, "memory_id": "x", "reason": "not_found"}
 
         forgotten = _payload(
-            await client.call_tool("brain_forget", {"memory_id": remembered["memory_id"]})
+            await client.call_tool("forget", {"memory_id": remembered["memory_id"]})
         )
         # Success carries no reason key; failure always says not_found.
         assert forgotten == {"ok": True, "memory_id": remembered["memory_id"]}
 
-        missing = _payload(await client.call_tool("brain_forget", {"memory_id": "x"}))
+        missing = _payload(await client.call_tool("forget", {"memory_id": "x"}))
         assert missing == {"ok": False, "memory_id": "x", "reason": "not_found"}
 
 
 async def test_health_response_shape(mcp_server):
     async with Client(mcp_server) as client:
-        health = _payload(await client.call_tool("brain_health", {}))
+        health = _payload(await client.call_tool("health", {}))
     assert set(health) == {
         "status", "brain_id", "agent_id", "timeline_timezone",
         "embedding_profile", "embedding_state", "embedding_dimensions", "storage",
@@ -163,9 +163,9 @@ async def test_audit_shape_privacy_and_default_day(mcp_server, service):
         remembered = await _remember(
             client, summary="SECRET-MARKER summary", content="SECRET-MARKER body"
         )
-        await client.call_tool("brain_forget", {"memory_id": remembered["memory_id"]})
+        await client.call_tool("forget", {"memory_id": remembered["memory_id"]})
 
-        audit = _payload(await client.call_tool("brain_audit", {}))
+        audit = _payload(await client.call_tool("audit", {}))
         assert audit["day"] == service.today()
         assert audit["count"] == 2
         actions = [e["action"] for e in audit["events"]]
@@ -178,7 +178,7 @@ async def test_audit_shape_privacy_and_default_day(mcp_server, service):
         # Never memory text: the marker strings must not appear anywhere.
         assert "SECRET-MARKER" not in json.dumps(audit)
         # An explicit day is honored.
-        other = _payload(await client.call_tool("brain_audit", {"day": "1999-01-01"}))
+        other = _payload(await client.call_tool("audit", {"day": "1999-01-01"}))
         assert other["day"] == "1999-01-01" and other["count"] == 0
 
 
@@ -191,10 +191,10 @@ async def test_agent_attribution_flows_from_handshake(mcp_server):
     ) as client:
         remembered = await _remember(client)
         got = _payload(
-            await client.call_tool("brain_get", {"memory_id": remembered["memory_id"]})
+            await client.call_tool("get", {"memory_id": remembered["memory_id"]})
         )
         assert got["agent_id"] == "attrib-agent"
-        health = _payload(await client.call_tool("brain_health", {}))
+        health = _payload(await client.call_tool("health", {}))
         assert health["agent_id"] == "attrib-agent"
 
 
@@ -221,7 +221,7 @@ async def test_content_only_match_survives_below_cosine_floor(
         )
         # Orthogonal query vector: cosine 0.0, far below the 0.30 floor.
         fake_embedder.set_query("ZXQW-9871", basis_vector(1))
-        search = _payload(await client.call_tool("brain_search", {"query": "ZXQW-9871"}))
+        search = _payload(await client.call_tool("search", {"query": "ZXQW-9871"}))
     assert search["count"] == 1
     assert search["results"][0]["memory_id"] == remembered["memory_id"]
     assert search["results"][0]["has_content"] is True
@@ -236,12 +236,12 @@ async def test_punctuation_only_query_is_vector_only_and_never_an_error(
         remembered = await _remember(client)
         # No safe FTS terms -> the lexical branch is skipped; the default
         # identical vectors still answer from the vector branch.
-        search = _payload(await client.call_tool("brain_search", {"query": "!!!???"}))
+        search = _payload(await client.call_tool("search", {"query": "!!!???"}))
         assert search["count"] == 1
         assert search["results"][0]["memory_id"] == remembered["memory_id"]
         # Orthogonal vector -> empty, but still never an error.
         fake_embedder.set_query(";;;", basis_vector(1))
-        empty = _payload(await client.call_tool("brain_search", {"query": ";;;"}))
+        empty = _payload(await client.call_tool("search", {"query": ";;;"}))
         assert empty == {"count": 0, "results": []}
 
 
@@ -252,24 +252,24 @@ async def test_validation_errors_carry_actual_and_allowed(mcp_server):
     async with Client(mcp_server) as client:
         importance = _error_text(
             await client.call_tool(
-                "brain_remember", {"topic": "t", "summary": "s", "importance": 9}
+                "remember", {"topic": "t", "summary": "s", "importance": 9}
             )
         )
         assert "5" in importance and "9" in importance  # allowed and actual
 
-        limit = _error_text(await client.call_tool("brain_recent", {"limit": 101}))
+        limit = _error_text(await client.call_tool("recent", {"limit": 101}))
         assert "100" in limit and "101" in limit
 
-        days = _error_text(await client.call_tool("brain_recent", {"days": 0}))
+        days = _error_text(await client.call_tool("recent", {"days": 0}))
         assert "1" in days
 
         min_importance = _error_text(
-            await client.call_tool("brain_search", {"query": "q", "min_importance": 7})
+            await client.call_tool("search", {"query": "q", "min_importance": 7})
         )
         assert "5" in min_importance and "7" in min_importance
 
         # The service's own message surfaces for what schema types cannot say.
-        empty = _error_text(await client.call_tool("brain_search", {"query": "   "}))
+        empty = _error_text(await client.call_tool("search", {"query": "   "}))
         assert "empty" in empty
 
 
@@ -285,34 +285,34 @@ async def test_full_loop_remember_search_get_reinforce_forget(
         remembered = await _remember(client, importance=1)
         memory_id = remembered["memory_id"]
 
-        search = _payload(await client.call_tool("brain_search", {"query": "tokens"}))
+        search = _payload(await client.call_tool("search", {"query": "tokens"}))
         assert [r["memory_id"] for r in search["results"]] == [memory_id]
 
         fake_clock.advance_days(3)
         reinforced = _payload(
-            await client.call_tool("brain_reinforce", {"memory_id": memory_id})
+            await client.call_tool("reinforce", {"memory_id": memory_id})
         )
         # Re-armed from the reinforce moment: later than the original expiry.
         assert reinforced["expires_at"] > remembered["expires_at"]
 
         fake_clock.advance_ms(1)  # audit orders same-ms events by random id
         forgotten = _payload(
-            await client.call_tool("brain_forget", {"memory_id": memory_id})
+            await client.call_tool("forget", {"memory_id": memory_id})
         )
         assert forgotten["ok"] is True
-        got = _payload(await client.call_tool("brain_get", {"memory_id": memory_id}))
+        got = _payload(await client.call_tool("get", {"memory_id": memory_id}))
         assert got["found"] is False
-        search = _payload(await client.call_tool("brain_search", {"query": "tokens"}))
+        search = _payload(await client.call_tool("search", {"query": "tokens"}))
         assert search["count"] == 0
 
         # Today (3 days after the write) holds the two mutations; the
         # remember event stays filed on its own diary day.
-        audit = _payload(await client.call_tool("brain_audit", {}))
+        audit = _payload(await client.call_tool("audit", {}))
         actions = [e["action"] for e in audit["events"]]
         assert actions == ["forget", "reinforce"]  # newest first
         written = _payload(
             await client.call_tool(
-                "brain_audit", {"day": remembered["timeline_day"]}
+                "audit", {"day": remembered["timeline_day"]}
             )
         )
         assert [e["action"] for e in written["events"]] == ["remember"]

@@ -64,7 +64,7 @@ flag.
   prompted query 128, content 1,024. Reject over-limit input; never silently
   truncate or auto-chunk.
 - Reads do not renew TTL. Reinforce is the only normal renewal.
-- Search/recent previews never return content or embeddings; use `brain_get` for
+- Search/recent previews never return content or embeddings; use `get` for
   detail.
 
 ## Storage rules
@@ -110,7 +110,8 @@ flag.
 
 ## MCP rules
 
-- Keep stable `brain_*` tool names on MCP SDK v2 `MCPServer`.
+- Keep stable bare-verb tool names (`remember`, `search`, `recent`, `get`,
+  `reinforce`, `forget`, `health`, `audit`) on MCP SDK v2 `MCPServer`.
 - Correctness must not depend on an installed skill: keep initialize
   instructions concise, make every tool and public field description
   self-contained, and enforce hard contracts server-side with actionable errors.
@@ -123,9 +124,9 @@ flag.
   rebinding protection. Never weaken this by falling back to a wildcard.
 - Bind `brain_id` from config and `agent_id` from the MCP handshake; never add
   either as a tool argument.
-- Keep `brain_remember` guidance explicit about the topic+summary vector and
+- Keep `remember` guidance explicit about the topic+summary vector and
   topic token contract.
-- Search/recent return previews; `brain_get` returns full content/metadata.
+- Search/recent return previews; `get` returns full content/metadata.
 - Keep the trust loop: search, get when needed, reinforce only after use,
   forget when wrong.
 

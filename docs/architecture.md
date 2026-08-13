@@ -7,7 +7,9 @@
 > only `07/10-release-gate.md` is still active). This page is refreshed from
 > the final implementation.
 
-Summary: Another Brain is a standalone MCP tool. Eight `brain_*` tools sit in
+Summary: Another Brain is a standalone MCP tool. Eight bare-verb tools
+(`remember`, `search`, `recent`, `get`, `reinforce`, `forget`, `health`,
+`audit`) sit in
 front of a `MemoryService` over ordinary SQLite tables; retrieval is FTS5
 BM25 (weights 5:3:1 over topic/summary/content) fused with exact cosine
 vectors (`sqlite-vec` scalar or NumPy fallback) via equal-weight RRF `k=60`.

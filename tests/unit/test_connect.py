@@ -20,7 +20,6 @@ from another_brain.services.harness import (
     _HARNESSES,
     MANUAL_JSON,
     MANUAL_TOML,
-    PI_ENTRY,
     SERVER_ENTRY_JSON,
     SKILL_NAME,
     SKILL_RESOURCE_DIR,
@@ -160,21 +159,23 @@ class TestUpsertServer:
                 },
             },
         )
-        message = upsert_server(target, PI_ENTRY)
+        custom = {"command": "another-brain", "args": ["--http"]}
+        message = upsert_server(target, custom)
         data = json.loads(target.read_text())
-        assert data["mcpServers"]["another-brain"] == PI_ENTRY
+        assert data["mcpServers"]["another-brain"] == custom
         assert data["mcpServers"]["keep"] == {"command": "k"}
         assert message == (
             f"wrote {target}: mcpServers.another-brain = "
-            f"{json.dumps(PI_ENTRY)}"
+            f"{json.dumps(custom)}"
         )
 
     def test_custom_entry_idempotent(self, fake_home):
         target = fake_home / ".config" / "mcp" / "mcp.json"
-        upsert_server(target, PI_ENTRY)
-        upsert_server(target, PI_ENTRY)
+        custom = {"command": "another-brain", "args": ["--http"]}
+        upsert_server(target, custom)
+        upsert_server(target, custom)
         data = json.loads(target.read_text())
-        assert data == {"mcpServers": {"another-brain": PI_ENTRY}}
+        assert data == {"mcpServers": {"another-brain": custom}}
 
     def test_idempotent(self, fake_home):
         target = fake_home / ".cursor" / "mcp.json"
@@ -363,13 +364,13 @@ class TestConnect:
         }
         pi_file = fake_home / ".config" / "mcp" / "mcp.json"
         assert json.loads(pi_file.read_text())["mcpServers"]["another-brain"] == {
-            "command": "another-brain",
-            "toolPrefix": "none",
+            "command": "another-brain"
         }
 
-    def test_pi_writes_prefix_none_and_others_stay_bare(self, fake_home):
-        """TASK-002: only pi carries toolPrefix; the other four registrations
-        keep the exact bare entry, both via upsert and via manual snippet.
+    def test_pi_registration_matches_every_other_json_harness(self, fake_home):
+        """No harness overrides the entry: pi gets the same bare stdio entry
+        as cursor and gemini (its adapter prefixes the bare-verb tool names
+        with the server name, e.g. another_brain_remember).
         """
         for name in ("cursor", "gemini-cli", "pi"):
             (fake_home / {
@@ -384,20 +385,19 @@ class TestConnect:
             ("pi", fake_home / ".config" / "mcp" / "mcp.json"),
         ):
             entry = json.loads(path.read_text())["mcpServers"]["another-brain"]
-            expected = PI_ENTRY if name == "pi" else {"command": "another-brain"}
-            assert entry == expected
+            assert entry == {"command": "another-brain"}
 
     def test_pi_upgrade_overwrites_existing_bare_entry_in_place(
         self, fake_home
     ):
-        """TASK-002: reconnecting pi replaces an old bare entry — no leftover
+        """Reconnecting pi replaces an old entry in place — no leftover
         keys, and unrelated servers survive.
         """
         pi_file = fake_home / ".config" / "mcp" / "mcp.json"
         pi_file.parent.mkdir(parents=True)
         pi_file.write_text(json.dumps({
             "mcpServers": {
-                "another-brain": {"command": "another-brain"},
+                "another-brain": {"command": "another-brain", "toolPrefix": "none"},
                 "other": {"command": "x"},
             },
         }) + "\n")
@@ -405,9 +405,10 @@ class TestConnect:
         result = connect(["pi"], home=fake_home)[0]
         assert result.registered == "json"
         data = json.loads(pi_file.read_text())
+        # The old toolPrefix override is gone: with bare-verb tool names the
+        # prefix no longer duplicates, so pi takes the standard entry.
         assert data["mcpServers"]["another-brain"] == {
-            "command": "another-brain",
-            "toolPrefix": "none",
+            "command": "another-brain"
         }
         assert data["mcpServers"]["other"] == {"command": "x"}
 

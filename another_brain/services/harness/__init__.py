@@ -18,7 +18,6 @@ from another_brain.services.harness.registry import (
     _registry_yaml_text,
 )
 from another_brain.services.harness.service import (
-    PI_ENTRY,
     SERVER_ENTRY_JSON,
     SKILL_NAME,
     SKILL_RESOURCE_DIR,
@@ -34,7 +33,6 @@ from another_brain.services.harness.service import (
 __all__ = [
     "MANUAL_JSON",
     "MANUAL_TOML",
-    "PI_ENTRY",
     "SERVER_ENTRY",
     "SERVER_ENTRY_JSON",
     "SERVER_NAME",

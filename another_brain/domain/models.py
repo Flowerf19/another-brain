@@ -320,7 +320,7 @@ class SearchPreview:
     """One fused search result; never carries ``content`` or the embedding.
 
     ``has_content`` is the preview/detail seam: it tells a client whether
-    ``brain_get`` has anything more to give without shipping the body — the
+    ``get`` has anything more to give without shipping the body — the
     preview stays a decision line, the detail pull stays an explicit by-ID
     call. There is no relevance score here: the fused rank is expressed by
     list order, and no storage-vendor score encoding crosses this boundary.

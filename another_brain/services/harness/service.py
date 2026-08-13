@@ -16,10 +16,11 @@ server. Harnesses with a native CLI (claude, codex) get their config through
 that CLI; the rest get a JSON upsert of their well-known config file. If the
 CLI is absent we return a ``manual`` result carrying the exact snippet to
 paste — in that config file's own language, JSON or TOML — never an
-exception. Only the ``pi`` row overrides the payload: its adapter would
-otherwise expose the tools as ``another_brain_brain_*``, so it writes
-``toolPrefix: "none"`` and the bare ``brain_*`` wire names stay visible to
-the agent.
+exception. Every harness gets the same bare ``{"command": "another-brain"}``
+payload: since the tools are named with bare verbs (``remember``, ``search``,
+...), harness adapters that prefix tool names with the server name expose
+them as ``another_brain_remember`` and the pi override that stripped the
+prefix is gone.
 
 Subprocess calls go through an injectable runner so tests never shell out;
 defaults to :func:`subprocess.run` with the caller's environment.
@@ -48,12 +49,6 @@ SKILL_NAME = "another-brain"
 SKILL_RESOURCE_DIR = "another_brain.skill"
 SERVER_ENTRY_JSON = json.dumps(SERVER_ENTRY)
 """The bare entry value, as written into a JSON config's ``mcpServers``."""
-
-# Pi's MCP adapter prefixes exposed tool names with the server name by
-# default, turning ``brain_search`` into ``another_brain_brain_search``.
-# ``toolPrefix: "none"`` keeps the wire ``brain_*`` names. Pi-specific: every
-# other harness registers the standard SERVER_ENTRY payload unchanged.
-PI_ENTRY: dict[str, object] = {**SERVER_ENTRY, "toolPrefix": "none"}
 
 # The bundled skill is force-included into the wheel as another_brain/skill/
 # (TASK-093). In the source tree that directory does not exist — the single

@@ -174,14 +174,14 @@ async def test_mcp_preview_shapes(mcp_server):
     legacy = SCENARIOS["mcp-preview-shapes"]["legacy"]
     async with Client(mcp_server) as client:
         remembered = await client.call_tool(
-            "brain_remember",
+            "remember",
             {"topic": "preview-topic", "summary": "Preview probe.",
              "content": "the body", "metadata": {"k": "v"}},
         )
         memory_id = remembered.structured_content["memory_id"]
 
         search = (
-            await client.call_tool("brain_search", {"query": "preview"})
+            await client.call_tool("search", {"query": "preview"})
         ).structured_content
         preview = search["results"][0]
         assert set(preview) == PREVIEW_KEYS
@@ -192,12 +192,12 @@ async def test_mcp_preview_shapes(mcp_server):
         assert legacy["previews_never_carry_content"] is True
 
         recent = (
-            await client.call_tool("brain_recent", {})
+            await client.call_tool("recent", {})
         ).structured_content
         assert set(recent["results"][0]) == PREVIEW_KEYS
 
         got = (
-            await client.call_tool("brain_get", {"memory_id": memory_id})
+            await client.call_tool("get", {"memory_id": memory_id})
         ).structured_content
         assert got["content"] == "the body"
         assert got["metadata"] == {"k": "v"}

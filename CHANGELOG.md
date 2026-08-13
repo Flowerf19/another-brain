@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.13.0-dev
+## 0.13.0 — 2026-08-13
 
 ### Added
 
@@ -19,13 +19,23 @@
   `python -m pip install another-brain` as the standard install; uv stays
   an optional convenience for development and is never required at install
   or runtime.
+- **Dev install via pip extra** — development dependencies moved from uv
+  dependency-groups to `[project.optional-dependencies].dev`, so a
+  contributor environment is `python -m pip install -e ".[dev]"` with no uv
+  required.
 - **Harness registry moved to YAML** — per-harness server entry data now
   lives in `another_brain/services/harness/harnesses.yaml`, consumed by the
   harness service.
-- **Pi tool names shortened** — `another-brain connect pi` now writes
-  `toolPrefix: "none"`, so Pi exposes `brain_search` instead of
-  `another_brain_brain_search`; the MCP wire-level tool names and every
-  other harness registration are unchanged.
+- **MCP tool names shortened to bare verbs** — the eight tools are now
+  `remember`, `search`, `recent`, `get`, `reinforce`, `forget`, `health`,
+  `audit` (was `brain_*`). Every harness already adds its own prefix on
+  top, so the `brain_` in the wire name was redundant: Claude Code now
+  shows `mcp__another-brain__remember`, pi shows `another_brain_remember`.
+  Hard rename with no aliases — agents, skills, and scripts must use the
+  new names. The pi connector's `toolPrefix: "none"` override is removed
+  with it: with bare-verb names it would expose generic `remember`/`get`
+  and risk collisions, so pi now takes the standard entry like every
+  other harness.
 
 ## 0.12.0 — 2026-08-07
 

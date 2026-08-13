@@ -47,14 +47,14 @@ partition. The service owns:
 
 It does not own an agent loop, persona, conversation framework, UI, truth
 verification, server-side summarization LLM, or client-specific integration.
-Calling agents normalize memories before `brain_remember`.
+Calling agents normalize memories before `remember`.
 
 ## Final runtime shape
 
 ```mermaid
 flowchart LR
     Host["MCP host / agent"] --> Transport["stdio default\nHTTP loopback optional"]
-    Transport --> Tools["brain_* tools"]
+    Transport --> Tools["Eight bare-verb tools<br/>remember, search, recent, get,<br/>reinforce, forget, health, audit"]
     Tools --> Service["MemoryService"]
     Service --> Embed["Harrier q4\nONNX Runtime CPU"]
     Service --> Retrieval["Hybrid retriever"]

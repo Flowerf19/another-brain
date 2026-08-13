@@ -1,4 +1,5 @@
-"""The eight ``brain_*`` MCP tools (TASK-066).
+"""The eight MCP tools (TASK-066): remember, search, recent, get,
+reinforce, forget, health, audit.
 
 A thin adapter over :class:`~another_brain.services.memory_service.MemoryService`:
 it converts domain objects to JSON-safe dicts and epoch milliseconds to ISO
@@ -54,7 +55,7 @@ DaysFilter = Annotated[int | None, Field(default=None, ge=1, description=(
     "Optional: return only memories from the last N days."
 ))]
 MemoryId = Annotated[str, Field(description=(
-    "The memory_id returned by brain_search, brain_recent, or brain_remember."
+    "The memory_id returned by search, recent, or remember."
 ))]
 
 
@@ -101,7 +102,7 @@ def _preview(preview: SearchPreview) -> dict[str, Any]:
 
 
 def _record_preview(record: MemoryRecord) -> dict[str, Any]:
-    """The same preview shape, built from a full record (``brain_recent``)."""
+    """The same preview shape, built from a full record (``recent``)."""
     return {
         "memory_id": record.memory_id,
         "topic": record.topic,
@@ -125,11 +126,11 @@ def _audit_entry(event: AuditEvent, tz_name: str) -> dict[str, Any]:
 
 
 def register_tools(server: MCPServer, service: MemoryService) -> None:
-    """Attach the eight stable ``brain_*`` tools to an MCP server."""
+    """Attach the eight stable tools (bare verbs) to an MCP server."""
     tz = service.timezone
 
     @server.tool()
-    def brain_remember(
+    def remember(
         topic: Annotated[str, Field(description=(
             "A stable, reusable lowercase-kebab subject, 3-8 tokens and at most"
             " 12 (e.g. 'auth-token-refresh'). Reuse the same topic for the same"
@@ -148,11 +149,11 @@ def register_tools(server: MCPServer, service: MemoryService) -> None:
         content: Annotated[str, Field(description=(
             "Optional full detail or checklist (markdown). Never embedded, so"
             " it does not affect semantic matching, but it is full-text"
-            " searchable and fetched only via brain_get."
+            " searchable and fetched only via get."
         ))] = "",
         importance: Annotated[int, Field(ge=1, le=5, description=(
             "1-5, sets how long this is kept: 5=365d, 4=180d, 3=90d, 2=30d,"
-            " 1=7d. The entry expires unless brain_reinforce renews it."
+            " 1=7d. The entry expires unless reinforce renews it."
         ))] = 3,
         metadata: Annotated[dict[str, Any] | None, Field(default=None, description=(
             "Optional JSON object for structured extras. Not searchable."
@@ -182,7 +183,7 @@ def register_tools(server: MCPServer, service: MemoryService) -> None:
         }
 
     @server.tool()
-    def brain_search(
+    def search(
         query: Annotated[str, Field(description=(
             "What you are looking for, in natural language. Exact identifiers,"
             " file paths, and error strings are worth including verbatim —"
@@ -196,7 +197,7 @@ def register_tools(server: MCPServer, service: MemoryService) -> None:
     ) -> dict[str, Any]:
         """Search memories by meaning and keywords at once (semantic +
         full-text, fused). Returns preview lines in relevance order — call
-        brain_get(memory_id) when a result has has_content=true and you need
+        get(memory_id) when a result has has_content=true and you need
         the detail.
 
         Search here before answering anything a user may have told an agent
@@ -207,8 +208,8 @@ def register_tools(server: MCPServer, service: MemoryService) -> None:
         error strings are worth searching for verbatim.
 
         Reading changes nothing. After you actually USE a memory, close the
-        loop: brain_reinforce if it proved correct and valuable,
-        brain_forget if it proved wrong.
+        loop: reinforce if it proved correct and valuable,
+        forget if it proved wrong.
         """
         results = service.search(
             query, topic=topic, catalog=catalog,
@@ -217,7 +218,7 @@ def register_tools(server: MCPServer, service: MemoryService) -> None:
         return {"count": len(results), "results": [_preview(r) for r in results]}
 
     @server.tool()
-    def brain_recent(
+    def recent(
         limit: Annotated[int, Field(ge=1, le=100, description=(
             "How many entries to return, newest first. Maximum 100."
         ))] = 20,
@@ -231,7 +232,7 @@ def register_tools(server: MCPServer, service: MemoryService) -> None:
         listing with no query. Use it to catch up on what was stored recently,
         or to walk one day (timeline_day) or one topic.
 
-        Same preview shape as brain_search, ordered by time instead of
+        Same preview shape as search, ordered by time instead of
         relevance.
         """
         records = service.recent(
@@ -245,7 +246,7 @@ def register_tools(server: MCPServer, service: MemoryService) -> None:
         }
 
     @server.tool()
-    def brain_get(memory_id: MemoryId) -> dict[str, Any]:
+    def get(memory_id: MemoryId) -> dict[str, Any]:
         """Fetch one memory in full, including content and metadata — the
         detail pull behind a search or recent preview.
 
@@ -255,7 +256,7 @@ def register_tools(server: MCPServer, service: MemoryService) -> None:
         the action is expensive or irreversible.
 
         Pure read: fetching never extends the memory's lifetime. Once you have
-        used it, brain_reinforce or brain_forget as appropriate. Returns
+        used it, reinforce or forget as appropriate. Returns
         found=false for an unknown, forgotten, or expired id.
         """
         record = service.get(memory_id)
@@ -275,7 +276,7 @@ def register_tools(server: MCPServer, service: MemoryService) -> None:
         }
 
     @server.tool()
-    def brain_reinforce(memory_id: MemoryId, ctx: Context = None) -> dict[str, Any]:
+    def reinforce(memory_id: MemoryId, ctx: Context = None) -> dict[str, Any]:
         """Renew a memory's retention after it proved correct and valuable in
         actual use. This is the ONLY way an expiry is extended: it re-arms the
         full TTL for the entry's importance.
@@ -293,7 +294,7 @@ def register_tools(server: MCPServer, service: MemoryService) -> None:
         }
 
     @server.tool()
-    def brain_forget(memory_id: MemoryId, ctx: Context = None) -> dict[str, Any]:
+    def forget(memory_id: MemoryId, ctx: Context = None) -> dict[str, Any]:
         """Forget a memory that proved wrong or stale. It disappears from
         search, recent, and get immediately, then is purged after a grace
         window during which an admin can still restore it.
@@ -311,7 +312,7 @@ def register_tools(server: MCPServer, service: MemoryService) -> None:
         }
 
     @server.tool()
-    def brain_health(ctx: Context = None) -> dict[str, Any]:
+    def health(ctx: Context = None) -> dict[str, Any]:
         """Service health: storage schema and embedding state, the brain this
         server writes to, and your client identity as detected from the MCP
         handshake.
@@ -325,7 +326,7 @@ def register_tools(server: MCPServer, service: MemoryService) -> None:
         return service.health(agent_id=agent_id_from(ctx))
 
     @server.tool()
-    def brain_audit(
+    def audit(
         day: Annotated[str | None, Field(default=None, description=(
             "Diary day as YYYY-MM-DD. Defaults to today in the server's timezone."
         ))] = None,

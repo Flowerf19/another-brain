@@ -39,8 +39,8 @@ IMPORTANCE = 1
 READ_TIMEOUT = 300.0  # the first remember pays the cold ONNX load
 
 LOCKED_TOOLS = [
-    "brain_remember", "brain_search", "brain_recent", "brain_get",
-    "brain_reinforce", "brain_forget", "brain_health", "brain_audit",
+    "remember", "search", "recent", "get",
+    "reinforce", "forget", "health", "audit",
 ]
 
 
@@ -95,60 +95,60 @@ async def main() -> None:
             step(f"list_tools: {len(got)} locked tools")
 
             health = await result(
-                await session.call_tool("brain_health"), "brain_health"
+                await session.call_tool("health"), "health"
             )
             if health["status"] != "ok":
-                fail(f"brain_health status {health['status']!r}")
+                fail(f"health status {health['status']!r}")
             if health["embedding_state"] != "not_loaded":
-                fail("brain_health forced an embedding load")
-            step(f"brain_health: ok, agent_id={health['agent_id']}")
+                fail("health forced an embedding load")
+            step(f"health: ok, agent_id={health['agent_id']}")
 
             remembered = await result(
                 await session.call_tool(
-                    "brain_remember",
+                    "remember",
                     {"topic": TOPIC, "summary": SUMMARY, "catalog": "note",
                      "importance": IMPORTANCE},
                 ),
-                "brain_remember",
+                "remember",
             )
             memory_id = remembered["memory_id"]
             expires_first = epoch_ms(remembered["expires_at"])
-            step(f"brain_remember: {memory_id} (day {remembered['timeline_day']})")
+            step(f"remember: {memory_id} (day {remembered['timeline_day']})")
 
             found = await result(
-                await session.call_tool("brain_search", {"query": PHRASE}),
-                "brain_search",
+                await session.call_tool("search", {"query": PHRASE}),
+                "search",
             )
             hits = [r["memory_id"] for r in found["results"]]
             if memory_id not in hits:
-                fail(f"brain_search did not return {memory_id}; got {hits}")
-            step(f"brain_search: found it among {found['count']} result(s)")
+                fail(f"search did not return {memory_id}; got {hits}")
+            step(f"search: found it among {found['count']} result(s)")
 
             record = await result(
-                await session.call_tool("brain_get", {"memory_id": memory_id}),
-                "brain_get",
+                await session.call_tool("get", {"memory_id": memory_id}),
+                "get",
             )
             if not record["found"] or record["summary"] != SUMMARY:
-                fail("brain_get did not return the stored summary verbatim")
-            step("brain_get: summary returned verbatim")
+                fail("get did not return the stored summary verbatim")
+            step("get: summary returned verbatim")
 
             reinforced = await result(
-                await session.call_tool("brain_reinforce", {"memory_id": memory_id}),
-                "brain_reinforce",
+                await session.call_tool("reinforce", {"memory_id": memory_id}),
+                "reinforce",
             )
             if not reinforced["ok"]:
-                fail("brain_reinforce reported not ok")
+                fail("reinforce reported not ok")
             if epoch_ms(reinforced["expires_at"]) < expires_first:
-                fail("brain_reinforce did not extend the expiry")
-            step("brain_reinforce: expiry extended")
+                fail("reinforce did not extend the expiry")
+            step("reinforce: expiry extended")
 
             forgotten = await result(
-                await session.call_tool("brain_forget", {"memory_id": memory_id}),
-                "brain_forget",
+                await session.call_tool("forget", {"memory_id": memory_id}),
+                "forget",
             )
             if not forgotten["ok"]:
-                fail("brain_forget reported not ok")
-            step("brain_forget: ok")
+                fail("forget reported not ok")
+            step("forget: ok")
 
     # ---- session 2: a brand-new process over the same data dir -----------
     async with stdio_client(params(script)) as (read, write):
@@ -159,15 +159,15 @@ async def main() -> None:
             step("restart: second process opened the same store")
 
             gone = await result(
-                await session.call_tool("brain_get", {"memory_id": memory_id}),
-                "brain_get",
+                await session.call_tool("get", {"memory_id": memory_id}),
+                "get",
             )
             if gone["found"]:
                 fail("the forgotten memory came back after restart")
             step("restart: the forgotten memory is still gone")
 
             audit = await result(
-                await session.call_tool("brain_audit", {"limit": 20}), "brain_audit"
+                await session.call_tool("audit", {"limit": 20}), "audit"
             )
             actions = [e["action"] for e in audit["events"]]
             for expected in ("remember", "reinforce", "forget"):
