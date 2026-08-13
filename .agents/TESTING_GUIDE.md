@@ -28,6 +28,7 @@ uv run --extra dev pytest                   # everything, incl. slow gates
 uv run --extra dev pytest tests/unit
 scripts/check-clean-tree.sh     # dep graph + zero-reference gate
 installer/linux/check-wheel-install.sh  # clean wheel install gate (macOS wrapper + Windows .ps1 alongside)
+installer/linux/check-pip-install.sh    # pip install gate: clean venv + `python -m pip install .`, no uv (macOS wrapper + Windows .ps1 alongside)
 uv build --no-sources
 ```
 
@@ -42,7 +43,12 @@ uv run --extra dev python benchmarks/measure_embedding_memory.py --profile-dir D
 The permanent q4 gate (`tests/integration/test_q4_embedding_gate.py`, slow)
 skips when the pinned profile is not installed; install it with
 `another-brain model pull` (or point `BRAIN_MODEL_CACHE_DIR` at a cache that
-already holds the profile).
+already holds the profile). The pip-install gate runs as both a shell
+script (`installer/linux/check-pip-install.sh`, CI matrix via
+`wheel-gate.yml`) and a slow pytest test
+(`tests/integration/test_pip_install.py`): clean venv +
+`python -m pip install .` + installed console script / import provenance,
+never uv.
 
 For trustworthy legacy evidence, run the old suite from
 `../another-brain-main`, never from this branch. Do not treat a green legacy

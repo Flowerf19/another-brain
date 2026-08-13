@@ -26,7 +26,8 @@ Redis/Docker/Torch code, tests, config, or docs remain, and
 - execution: `.agents/plans/07-multiplatform-embedded-runtime.md` (master) plus
   per-phase sub-plans under `.agents/plans/07/` (done phases 01–09 archived to `.agents/plans/archive/07/`);
 - public README/deployment docs describe the clean target runtime (rewritten
-  in TASK-077); the install contract is `uv tool install another-brain`.
+  in TASK-077); the install contract is `python -m pip install another-brain`
+  (uv remains an optional convenience, never a prerequisite).
 
 ## External legacy oracle (TASK-035)
 
@@ -267,10 +268,11 @@ field. The skill is a thin adapter (TASK-091) holding only what a
 schema cannot know — the claims-not-truth stance and the close-the-loop
 timing.
 
-Canonical install path:
+Canonical install path (standard pip in a venv; uv optional):
 
 ```bash
-uv tool install another-brain
+python -m venv .venv
+.venv/bin/python -m pip install another-brain
 another-brain
 ```
 

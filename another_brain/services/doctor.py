@@ -140,12 +140,12 @@ def package_item() -> DoctorItem:
     except importlib.metadata.PackageNotFoundError:
         return DoctorItem(
             "package", "warn", "another-brain not installed as a distribution",
-            "install via: uv tool install another-brain",
+            "install via: python -m pip install another-brain (or: uv tool install another-brain)",
         )
     except Exception as exc:  # noqa: BLE001 - report, never raise
         return DoctorItem(
             "package", "warn", f"package metadata unreadable: {exc}",
-            "reinstall via: uv tool install another-brain",
+            "reinstall via: python -m pip install another-brain (or: uv tool install another-brain)",
         )
     return DoctorItem("package", "ok", f"another-brain {version} at {location}")
 

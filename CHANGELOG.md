@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.13.0-dev
+
+### Added
+
+- **pip install gates in CI** — a cross-platform pip smoke gate
+  (`installer/linux/check-pip-install.sh` + macOS wrapper and Windows
+  `.ps1`, wired into `.github/workflows/wheel-gate.yml`) and a slow pytest
+  gate (`tests/integration/test_pip_install.py`) both install the package
+  into a clean venv with `python -m pip install` and verify the installed
+  console script and import provenance without invoking uv.
+
+### Changed
+
+- **pip is a first-class install path** — `README.md`,
+  `docs/deployment.md`, `installer/README.md`, the doctor's
+  missing-install/reinstall hints, and project guidance now present
+  `python -m pip install another-brain` as the standard install; uv stays
+  an optional convenience for development and is never required at install
+  or runtime.
+- **Harness registry moved to YAML** — per-harness server entry data now
+  lives in `another_brain/services/harness/harnesses.yaml`, consumed by the
+  harness service.
+- **Pi tool names shortened** — `another-brain connect pi` now writes
+  `toolPrefix: "none"`, so Pi exposes `brain_search` instead of
+  `another_brain_brain_search`; the MCP wire-level tool names and every
+  other harness registration are unchanged.
+
 ## 0.12.0 — 2026-08-07
 
 ### Added
