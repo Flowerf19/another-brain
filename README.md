@@ -36,6 +36,12 @@ Run `another-brain connect` with no arguments to see which harnesses are
 known and which are installed here. Supported today: `claude-code`, `codex`,
 `cursor`, `gemini-cli`, `pi`.
 
+For `pi` the connector writes `toolPrefix: "none"` into
+`~/.config/mcp/mcp.json`, so the agent sees the bare tool names —
+`brain_health`, not `another_brain_brain_health`. Every other harness keeps
+the standard `{"command": "another-brain"}` entry, and the MCP wire names
+never change.
+
 ## What your agent can do
 
 Eight tools appear in the agent's toolbox:

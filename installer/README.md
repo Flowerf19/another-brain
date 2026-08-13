@@ -51,4 +51,5 @@ from the wheel alone — no repo clone, no Node, no shell. The POSIX-only
 retired in TASK-088; they registered a Streamable HTTP endpoint that assumed
 a running `another-brain serve --http`, which the zero-server runtime does
 not have. See `docs/deployment.md` for the user-facing documentation and
-`another_brain/services/harness_connect.py` for the registry.
+`another_brain/services/harness/` for the implementation: the registry rows
+live in `harnesses.yaml`, the behavior in `service.py`.

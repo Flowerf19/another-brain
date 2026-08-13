@@ -2,13 +2,12 @@
 another-brain MCP server + skill for each agent harness, from the installed
 tool alone.
 
-This is the only connector: the POSIX-only shell connectors it replaced were
-retired in TASK-088, leaving one data-driven Python registry. All harness
-paths derive from an injectable home directory (``pathlib.Path.home()``
-by default) — the ``~/.<name>`` dotdirs are identical on Linux, macOS, and
-Windows, so the same code serves every OS. No repo clone and no Node/npx are
-needed: the skill is bundled inside the installed wheel and read via
-:mod:`importlib.resources`.
+The registry rows live in ``harnesses.yaml`` (loaded by :mod:`.registry`);
+this module is the behavior layer. All harness paths derive from an
+injectable home directory (``pathlib.Path.home()`` by default) — the
+``~/.<name>`` dotdirs are identical on Linux, macOS, and Windows, so the same
+code serves every OS. No repo clone and no Node/npx are needed: the skill is
+bundled inside the installed wheel and read via :mod:`importlib.resources`.
 
 Registration is STDIO everywhere — the payload is the ``mcpServers`` entry
 ``{"command": "another-brain"}`` — never the old HTTP url form: the runtime is
@@ -17,7 +16,10 @@ server. Harnesses with a native CLI (claude, codex) get their config through
 that CLI; the rest get a JSON upsert of their well-known config file. If the
 CLI is absent we return a ``manual`` result carrying the exact snippet to
 paste — in that config file's own language, JSON or TOML — never an
-exception.
+exception. Only the ``pi`` row overrides the payload: its adapter would
+otherwise expose the tools as ``another_brain_brain_*``, so it writes
+``toolPrefix: "none"`` and the bare ``brain_*`` wire names stay visible to
+the agent.
 
 Subprocess calls go through an injectable runner so tests never shell out;
 defaults to :func:`subprocess.run` with the caller's environment.
@@ -28,30 +30,30 @@ import importlib.resources
 import json
 import shutil
 import subprocess
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
 from another_brain.errors import BrainError
+from another_brain.services.harness.registry import (
+    MANUAL_JSON,
+    SERVER_ENTRY,
+    SERVER_NAME,
+    Harness,
+    HarnessResult,
+    _BY_NAME,
+    _HARNESSES,
+)
 
-SERVER_NAME = "another-brain"
 SKILL_NAME = "another-brain"
 SKILL_RESOURCE_DIR = "another_brain.skill"
-# A harness's mcpServers entry is always the STDIO form: the bare command is
-# the MCP stdio server, so the entry needs no type key and no args. Never the
-# old HTTP url form — there is no server to point at.
-SERVER_ENTRY: dict[str, object] = {"command": SERVER_NAME}
 SERVER_ENTRY_JSON = json.dumps(SERVER_ENTRY)
 """The bare entry value, as written into a JSON config's ``mcpServers``."""
 
-# What a user must paste when we cannot write their config for them. The
-# payload is the same stdio entry in both cases; only the file's language
-# differs, so the snippet is per-harness rather than global.
-MANUAL_JSON = json.dumps({"mcpServers": {SERVER_NAME: SERVER_ENTRY}})
-MANUAL_TOML = f'[mcp_servers.{SERVER_NAME}]\ncommand = "{SERVER_NAME}"'
-"""codex's ``config.toml`` is TOML: an ``mcpServers`` JSON object pasted
-there is a syntax error, not a config. The table key is ``mcp_servers``
-(snake_case) and a hyphenated server name is a legal TOML bare key."""
+# Pi's MCP adapter prefixes exposed tool names with the server name by
+# default, turning ``brain_search`` into ``another_brain_brain_search``.
+# ``toolPrefix: "none"`` keeps the wire ``brain_*`` names. Pi-specific: every
+# other harness registers the standard SERVER_ENTRY payload unchanged.
+PI_ENTRY: dict[str, object] = {**SERVER_ENTRY, "toolPrefix": "none"}
 
 # The bundled skill is force-included into the wheel as another_brain/skill/
 # (TASK-093). In the source tree that directory does not exist — the single
@@ -60,7 +62,7 @@ there is a syntax error, not a config. The table key is ``mcp_servers``
 # to the source-tree path. The wheel path stays primary; it is what the wheel
 # gate proves.
 _SKILL_FALLBACK = (
-    Path(__file__).resolve().parents[2] / "skills" / "another-brain" / "SKILL.md"
+    Path(__file__).resolve().parents[3] / "skills" / "another-brain" / "SKILL.md"
 )
 
 
@@ -84,85 +86,6 @@ class UnknownHarnessError(BrainError):
 # injected into :func:`connect` so tests can record invocations instead of
 # shelling out; defaults to the real subprocess.
 Runner = Callable[..., "subprocess.CompletedProcess[str]"]
-
-
-@dataclass(frozen=True)
-class Harness:
-    """Registry row for one harness — pure data, no behavior.
-
-    ``detect_dir`` (the ``~/.<name>`` dotdir) and ``skill_dir`` are
-    home-relative path segments; ``mcp_file`` is the registration target.
-    ``cli`` is the optional native CLI that owns the harness's MCP config.
-    ``manual_snippet`` must be written in ``mcp_file``'s own language — see
-    :data:`MANUAL_TOML`.
-    """
-
-    name: str
-    detect_dir: str
-    skill_dir: str
-    mcp_file: str
-    cli: str | None = None
-    manual_snippet: str = MANUAL_JSON
-
-
-_HARNESSES: tuple[Harness, ...] = (
-    Harness(
-        name="claude-code",
-        detect_dir=".claude",
-        skill_dir=".claude/skills",
-        mcp_file=".claude.json",
-        cli="claude",
-    ),
-    Harness(
-        name="codex",
-        detect_dir=".codex",
-        skill_dir=".codex/skills",
-        mcp_file=".codex/config.toml",
-        cli="codex",
-        manual_snippet=MANUAL_TOML,
-    ),
-    Harness(
-        name="cursor",
-        detect_dir=".cursor",
-        skill_dir=".cursor/skills",
-        mcp_file=".cursor/mcp.json",
-    ),
-    Harness(
-        name="gemini-cli",
-        detect_dir=".gemini",
-        skill_dir=".gemini/skills",
-        mcp_file=".gemini/settings.json",
-    ),
-    # Pi has no built-in MCP; the pi-mcp-adapter extension reads the shared
-    # global config ~/.config/mcp/mcp.json in every project, so that is the
-    # registration target. Home-relative, identical on every OS.
-    Harness(
-        name="pi",
-        detect_dir=".pi",
-        skill_dir=".pi/agent/skills",
-        mcp_file=".config/mcp/mcp.json",
-    ),
-)
-_BY_NAME: dict[str, Harness] = {h.name: h for h in _HARNESSES}
-
-
-@dataclass(frozen=True)
-class HarnessResult:
-    """Outcome of connecting one harness.
-
-    ``registered`` is ``"cli"`` (native CLI wrote the config), ``"json"``
-    (JSON upsert), or ``"manual"`` (no CLI found — the caller must register
-    by hand using :attr:`snippet`). ``skill_installed`` and ``skill_path``
-    describe the skill write; ``messages`` carries the per-step lines the
-    CLI prints.
-    """
-
-    name: str
-    registered: str
-    snippet: str = ""
-    skill_installed: bool = False
-    skill_path: str = ""
-    messages: list[str] = field(default_factory=list)
 
 
 def known_harnesses() -> tuple[str, ...]:
@@ -203,16 +126,21 @@ def _write_json(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
 
-def upsert_server(path: Path) -> str:
+def upsert_server(path: Path, entry: dict[str, object] | None = None) -> str:
     """Idempotently upsert the ``mcpServers`` entry into a JSON config file.
 
+    ``entry`` replaces the whole payload, upgrading any previous bare entry
+    in place; when omitted the standard :data:`SERVER_ENTRY` is written.
     Preserves every other key and server; returns a one-line status message.
     """
+    server_entry = dict(SERVER_ENTRY) if entry is None else dict(entry)
     data = _read_json(path)
     data.setdefault("mcpServers", {})
-    data["mcpServers"][SERVER_NAME] = dict(SERVER_ENTRY)
+    data["mcpServers"][SERVER_NAME] = server_entry
     _write_json(path, data)
-    return f"wrote {path}: mcpServers.{SERVER_NAME} = {SERVER_ENTRY_JSON}"
+    return (
+        f"wrote {path}: mcpServers.{SERVER_NAME} = {json.dumps(server_entry)}"
+    )
 
 
 def install_skill(home: Path, skill_dir: str) -> tuple[bool, str]:
@@ -273,7 +201,9 @@ def _connect_one(
         )
         messages.append(message)
     else:
-        registered, message = "json", upsert_server(root / harness.mcp_file)
+        registered, message = "json", upsert_server(
+            root / harness.mcp_file, harness.server_entry
+        )
         messages.append(message)
 
     skill_ok, skill_path = install_skill(root, harness.skill_dir)

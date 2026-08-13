@@ -220,6 +220,7 @@ another_brain/
   domain/timeline.py        epoch ms -> YYYY-MM-DD diary day
   retrieval/               query, lexical, vector, fusion, service
   services/memory_service.py  use cases over the Protocols
+  services/harness/        connect: harnesses.yaml data + registry/service
   mcp/tools.py              the eight brain_* tools (thin adapter)
   mcp/server.py             runtime assembly, stdio + loopback HTTP
   services/sql/             connection, migrations, schema, repository,

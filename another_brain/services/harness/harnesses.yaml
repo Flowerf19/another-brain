@@ -1,0 +1,53 @@
+# Harness registry — the single editable source for `another-brain connect`.
+# Loaded by registry.py at import; shipped inside the wheel so the installed
+# tool alone can set up any harness. Pure data: all paths are home-relative,
+# identical on Linux, macOS, and Windows.
+#
+# detect_dir      the ~/.<name> dotdir that proves a harness is installed
+# skill_dir       where the bundled SKILL.md is copied
+# mcp_file        the config file that receives the mcpServers entry
+# cli             optional native CLI that owns the harness's MCP config
+#                 (registered through it when present, manual snippet otherwise)
+# manual          the paste-this snippet when no CLI is found; must be written
+#                 in mcp_file's own language — JSON everywhere except codex's
+#                 config.toml, which is TOML
+# server_entry    optional override of the mcpServers payload; pi needs
+#                 toolPrefix: "none" so its adapter exposes the bare brain_*
+#                 names instead of another_brain_brain_*
+harnesses:
+  - name: claude-code
+    detect_dir: .claude
+    skill_dir: .claude/skills
+    mcp_file: .claude.json
+    cli: claude
+
+  - name: codex
+    detect_dir: .codex
+    skill_dir: .codex/skills
+    mcp_file: .codex/config.toml
+    cli: codex
+    manual: |
+      [mcp_servers.another-brain]
+      command = "another-brain"
+
+  - name: cursor
+    detect_dir: .cursor
+    skill_dir: .cursor/skills
+    mcp_file: .cursor/mcp.json
+
+  - name: gemini-cli
+    detect_dir: .gemini
+    skill_dir: .gemini/skills
+    mcp_file: .gemini/settings.json
+
+  # Pi has no built-in MCP; the pi-mcp-adapter extension reads the shared
+  # global config ~/.config/mcp/mcp.json in every project, so that is the
+  # registration target. Pi's adapter prefixes tools with the server name
+  # unless the entry opts out, so this row carries the bare-name override.
+  - name: pi
+    detect_dir: .pi
+    skill_dir: .pi/agent/skills
+    mcp_file: .config/mcp/mcp.json
+    server_entry:
+      command: another-brain
+      toolPrefix: none

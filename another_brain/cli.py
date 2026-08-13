@@ -403,7 +403,7 @@ def _cmd_connect(args: argparse.Namespace, config: AppConfig) -> int:
     Exit codes: ``EXIT_ERROR`` on an unknown harness or any per-harness
     failure; all failures are reported before returning.
     """
-    from another_brain.services.harness_connect import (
+    from another_brain.services.harness import (
         UnknownHarnessError,
         connect,
         detect_harnesses,
@@ -459,7 +459,7 @@ def _cmd_setup(config: AppConfig) -> int:
     if status != EXIT_OK:
         return status
 
-    from another_brain.services.harness_connect import detect_harnesses, known_harnesses
+    from another_brain.services.harness import detect_harnesses, known_harnesses
 
     detected = detect_harnesses()
     if not detected:

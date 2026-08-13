@@ -40,6 +40,8 @@ dependencies = [
     # ZoneInfo("UTC") raises and AppConfig exits EXIT_CONFIG. Pure-data wheel.
     "tzdata>=2024.1; sys_platform == 'win32'",
     "filelock>=3.16,<4",
+    # Harness registry config (harness_connect) ships as YAML data.
+    "pyyaml>=6,<7",
 ]
 
 [project.urls]
@@ -62,7 +64,9 @@ packages = ["another_brain"]
 # Bundle the skill inside the wheel (TASK-093): `another-brain connect` installs
 # the skill from importlib.resources, so no repo clone or Node/npx is needed.
 # skills/another-brain/ stays the single editable source; this is a force-include
-# only — nothing is copied into the source tree.
+# only — nothing is copied into the source tree. The harness registry YAML
+# lives inside the another_brain/services/harness package, so hatchling bundles
+# it automatically.
 force-include = { "skills/another-brain" = "another_brain/skill" }
 
 [tool.hatch.build.targets.sdist]

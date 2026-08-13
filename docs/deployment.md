@@ -63,8 +63,11 @@ For each named harness the command does two idempotent things:
    registered through that CLI; the rest get an upsert into their well-known
    config file (`~/.cursor/mcp.json`, `~/.gemini/settings.json`,
    `~/.config/mcp/mcp.json` for pi), preserving every other key and server.
-   If a harness's CLI is not on PATH, the command prints the exact entry to
-   add by hand and exits nonzero instead of failing silently.
+   Pi's entry is the only one with `toolPrefix: "none"` — its adapter would
+   otherwise expose `another_brain_brain_remember`-style names, and the
+   override keeps the bare `brain_*` wire names. If a harness's CLI is not
+   on PATH, the command prints the exact entry to add by hand and exits
+   nonzero instead of failing silently.
 2. **Installs the skill** into the harness's skills directory
    (`~/.claude/skills/another-brain/` and equivalents), from the copy bundled
    inside the wheel. Re-runs replace the previous copy rather than nesting.
@@ -73,9 +76,12 @@ For each named harness the command does two idempotent things:
 $ another-brain connect cursor pi
 wrote ~/.cursor/mcp.json: mcpServers.another-brain = {"command": "another-brain"}
 installed the skill for cursor -> ~/.cursor/skills/another-brain
-wrote ~/.config/mcp/mcp.json: mcpServers.another-brain = {"command": "another-brain"}
+wrote ~/.config/mcp/mcp.json: mcpServers.another-brain = {"command": "another-brain", "toolPrefix": "none"}
 installed the skill for pi -> ~/.pi/agent/skills/another-brain
 ```
+
+For pi the `toolPrefix: "none"` entry means the agent sees `brain_health`,
+not `another_brain_brain_health`; the MCP wire contract is unchanged.
 
 Restart the harness afterwards so it picks up the new server. `connect` needs
 neither the model nor a database, so it is safe to run immediately after

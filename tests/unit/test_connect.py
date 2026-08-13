@@ -16,10 +16,11 @@ import pytest
 
 from another_brain import cli
 from another_brain.errors import BrainError
-from another_brain.services.harness_connect import (
+from another_brain.services.harness import (
     _HARNESSES,
     MANUAL_JSON,
     MANUAL_TOML,
+    PI_ENTRY,
     SERVER_ENTRY_JSON,
     SKILL_NAME,
     SKILL_RESOURCE_DIR,
@@ -147,6 +148,34 @@ class TestUpsertServer:
         assert data["mcpServers"]["other"] == {"command": "other-tool", "args": ["-x"]}
         assert data["mcpServers"]["another-brain"] == {"command": "another-brain"}
 
+    def test_custom_entry_replaces_previous_payload(self, fake_home):
+        """A custom entry overwrites a pre-existing bare entry in place."""
+        target = fake_home / ".config" / "mcp" / "mcp.json"
+        self._write(
+            target,
+            {
+                "mcpServers": {
+                    "another-brain": {"command": "another-brain"},
+                    "keep": {"command": "k"},
+                },
+            },
+        )
+        message = upsert_server(target, PI_ENTRY)
+        data = json.loads(target.read_text())
+        assert data["mcpServers"]["another-brain"] == PI_ENTRY
+        assert data["mcpServers"]["keep"] == {"command": "k"}
+        assert message == (
+            f"wrote {target}: mcpServers.another-brain = "
+            f"{json.dumps(PI_ENTRY)}"
+        )
+
+    def test_custom_entry_idempotent(self, fake_home):
+        target = fake_home / ".config" / "mcp" / "mcp.json"
+        upsert_server(target, PI_ENTRY)
+        upsert_server(target, PI_ENTRY)
+        data = json.loads(target.read_text())
+        assert data == {"mcpServers": {"another-brain": PI_ENTRY}}
+
     def test_idempotent(self, fake_home):
         target = fake_home / ".cursor" / "mcp.json"
         upsert_server(target)
@@ -203,7 +232,7 @@ class TestConnect:
 
     def test_claude_without_cli_returns_manual_result(self, fake_home, monkeypatch):
         monkeypatch.setattr(
-            "another_brain.services.harness_connect.shutil.which", lambda _: None
+            "another_brain.services.harness.service.shutil.which", lambda _: None
         )
         (fake_home / ".claude").mkdir()
         result = connect(["claude-code"], home=fake_home)[0]
@@ -217,7 +246,7 @@ class TestConnect:
 
     def test_codex_without_cli_returns_manual_result(self, fake_home, monkeypatch):
         monkeypatch.setattr(
-            "another_brain.services.harness_connect.shutil.which", lambda _: None
+            "another_brain.services.harness.service.shutil.which", lambda _: None
         )
         (fake_home / ".codex").mkdir()
         result = connect(["codex"], home=fake_home)[0]
@@ -227,7 +256,7 @@ class TestConnect:
     def test_codex_manual_snippet_is_toml_not_json(self, fake_home, monkeypatch):
         """codex's config.toml cannot take an mcpServers JSON object."""
         monkeypatch.setattr(
-            "another_brain.services.harness_connect.shutil.which", lambda _: None
+            "another_brain.services.harness.service.shutil.which", lambda _: None
         )
         (fake_home / ".codex").mkdir()
         result = connect(["codex"], home=fake_home)[0]
@@ -259,7 +288,7 @@ class TestConnect:
 
     def test_claude_with_cli_registers_stdio_and_skill(self, fake_home, monkeypatch):
         monkeypatch.setattr(
-            "another_brain.services.harness_connect.shutil.which", lambda _: "/usr/bin/claude"
+            "another_brain.services.harness.service.shutil.which", lambda _: "/usr/bin/claude"
         )
         runner = FakeRunner()
         (fake_home / ".claude").mkdir()
@@ -274,7 +303,7 @@ class TestConnect:
 
     def test_claude_already_exists_removes_then_readds(self, fake_home, monkeypatch):
         monkeypatch.setattr(
-            "another_brain.services.harness_connect.shutil.which", lambda _: "/usr/bin/claude"
+            "another_brain.services.harness.service.shutil.which", lambda _: "/usr/bin/claude"
         )
         runner = FakeRunner(stdout="MCP server another-brain already exists in user config")
         (fake_home / ".claude").mkdir()
@@ -289,7 +318,7 @@ class TestConnect:
 
     def test_codex_registers_via_cli(self, fake_home, monkeypatch):
         monkeypatch.setattr(
-            "another_brain.services.harness_connect.shutil.which", lambda _: "/usr/bin/codex"
+            "another_brain.services.harness.service.shutil.which", lambda _: "/usr/bin/codex"
         )
         runner = FakeRunner()
         (fake_home / ".codex").mkdir()
@@ -302,7 +331,7 @@ class TestConnect:
 
     def test_cli_failure_raises(self, fake_home, monkeypatch):
         monkeypatch.setattr(
-            "another_brain.services.harness_connect.shutil.which", lambda _: "/usr/bin/claude"
+            "another_brain.services.harness.service.shutil.which", lambda _: "/usr/bin/claude"
         )
         runner = FakeRunner(rc=1, stdout="boom")
         (fake_home / ".claude").mkdir()
@@ -334,8 +363,53 @@ class TestConnect:
         }
         pi_file = fake_home / ".config" / "mcp" / "mcp.json"
         assert json.loads(pi_file.read_text())["mcpServers"]["another-brain"] == {
-            "command": "another-brain"
+            "command": "another-brain",
+            "toolPrefix": "none",
         }
+
+    def test_pi_writes_prefix_none_and_others_stay_bare(self, fake_home):
+        """TASK-002: only pi carries toolPrefix; the other four registrations
+        keep the exact bare entry, both via upsert and via manual snippet.
+        """
+        for name in ("cursor", "gemini-cli", "pi"):
+            (fake_home / {
+                "cursor": ".cursor",
+                "gemini-cli": ".gemini",
+                "pi": ".pi",
+            }[name]).mkdir()
+        connect(["cursor", "gemini-cli", "pi"], home=fake_home)
+        for name, path in (
+            ("cursor", fake_home / ".cursor" / "mcp.json"),
+            ("gemini-cli", fake_home / ".gemini" / "settings.json"),
+            ("pi", fake_home / ".config" / "mcp" / "mcp.json"),
+        ):
+            entry = json.loads(path.read_text())["mcpServers"]["another-brain"]
+            expected = PI_ENTRY if name == "pi" else {"command": "another-brain"}
+            assert entry == expected
+
+    def test_pi_upgrade_overwrites_existing_bare_entry_in_place(
+        self, fake_home
+    ):
+        """TASK-002: reconnecting pi replaces an old bare entry — no leftover
+        keys, and unrelated servers survive.
+        """
+        pi_file = fake_home / ".config" / "mcp" / "mcp.json"
+        pi_file.parent.mkdir(parents=True)
+        pi_file.write_text(json.dumps({
+            "mcpServers": {
+                "another-brain": {"command": "another-brain"},
+                "other": {"command": "x"},
+            },
+        }) + "\n")
+        (fake_home / ".pi").mkdir()
+        result = connect(["pi"], home=fake_home)[0]
+        assert result.registered == "json"
+        data = json.loads(pi_file.read_text())
+        assert data["mcpServers"]["another-brain"] == {
+            "command": "another-brain",
+            "toolPrefix": "none",
+        }
+        assert data["mcpServers"]["other"] == {"command": "x"}
 
 
 # -------------------------------------------------------------------- CLI
@@ -368,7 +442,7 @@ class TestCliConnect:
 
     def test_manual_registration_is_stderr_and_error(self, fake_home, monkeypatch, capsys):
         monkeypatch.setattr(
-            "another_brain.services.harness_connect.shutil.which", lambda _: None
+            "another_brain.services.harness.service.shutil.which", lambda _: None
         )
         (fake_home / ".claude").mkdir()
         assert cli.main(["connect", "claude-code"]) == cli.EXIT_ERROR
