@@ -27,7 +27,7 @@ classifiers = [
 requires-python = ">=3.12"
 # Locked ranges (Plan 07 TASK-037); exact versions resolve in uv.lock.
 dependencies = [
-    "mcp>=2.0,<2.1",
+    "mcp>=2.0,<2.3",
     "onnxruntime>=1.28,<1.29",
     "tokenizers>=0.23,<0.24",
     "numpy>=2.1,<3",
